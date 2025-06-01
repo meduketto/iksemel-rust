@@ -2,7 +2,7 @@
 
 https://github.com/meduketto/iksemel-rust
 
-Copyright (c) 2000-2024 Gurer Ozen <meduketto at gmail.com>
+Copyright (c) 2000-2025 Gurer Ozen <meduketto at gmail.com>
 
 # License
 
