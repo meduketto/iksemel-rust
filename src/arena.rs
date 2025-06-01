@@ -20,9 +20,11 @@ pub struct Arena {
 struct ArenaInfo {
     allocated: usize,
     nr_allocations: u32,
-    node: *mut ArenaChunk,
-    data: *mut ArenaChunk,
-    _pin: PhantomPinned,  // Arena has a raw pointer to this struct
+    node_chunk: *mut ArenaChunk,
+    data_chunk: *mut ArenaChunk,
+
+    // Arena has a raw pointer to this struct
+    _pin: PhantomPinned,
 }
 
 struct ArenaChunk {
@@ -31,12 +33,13 @@ struct ArenaChunk {
     used: usize,
     last: usize,
     mem: *mut u8,
-    _pin: PhantomPinned,  // ArenaInfo has raw pointers to this struct
+
+    // ArenaInfo and ArenaChunk has raw pointers to this struct
+    _pin: PhantomPinned,
 }
 
 
 // use Layout for size
-// fix return type
 // unsafe?
 // mark allocations on the arena
 impl ArenaChunk {
@@ -108,16 +111,16 @@ impl Arena {
                 handle_alloc_error(info_layout);
             }
             info = ptr as *mut ArenaInfo;
-            (*info).allocated = 0;
+            (*info).allocated = info_layout.size();
             (*info).nr_allocations = 1;
 
             let node_ptr = ptr.byte_add(node_offset);
             let node = node_ptr as *mut ArenaChunk;
-            (*info).node = node;
+            (*info).node_chunk = node;
 
             let data_ptr = ptr.byte_add(data_offset);
             let data = data_ptr as *mut ArenaChunk;
-            (*info).data = data;
+            (*info).data_chunk = data;
 
             let node_buf_ptr = ptr.byte_add(node_buf_offset);
             (*node).next = null_mut();
@@ -142,24 +145,88 @@ impl Arena {
     pub fn alloc(self: &mut Arena, layout: Layout) -> *mut u8 {
     unsafe {
         let size = layout.size();
-        let chunk = (*(*self.info).node).find_chunk(size);
+        let chunk = (*(*self.info).node_chunk).find_chunk(size);
         (*chunk).used += size;
         return (*chunk).mem.byte_add(size);
 }
     }
 
+
+    pub fn push_str(&mut self, s: &str) -> &str {
+        unsafe {
+            let size = s.len();
+            let chunk = (*(*self.info).data_chunk).find_chunk(size);
+            (*chunk).used += size;
+            let p = (*chunk).mem.byte_add((*chunk).used);
+            std::ptr::copy_nonoverlapping(s.as_ptr(), p, size);
+            let r = std::slice::from_raw_parts(p, size);
+            return std::str::from_utf8_unchecked(r);
+        }
+    }
+
 /*
-    fn push_str(&mut self, &s: str) -> &str {
-    
-    }
-
-    fn push_str(&mut self, &s: str, &old_s: str) -> &str {
+    pub fn push_str(&mut self, &s: str, &old_s: str) -> &str {
 
     }
 
-    fn stats();
 */
 
+    pub fn nr_allocations(&self) -> u32 {
+        unsafe {
+            return (*self.info).nr_allocations;
+        }
+    }
 
+    pub fn nr_total_bytes(&self) -> usize {
+        unsafe {
+            return (*self.info).allocated;
+        }
+    }
+
+}
+
+
+
+
+
+
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const CHARS: &str = "1234567890abcdefghijklmnopqrstuv";
+
+    #[test]
+    fn it_works() {
+        let mut arena = Arena::new();
+        assert_eq!(arena.nr_allocations(), 1);
+        assert!(arena.nr_total_bytes() > 0);
+
+        let s = arena.push_str("test");
+        assert_eq!(s, "test");
+    }
+
+    #[test]
+    fn many_pushes() {
+        let mut arena = Arena::new();
+
+        for i in 0..1000 {
+            for j in 0..CHARS.len() {
+                arena.push_str(&CHARS[..j]);
+            }
+        }
+        assert!(arena.nr_allocations() > 1);
+    }
+
+    #[test]
+    fn many_1char_pushes() {
+        let mut arena = Arena::new();
+
+        for i in 0..10000 {
+            arena.push_str("+");
+        }
+    }
 
 }
