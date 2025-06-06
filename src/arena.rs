@@ -36,7 +36,6 @@ struct ArenaChunk {
     size: usize,
     used: usize,
     last: *mut u8,
-    last_size: usize,
     mem: *mut u8,
 
     // ArenaInfo and ArenaChunk has raw pointers to this struct
@@ -50,7 +49,6 @@ impl ArenaChunk {
         self.size = size;
         self.used = 0;
         self.last = ptr;
-        self.last_size = 0;
         self.mem = ptr;
     }
 
@@ -58,47 +56,49 @@ impl ArenaChunk {
         return size < self.size && self.used + size <= self.size
     }
 
-    pub fn make_space(self: &mut ArenaChunk, info: &mut ArenaInfo, size: usize) -> *mut ArenaChunk {
-unsafe {
-        let mut current: *mut ArenaChunk = self;
+    fn make_space(self: &mut ArenaChunk, info: &mut ArenaInfo, size: usize) -> *mut ArenaChunk {
         let mut expected_next_size = self.size;
-        loop {
-            if (*current).has_space(size) {
-                // If I fits, I sits
-                return current;
-            }
-            expected_next_size *= 2;
-            if (*current).next.is_null() {
-                let data_size = cmp::max(expected_next_size, size);
-                let chunk_layout = Layout::new::<ArenaChunk>();
-                let (data_layout, data_offset) = chunk_layout.extend(Layout::array::<u8>(data_size).unwrap()).unwrap();
-                let new_layout = data_layout.pad_to_align();
+        let mut current: *mut ArenaChunk = self;
+        unsafe {
+            loop {
+                if (*current).has_space(size) {
+                    // If I fits, I sits
+                    return current;
+                }
+                expected_next_size *= 2;
+                if (*current).next.is_null() {
+                    let data_size = cmp::max(expected_next_size, size);
+                    let chunk_layout = Layout::new::<ArenaChunk>();
+                    let (data_layout, data_offset) = chunk_layout.extend(Layout::array::<u8>(data_size).unwrap()).unwrap();
+                    let new_layout = data_layout.pad_to_align();
 
-                let chunk;
                     let ptr = alloc(new_layout);
                     if ptr.is_null() {
                         handle_alloc_error(new_layout);
                     }
                     info.nr_allocations += 1;
                     info.nr_allocated_bytes += new_layout.size();
-                    chunk = ptr as *mut ArenaChunk;
+
+                    let chunk = ptr as *mut ArenaChunk;
                     (*chunk).raw_init(ptr.byte_add(data_offset), data_size);
-                (*current).next = chunk;
+                    (*current).next = chunk;
+                }
+                current = (*current).next;
             }
-            current = (*current).next;
         }
     }
-    }
 
-    pub fn find_adjacent_space(self: &mut ArenaChunk, old_p: *const u8, old_size: usize, size: usize) -> Option<*mut ArenaChunk> {
-
+    fn find_adjacent_space(self: &mut ArenaChunk, old_p: *const u8, old_size: usize, size: usize) -> Option<*mut ArenaChunk> {
+        let mut current: *mut ArenaChunk = self;
         unsafe {
-            let mut current: *mut ArenaChunk = self;
             loop {
-                if old_p == (*current).last && old_size == (*current).last_size {
-                    if (*current).has_space(size) {
+                if old_p == (*current).last {
+                    let chunk_end = (*current).mem.byte_add((*current).used);
+                    let old_end = old_p.byte_add(old_size);
+                    if std::ptr::addr_eq(chunk_end, old_end) && (*current).has_space(size) {
                         return Some(current);
                     }
+                    return None;
                 }
                 if (*current).next.is_null() {
                     return None;
@@ -182,7 +182,6 @@ impl Arena {
             let chunk = (*info.data_chunk).make_space(info, size);
             let p = (*chunk).mem.byte_add((*chunk).used);
             (*chunk).last = p;
-            (*chunk).last_size = size;
             (*chunk).used += size;
             std::ptr::copy_nonoverlapping(s.as_ptr(), p, size);
             let r = std::slice::from_raw_parts(p, size);
@@ -197,7 +196,6 @@ impl Arena {
             let chunk = (*info.data_chunk).make_space(info, size);
             let p = (*chunk).mem.byte_add((*chunk).used);
             (*chunk).last = p;
-            (*chunk).last_size = size;
             (*chunk).used += size;
             std::ptr::copy_nonoverlapping(s.as_ptr(), p, size);
             let r = std::slice::from_raw_parts(p, size);
@@ -213,7 +211,6 @@ impl Arena {
                 // Enough space to extend the str
                 let p = (*chunk).mem.byte_add((*chunk).used);
                 (*chunk).used += s.len();
-                (*chunk).last_size = old_s.len() + s.len();
                 std::ptr::copy_nonoverlapping(s.as_ptr(), p, s.len());
                 let r = std::slice::from_raw_parts(old_s.as_ptr(), old_s.len() + s.len());
                 return std::str::from_utf8_unchecked(r);
@@ -221,7 +218,6 @@ impl Arena {
                 let chunk = (*data_chunk).make_space(info, old_s.len() + s.len());
                 let p = (*chunk).mem.byte_add((*chunk).used);
                 (*chunk).last = p;
-                (*chunk).last_size = old_s.len() + s.len();
                 (*chunk).used += old_s.len() + s.len();
                 std::ptr::copy_nonoverlapping(old_s.as_ptr(), p, old_s.len());
                 let p2 = p.byte_add(old_s.len());
@@ -231,8 +227,6 @@ impl Arena {
             }
         }
     }
-
-
 
     pub fn nr_allocations(&self) -> u32 {
         unsafe {
@@ -245,7 +239,6 @@ impl Arena {
             return (*self.info).nr_allocated_bytes;
         }
     }
-
 }
 
 
@@ -303,6 +296,26 @@ mod tests {
     }
 
     #[test]
+    fn concats_from_same_base() {
+        let mut arena = Arena::new();
+        let mut s = arena.push_str("lala");
+
+        let s2 = arena.concat_str(s, "bibi");
+        let s3 = arena.concat_str(s, "foo");
+
+        let s4 = arena.concat_str(s3, "123");
+        let s5 = arena.concat_str(s4, "abc");
+        let s6 = arena.concat_str(s2, "123");
+
+        assert_eq!(s, "lala");
+        assert_eq!(s2, "lalabibi");
+        assert_eq!(s3, "lalafoo");
+        assert_eq!(s4, "lalafoo123");
+        assert_eq!(s5, "lalafoo123abc");
+        assert_eq!(s6, "lalabibi123");
+    }
+
+    #[test]
     fn many_1char_concats() {
         let mut arena = Arena::new();
         let mut s = arena.push_str("");
@@ -318,9 +331,8 @@ mod tests {
 }
 
 
-// FIXME: deal with last_size concat problem
 // FIXME: ensure &str return lifetimes + bad tests dont compile
 
-// FIXME: make_space unsafe reduction and format
+// FIXME: sizing units in with_sizes
 // FIXME: more unittests
 // FIXME: docs
