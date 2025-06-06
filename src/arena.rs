@@ -22,7 +22,7 @@ pub struct Arena {
 }
 
 struct ArenaInfo {
-    allocated: usize,
+    nr_allocated_bytes: usize,
     nr_allocations: u32,
     node_chunk: *mut ArenaChunk,
     data_chunk: *mut ArenaChunk,
@@ -58,7 +58,7 @@ impl ArenaChunk {
         return size < self.size && self.used + size <= self.size
     }
 
-    pub fn make_space(self: &mut ArenaChunk, size: usize) -> *mut ArenaChunk {
+    pub fn make_space(self: &mut ArenaChunk, info: &mut ArenaInfo, size: usize) -> *mut ArenaChunk {
 unsafe {
         let mut current: *mut ArenaChunk = self;
         let mut expected_next_size = self.size;
@@ -75,14 +75,14 @@ unsafe {
                 let new_layout = data_layout.pad_to_align();
 
                 let chunk;
-                unsafe {
                     let ptr = alloc(new_layout);
                     if ptr.is_null() {
                         handle_alloc_error(new_layout);
                     }
+                    info.nr_allocations += 1;
+                    info.nr_allocated_bytes += new_layout.size();
                     chunk = ptr as *mut ArenaChunk;
                     (*chunk).raw_init(ptr.byte_add(data_offset), data_size);
-                }
                 (*current).next = chunk;
             }
             current = (*current).next;
@@ -142,7 +142,7 @@ impl Arena {
                 handle_alloc_error(info_layout);
             }
             info = ptr as *mut ArenaInfo;
-            (*info).allocated = info_layout.size();
+            (*info).nr_allocated_bytes = info_layout.size();
             (*info).nr_allocations = 1;
 
             let node_ptr = ptr.byte_add(node_offset);
@@ -168,16 +168,33 @@ impl Arena {
     pub fn alloc(self: &mut Arena, layout: Layout) -> *mut u8 {
         let size = layout.size();
         unsafe {
-            let chunk = (*(*self.info).node_chunk).make_space(size);
+            let info = &mut *self.info;
+            let chunk = (*info.node_chunk).make_space(info, size);
             (*chunk).used += size;
             return (*chunk).mem.byte_add(size);
+        }
+    }
+
+    pub fn gurer<'a,'b,'c>(&'a mut self, s: &'b str, _: *const u8) -> &'a str {
+        let size = s.len();
+        unsafe {
+            let info = &mut *self.info;
+            let chunk = (*info.data_chunk).make_space(info, size);
+            let p = (*chunk).mem.byte_add((*chunk).used);
+            (*chunk).last = p;
+            (*chunk).last_size = size;
+            (*chunk).used += size;
+            std::ptr::copy_nonoverlapping(s.as_ptr(), p, size);
+            let r = std::slice::from_raw_parts(p, size);
+            return std::str::from_utf8_unchecked(r);
         }
     }
 
     pub fn push_str<'a, 'b, 'c>(&'a mut self, s: &'b str) -> &'c str {
         let size = s.len();
         unsafe {
-            let chunk = (*(*self.info).data_chunk).make_space(size);
+            let info = &mut *self.info;
+            let chunk = (*info.data_chunk).make_space(info, size);
             let p = (*chunk).mem.byte_add((*chunk).used);
             (*chunk).last = p;
             (*chunk).last_size = size;
@@ -190,7 +207,8 @@ impl Arena {
 
     pub fn concat_str<'a,'b,'c,'d>(&'a mut self, old_s: &'b str, s: &'c str) -> &'d str {
         unsafe {
-            let mut data_chunk = (*self.info).data_chunk;
+            let info = &mut *self.info;
+            let mut data_chunk = info.data_chunk;
             if let Some(chunk) = (*data_chunk).find_adjacent_space(old_s.as_ptr(), old_s.len(), s.len()) {
                 // Enough space to extend the str
                 let p = (*chunk).mem.byte_add((*chunk).used);
@@ -200,7 +218,7 @@ impl Arena {
                 let r = std::slice::from_raw_parts(old_s.as_ptr(), old_s.len() + s.len());
                 return std::str::from_utf8_unchecked(r);
             } else {
-                let chunk = (*data_chunk).make_space(old_s.len() + s.len());
+                let chunk = (*data_chunk).make_space(info, old_s.len() + s.len());
                 let p = (*chunk).mem.byte_add((*chunk).used);
                 (*chunk).last = p;
                 (*chunk).last_size = old_s.len() + s.len();
@@ -222,9 +240,9 @@ impl Arena {
         }
     }
 
-    pub fn nr_total_bytes(&self) -> usize {
+    pub fn nr_allocated_bytes(&self) -> usize {
         unsafe {
-            return (*self.info).allocated;
+            return (*self.info).nr_allocated_bytes;
         }
     }
 
@@ -247,7 +265,12 @@ mod tests {
     fn it_works() {
         let mut arena = Arena::new();
         assert_eq!(arena.nr_allocations(), 1);
-        assert!(arena.nr_total_bytes() > 0);
+        assert!(arena.nr_allocated_bytes() > 0);
+
+        let s1 = arena.gurer("lala", "lala".as_ptr());
+        let x = s1.as_ptr();
+        let s2 = arena.gurer("bibi",x);
+        let s2 = arena.gurer("bibi",x);
 
         let s = arena.push_str("test");
         assert_eq!(s, "test");
@@ -259,14 +282,15 @@ mod tests {
     #[test]
     fn many_pushes() {
         let mut arena = Arena::new();
+        let old_bytes = arena.nr_allocated_bytes();
 
         for _ in 0..1000 {
             for j in 0..CHARS.len() {
                 arena.push_str(&CHARS[..j]);
             }
         }
-        // FIXME: enable
-        //assert!(arena.nr_allocations() > 1);
+        assert!(arena.nr_allocations() > 1);
+        assert!(arena.nr_allocated_bytes() > old_bytes);
     }
 
     #[test]
@@ -298,6 +322,5 @@ mod tests {
 // FIXME: ensure &str return lifetimes + bad tests dont compile
 
 // FIXME: make_space unsafe reduction and format
-// FIXME: mark allocations on the arena + enable test above
 // FIXME: more unittests
 // FIXME: docs
