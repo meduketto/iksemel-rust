@@ -8,9 +8,10 @@
 ** the License, or (at your option) any later version.
 */
 
-use std::alloc::{alloc, handle_alloc_error, Layout};
+use std::alloc::{alloc, dealloc, handle_alloc_error, Layout};
+use std::cell::UnsafeCell;
 use std::cmp;
-use std::marker::PhantomPinned;
+use std::marker::{PhantomData, PhantomPinned};
 use std::ptr::null_mut;
 
 const MIN_NODE_WORDS: usize = 32;
@@ -18,7 +19,7 @@ const MIN_NODE_WORDS: usize = 32;
 const MIN_DATA_BYTES: usize = 256;
 
 pub struct Arena {
-    info: *mut ArenaInfo,
+    info: UnsafeCell<*mut ArenaInfo>,
 }
 
 struct ArenaInfo {
@@ -41,10 +42,19 @@ struct ArenaChunk {
     // ArenaInfo and ArenaChunk has raw pointers to this struct
     _pin: PhantomPinned,
 }
-
-
+/*
+impl std::fmt::Display for ArenaStr<'_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        unsafe {
+            let r = std::slice::from_raw_parts(self.ptr, self.size);
+            let s = std::str::from_utf8_unchecked(r);
+            write!(f, "{}", s)
+        }
+    }
+}
+*/
 impl ArenaChunk {
-    fn raw_init(self: &mut ArenaChunk, ptr: *mut u8, size: usize) -> () {
+    fn raw_init(self: &mut ArenaChunk, ptr: *mut u8, size: usize) {
         self.next = null_mut();
         self.size = size;
         self.used = 0;
@@ -161,24 +171,24 @@ impl Arena {
         }
 
         Arena {
-            info: info,
+            info: info.into(),
         }
     }
 
-    pub fn alloc(self: &mut Arena, layout: Layout) -> *mut u8 {
+    pub fn alloc(&self, layout: Layout) -> *mut u8 {
         let size = layout.size();
         unsafe {
-            let info = &mut *self.info;
+            let info = &mut **self.info.get();
             let chunk = (*info.node_chunk).make_space(info, size);
             (*chunk).used += size;
             return (*chunk).mem.byte_add(size);
         }
     }
 
-    pub fn gurer<'a,'b,'c>(&'a mut self, s: &'b str, _: *const u8) -> &'a str {
+    pub fn push_str<'a, 'b>(&'a self, s: &'b str) -> &'a str {
         let size = s.len();
         unsafe {
-            let info = &mut *self.info;
+            let info = &mut **self.info.get();
             let chunk = (*info.data_chunk).make_space(info, size);
             let p = (*chunk).mem.byte_add((*chunk).used);
             (*chunk).last = p;
@@ -189,24 +199,10 @@ impl Arena {
         }
     }
 
-    pub fn push_str<'a, 'b, 'c>(&'a mut self, s: &'b str) -> &'c str {
-        let size = s.len();
+    pub fn concat_str<'a,'b,'c>(&'a self, old_s: &'b str, s: &'c str) -> &'a str {
         unsafe {
-            let info = &mut *self.info;
-            let chunk = (*info.data_chunk).make_space(info, size);
-            let p = (*chunk).mem.byte_add((*chunk).used);
-            (*chunk).last = p;
-            (*chunk).used += size;
-            std::ptr::copy_nonoverlapping(s.as_ptr(), p, size);
-            let r = std::slice::from_raw_parts(p, size);
-            return std::str::from_utf8_unchecked(r);
-        }
-    }
-
-    pub fn concat_str<'a,'b,'c,'d>(&'a mut self, old_s: &'b str, s: &'c str) -> &'d str {
-        unsafe {
-            let info = &mut *self.info;
-            let mut data_chunk = info.data_chunk;
+            let info = &mut **self.info.get();
+            let data_chunk = info.data_chunk;
             if let Some(chunk) = (*data_chunk).find_adjacent_space(old_s.as_ptr(), old_s.len(), s.len()) {
                 // Enough space to extend the str
                 let p = (*chunk).mem.byte_add((*chunk).used);
@@ -230,17 +226,39 @@ impl Arena {
 
     pub fn nr_allocations(&self) -> u32 {
         unsafe {
-            return (*self.info).nr_allocations;
+            let info = &mut **self.info.get();
+            return (*info).nr_allocations;
         }
     }
 
     pub fn nr_allocated_bytes(&self) -> usize {
         unsafe {
-            return (*self.info).nr_allocated_bytes;
+            let info = &mut **self.info.get();
+            return (*info).nr_allocated_bytes;
         }
     }
 }
 
+impl Drop for Arena {
+    fn drop(&mut self) {
+        println!("dropping arena");
+        unsafe {
+            let info = &mut **self.info.get_mut();
+            let mut chunk = (*info).node_chunk;
+            while !chunk.is_null() {
+                let next = (*chunk).next;
+                (*chunk).mem.write_bytes(0, (*chunk).size);
+                chunk = next;
+            }
+            let mut chunk = (*info).data_chunk;
+            while !chunk.is_null() {
+                let next = (*chunk).next;
+                (*chunk).mem.write_bytes(0, (*chunk).size);
+                chunk = next;
+            }
+        }
+    }
+}
 
 
 
@@ -256,14 +274,9 @@ mod tests {
 
     #[test]
     fn it_works() {
-        let mut arena = Arena::new();
+        let arena = Arena::new();
         assert_eq!(arena.nr_allocations(), 1);
         assert!(arena.nr_allocated_bytes() > 0);
-
-        let s1 = arena.gurer("lala", "lala".as_ptr());
-        let x = s1.as_ptr();
-        let s2 = arena.gurer("bibi",x);
-        let s2 = arena.gurer("bibi",x);
 
         let s = arena.push_str("test");
         assert_eq!(s, "test");
@@ -274,7 +287,7 @@ mod tests {
 
     #[test]
     fn many_pushes() {
-        let mut arena = Arena::new();
+        let arena = Arena::new();
         let old_bytes = arena.nr_allocated_bytes();
 
         for _ in 0..1000 {
@@ -288,7 +301,7 @@ mod tests {
 
     #[test]
     fn many_1char_pushes() {
-        let mut arena = Arena::new();
+        let arena = Arena::new();
 
         for _ in 0..10000 {
             arena.push_str("+");
@@ -297,7 +310,7 @@ mod tests {
 
     #[test]
     fn concats_from_same_base() {
-        let mut arena = Arena::new();
+        let arena = Arena::new();
         let mut s = arena.push_str("lala");
 
         let s2 = arena.concat_str(s, "bibi");
@@ -317,7 +330,7 @@ mod tests {
 
     #[test]
     fn many_1char_concats() {
-        let mut arena = Arena::new();
+        let arena = Arena::new();
         let mut s = arena.push_str("");
 
         for i in 0..1000 {
@@ -331,8 +344,11 @@ mod tests {
 }
 
 
-// FIXME: ensure &str return lifetimes + bad tests dont compile
-
+// FIXME: add fmt for Arena
+// FIXME: fix Drop
+// FIXME: test for str bad lifetime shouldnt compile (rustdoc compile_fail)
 // FIXME: sizing units in with_sizes
 // FIXME: more unittests
 // FIXME: docs
+// FIXME: store layout instead of size in chunks?
+// FIXME: non-null opts
