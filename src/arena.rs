@@ -11,7 +11,7 @@
 use std::alloc::{alloc, dealloc, handle_alloc_error, Layout};
 use std::cell::UnsafeCell;
 use std::cmp;
-use std::marker::{PhantomData, PhantomPinned};
+use std::marker::PhantomPinned;
 use std::ptr::null_mut;
 
 const MIN_NODE_WORDS: usize = 32;
@@ -27,6 +27,7 @@ struct ArenaInfo {
     nr_allocations: u32,
     node_chunk: *mut ArenaChunk,
     data_chunk: *mut ArenaChunk,
+    chunk_size: usize,
 
     // Arena has a raw pointer to this struct
     _pin: PhantomPinned,
@@ -38,28 +39,20 @@ struct ArenaChunk {
     used: usize,
     last: *mut u8,
     mem: *mut u8,
+    chunk_size: usize,
 
     // ArenaInfo and ArenaChunk has raw pointers to this struct
     _pin: PhantomPinned,
 }
-/*
-impl std::fmt::Display for ArenaStr<'_> {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        unsafe {
-            let r = std::slice::from_raw_parts(self.ptr, self.size);
-            let s = std::str::from_utf8_unchecked(r);
-            write!(f, "{}", s)
-        }
-    }
-}
-*/
+
 impl ArenaChunk {
-    fn raw_init(self: &mut ArenaChunk, ptr: *mut u8, size: usize) {
+    fn raw_init(self: &mut ArenaChunk, ptr: *mut u8, size: usize, chunk_size: usize) {
         self.next = null_mut();
         self.size = size;
         self.used = 0;
         self.last = ptr;
         self.mem = ptr;
+        self.chunk_size = chunk_size;
     }
 
     fn has_space(self: &mut ArenaChunk, size: usize) -> bool {
@@ -90,7 +83,7 @@ impl ArenaChunk {
                     info.nr_allocated_bytes += new_layout.size();
 
                     let chunk = ptr as *mut ArenaChunk;
-                    (*chunk).raw_init(ptr.byte_add(data_offset), data_size);
+                    (*chunk).raw_init(ptr.byte_add(data_offset), data_size, new_layout.size());
                     (*current).next = chunk;
                 }
                 current = (*current).next;
@@ -154,6 +147,7 @@ impl Arena {
             info = ptr as *mut ArenaInfo;
             (*info).nr_allocated_bytes = info_layout.size();
             (*info).nr_allocations = 1;
+            (*info).chunk_size = info_layout.size();
 
             let node_ptr = ptr.byte_add(node_offset);
             let node = node_ptr as *mut ArenaChunk;
@@ -164,10 +158,10 @@ impl Arena {
             (*info).data_chunk = data;
 
             let node_buf_ptr = ptr.byte_add(node_buf_offset);
-            (*node).raw_init(node_buf_ptr, node_layout.size());
+            (*node).raw_init(node_buf_ptr, node_layout.size(), 0);
 
             let data_buf_ptr = ptr.byte_add(data_buf_offset);
-            (*data).raw_init(data_buf_ptr, data_size);
+            (*data).raw_init(data_buf_ptr, data_size, 0);
         }
 
         Arena {
@@ -241,21 +235,27 @@ impl Arena {
 
 impl Drop for Arena {
     fn drop(&mut self) {
-        println!("dropping arena");
         unsafe {
             let info = &mut **self.info.get_mut();
             let mut chunk = (*info).node_chunk;
             while !chunk.is_null() {
                 let next = (*chunk).next;
-                (*chunk).mem.write_bytes(0, (*chunk).size);
+                let chunk_size = (*chunk).chunk_size;
+                if chunk_size > 0 {
+                    dealloc(chunk as *mut u8, Layout::array::<u8>(chunk_size).unwrap());
+                }
                 chunk = next;
             }
             let mut chunk = (*info).data_chunk;
             while !chunk.is_null() {
                 let next = (*chunk).next;
-                (*chunk).mem.write_bytes(0, (*chunk).size);
+                let chunk_size = (*chunk).chunk_size;
+                if chunk_size > 0 {
+                    dealloc(chunk as *mut u8, Layout::array::<u8>(chunk_size).unwrap());
+                }
                 chunk = next;
             }
+            dealloc(*self.info.get_mut() as *mut u8, Layout::array::<u8>((*info).chunk_size).unwrap());
         }
     }
 }
@@ -311,7 +311,7 @@ mod tests {
     #[test]
     fn concats_from_same_base() {
         let arena = Arena::new();
-        let mut s = arena.push_str("lala");
+        let s = arena.push_str("lala");
 
         let s2 = arena.concat_str(s, "bibi");
         let s3 = arena.concat_str(s, "foo");
@@ -329,6 +329,30 @@ mod tests {
     }
 
     #[test]
+    fn concats_from_non_arena() {
+        let arena = Arena::new();
+
+        let s1 = arena.concat_str("lala", "bibi");
+        let s2 = arena.concat_str(s1, "foo");
+        assert_eq!(s2, "lalabibifoo");
+
+        let s3 = arena.concat_str("pika", s1);
+        assert_eq!(s2, "lalabibifoo");
+        assert_eq!(s3, "pikalalabibi");
+
+        let s4 = arena.concat_str(s3, "123");
+        assert_eq!(s2, "lalabibifoo");
+        assert_eq!(s3, "pikalalabibi");
+        assert_eq!(s4, "pikalalabibi123");
+
+        let s5 = arena.concat_str(s4, s1);
+        assert_eq!(s2, "lalabibifoo");
+        assert_eq!(s3, "pikalalabibi");
+        assert_eq!(s4, "pikalalabibi123");
+        assert_eq!(s5, "pikalalabibi123lalabibi");
+    }
+
+    #[test]
     fn many_1char_concats() {
         let arena = Arena::new();
         let mut s = arena.push_str("");
@@ -341,14 +365,36 @@ mod tests {
         }
     }
 
+    fn old_iksemel_test_step(size: usize) {
+        let arena = Arena::with_chunk_sizes(size, size);
+
+        let mut s = "";
+
+        for i in 0..CHARS.len() {
+            arena.push_str(&CHARS[..i]);
+            // alloc
+            //iks_stack_alloc (s, i);
+            //if (((unsigned long) mem) & ALIGN_MASK) {
+            s = arena.concat_str(s, &CHARS.chars().nth(i).unwrap().to_string())
+        }
+        assert_eq!(s, CHARS);
+    }
+
+    #[test]
+    fn old_iksemel_test() {
+        old_iksemel_test_step(0);
+        old_iksemel_test_step(16);
+        old_iksemel_test_step(237);
+        old_iksemel_test_step(1024);
+    }
+
 }
 
 
-// FIXME: add fmt for Arena
-// FIXME: fix Drop
+// FIXME: alloc alignment
 // FIXME: test for str bad lifetime shouldnt compile (rustdoc compile_fail)
 // FIXME: sizing units in with_sizes
 // FIXME: more unittests
 // FIXME: docs
-// FIXME: store layout instead of size in chunks?
 // FIXME: non-null opts
+// FIXME: use layout instead of usize in chunk sizes

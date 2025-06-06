@@ -51,7 +51,7 @@ struct Attribute {
 
 impl Document {
     pub fn new(root_tag_name: &str) -> Document {
-        let mut arena = Arena::new();
+        let arena = Arena::new();
 
         arena.alloc(Layout::new::<Tag>());
         arena.alloc(Layout::new::<CData>());
