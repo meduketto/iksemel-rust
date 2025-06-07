@@ -8,7 +8,7 @@
 ** the License, or (at your option) any later version.
 */
 
-use std::alloc::{alloc, dealloc, handle_alloc_error, Layout};
+use std::alloc::{Layout, alloc, dealloc, handle_alloc_error};
 use std::cell::UnsafeCell;
 use std::cmp;
 use std::marker::PhantomPinned;
