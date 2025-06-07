@@ -56,7 +56,7 @@ impl ArenaChunk {
     }
 
     fn has_space(self: &mut ArenaChunk, size: usize) -> bool {
-        return size < self.size && self.used + size <= self.size
+        size < self.size && self.used + size <= self.size
     }
 
     fn make_space(self: &mut ArenaChunk, info: &mut ArenaInfo, size: usize) -> *mut ArenaChunk {
@@ -72,7 +72,9 @@ impl ArenaChunk {
                 if (*current).next.is_null() {
                     let data_size = cmp::max(expected_next_size, size);
                     let chunk_layout = Layout::new::<ArenaChunk>();
-                    let (data_layout, data_offset) = chunk_layout.extend(Layout::array::<u8>(data_size).unwrap()).unwrap();
+                    let (data_layout, data_offset) = chunk_layout
+                        .extend(Layout::array::<u8>(data_size).unwrap())
+                        .unwrap();
                     let new_layout = data_layout.pad_to_align();
 
                     let ptr = alloc(new_layout);
@@ -91,7 +93,12 @@ impl ArenaChunk {
         }
     }
 
-    fn find_adjacent_space(self: &mut ArenaChunk, old_p: *const u8, old_size: usize, size: usize) -> Option<*mut ArenaChunk> {
+    fn find_adjacent_space(
+        self: &mut ArenaChunk,
+        old_p: *const u8,
+        old_size: usize,
+        size: usize,
+    ) -> Option<*mut ArenaChunk> {
         let mut current: *mut ArenaChunk = self;
         unsafe {
             loop {
@@ -109,7 +116,6 @@ impl ArenaChunk {
                 current = (*current).next;
             }
         }
-
     }
 }
 
@@ -134,7 +140,9 @@ impl Arena {
         let (info_layout, node_offset) = info_layout.extend(Layout::new::<ArenaChunk>()).unwrap();
         let (info_layout, data_offset) = info_layout.extend(Layout::new::<ArenaChunk>()).unwrap();
         let (info_layout, node_buf_offset) = info_layout.extend(node_layout).unwrap();
-        let (info_layout, data_buf_offset) = info_layout.extend(Layout::array::<u8>(data_size).unwrap()).unwrap();
+        let (info_layout, data_buf_offset) = info_layout
+            .extend(Layout::array::<u8>(data_size).unwrap())
+            .unwrap();
         // Necessary to align the whole block to pointer/usize alignment
         let info_layout = info_layout.pad_to_align();
 
@@ -164,9 +172,7 @@ impl Arena {
             (*data).raw_init(data_buf_ptr, data_size, 0);
         }
 
-        Arena {
-            info: info.into(),
-        }
+        Arena { info: info.into() }
     }
 
     pub fn alloc(&self, layout: Layout) -> *mut u8 {
@@ -193,11 +199,13 @@ impl Arena {
         }
     }
 
-    pub fn concat_str<'a,'b,'c>(&'a self, old_s: &'b str, s: &'c str) -> &'a str {
+    pub fn concat_str<'a, 'b, 'c>(&'a self, old_s: &'b str, s: &'c str) -> &'a str {
         unsafe {
             let info = &mut **self.info.get();
             let data_chunk = info.data_chunk;
-            if let Some(chunk) = (*data_chunk).find_adjacent_space(old_s.as_ptr(), old_s.len(), s.len()) {
+            if let Some(chunk) =
+                (*data_chunk).find_adjacent_space(old_s.as_ptr(), old_s.len(), s.len())
+            {
                 // Enough space to extend the str
                 let p = (*chunk).mem.byte_add((*chunk).used);
                 (*chunk).used += s.len();
@@ -255,16 +263,13 @@ impl Drop for Arena {
                 }
                 chunk = next;
             }
-            dealloc(*self.info.get_mut() as *mut u8, Layout::array::<u8>((*info).chunk_size).unwrap());
+            dealloc(
+                *self.info.get_mut() as *mut u8,
+                Layout::array::<u8>((*info).chunk_size).unwrap(),
+            );
         }
     }
 }
-
-
-
-
-
-
 
 #[cfg(test)]
 mod tests {
@@ -387,9 +392,11 @@ mod tests {
         old_iksemel_test_step(237);
         old_iksemel_test_step(1024);
     }
-
 }
 
+// FIXME: rustfmt
+// FIXME: CI unittests
+// FIXME: miri
 
 // FIXME: alloc alignment
 // FIXME: test for str bad lifetime shouldnt compile (rustdoc compile_fail)

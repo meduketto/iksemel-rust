@@ -48,7 +48,6 @@ struct Attribute {
     value: usize,
 }
 
-
 impl Document {
     pub fn new(root_tag_name: &str) -> Document {
         let arena = Arena::new();
@@ -62,10 +61,9 @@ impl Document {
             root: 0,
         }
     }
-/*
-    fn create_tag(arena: *mut Arena, tag_name: &str) -> Tag {
-        let mut node = arena.alloc();
-    }
-*/
-
+    /*
+        fn create_tag(arena: *mut Arena, tag_name: &str) -> Tag {
+            let mut node = arena.alloc();
+        }
+    */
 }
