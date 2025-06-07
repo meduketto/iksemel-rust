@@ -181,11 +181,11 @@ impl Arena {
             let info = &mut **self.info.get();
             let chunk = (*info.node_chunk).make_space(info, size);
             (*chunk).used += size;
-            return (*chunk).mem.byte_add(size);
+            (*chunk).mem.byte_add(size)
         }
     }
 
-    pub fn push_str<'a, 'b>(&'a self, s: &'b str) -> &'a str {
+    pub fn push_str<'a>(&'a self, s: &str) -> &'a str {
         let size = s.len();
         unsafe {
             let info = &mut **self.info.get();
@@ -195,11 +195,11 @@ impl Arena {
             (*chunk).used += size;
             std::ptr::copy_nonoverlapping(s.as_ptr(), p, size);
             let r = std::slice::from_raw_parts(p, size);
-            return std::str::from_utf8_unchecked(r);
+            std::str::from_utf8_unchecked(r)
         }
     }
 
-    pub fn concat_str<'a, 'b, 'c>(&'a self, old_s: &'b str, s: &'c str) -> &'a str {
+    pub fn concat_str<'a>(&'a self, old_s: &str, s: &str) -> &'a str {
         unsafe {
             let info = &mut **self.info.get();
             let data_chunk = info.data_chunk;
@@ -211,7 +211,7 @@ impl Arena {
                 (*chunk).used += s.len();
                 std::ptr::copy_nonoverlapping(s.as_ptr(), p, s.len());
                 let r = std::slice::from_raw_parts(old_s.as_ptr(), old_s.len() + s.len());
-                return std::str::from_utf8_unchecked(r);
+                std::str::from_utf8_unchecked(r)
             } else {
                 let chunk = (*data_chunk).make_space(info, old_s.len() + s.len());
                 let p = (*chunk).mem.byte_add((*chunk).used);
@@ -221,7 +221,7 @@ impl Arena {
                 let p2 = p.byte_add(old_s.len());
                 std::ptr::copy_nonoverlapping(s.as_ptr(), p2, s.len());
                 let r = std::slice::from_raw_parts(p, old_s.len() + s.len());
-                return std::str::from_utf8_unchecked(r);
+                std::str::from_utf8_unchecked(r)
             }
         }
     }
@@ -229,14 +229,14 @@ impl Arena {
     pub fn nr_allocations(&self) -> u32 {
         unsafe {
             let info = &mut **self.info.get();
-            return (*info).nr_allocations;
+            info.nr_allocations
         }
     }
 
     pub fn nr_allocated_bytes(&self) -> usize {
         unsafe {
             let info = &mut **self.info.get();
-            return (*info).nr_allocated_bytes;
+            info.nr_allocated_bytes
         }
     }
 }
@@ -245,7 +245,7 @@ impl Drop for Arena {
     fn drop(&mut self) {
         unsafe {
             let info = &mut **self.info.get_mut();
-            let mut chunk = (*info).node_chunk;
+            let mut chunk = info.node_chunk;
             while !chunk.is_null() {
                 let next = (*chunk).next;
                 let chunk_size = (*chunk).chunk_size;
@@ -254,7 +254,7 @@ impl Drop for Arena {
                 }
                 chunk = next;
             }
-            let mut chunk = (*info).data_chunk;
+            let mut chunk = info.data_chunk;
             while !chunk.is_null() {
                 let next = (*chunk).next;
                 let chunk_size = (*chunk).chunk_size;
@@ -265,7 +265,7 @@ impl Drop for Arena {
             }
             dealloc(
                 *self.info.get_mut() as *mut u8,
-                Layout::array::<u8>((*info).chunk_size).unwrap(),
+                Layout::array::<u8>(info.chunk_size).unwrap(),
             );
         }
     }

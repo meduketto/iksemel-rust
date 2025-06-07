@@ -18,8 +18,8 @@ pub struct Document {
 }
 
 enum NodeContent {
-    TAG,
-    CDATA,
+    Tag,
+    CData,
 }
 
 struct Node {
