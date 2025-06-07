@@ -1,6 +1,9 @@
 [package]
-name = "iksemel"
-version = "0.1.0"
+categories = ["parsing", "network-programming"]
 edition = "2024"
+license = "LGPL-3.0-or-later"
+name = "iksemel"
+repository = "https://github.com/meduketto/iksemel-rust"
+version = "0.1.0"
 
 [dependencies]
