@@ -56,10 +56,7 @@ impl Document {
         arena.alloc(Layout::new::<CData>());
         arena.alloc(Layout::new::<Attribute>());
 
-        Document {
-            arena: arena,
-            root: 0,
-        }
+        Document { arena, root: 0 }
     }
     /*
         fn create_tag(arena: *mut Arena, tag_name: &str) -> Tag {
