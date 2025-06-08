@@ -102,7 +102,7 @@ impl ArenaChunk {
         let mut current: *mut ArenaChunk = self;
         unsafe {
             loop {
-                if old_p == (*current).last {
+                if std::ptr::addr_eq(old_p, (*current).last) {
                     let chunk_end = (*current).mem.byte_add((*current).used);
                     let old_end = old_p.byte_add(old_size);
                     if std::ptr::addr_eq(chunk_end, old_end) && (*current).has_space(size) {
@@ -209,7 +209,7 @@ impl Arena {
                 let p = (*chunk).mem.byte_add((*chunk).used);
                 (*chunk).used += s.len();
                 std::ptr::copy_nonoverlapping(s.as_ptr(), p, s.len());
-                let r = std::slice::from_raw_parts(old_s.as_ptr(), old_s.len() + s.len());
+                let r = std::slice::from_raw_parts(p.byte_sub(old_s.len()), old_s.len() + s.len());
                 std::str::from_utf8_unchecked(r)
             } else {
                 let chunk = (*data_chunk).make_space(info, old_s.len() + s.len());
@@ -392,3 +392,4 @@ mod tests {
 // FIXME: more unittests
 // FIXME: docs
 // FIXME: non-null opts
+// FIXME: overlapping concats?
