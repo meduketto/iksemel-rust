@@ -304,6 +304,33 @@ mod tests {
     }
 
     #[test]
+    fn concat_saves_space() {
+        let arena = Arena::new();
+        assert_eq!(arena.nr_allocations(), 1);
+
+        let s1 = arena.push_str(&"x".repeat(MIN_DATA_BYTES - 4));
+        assert_eq!(arena.nr_allocations(), 1);
+
+        let s2 = arena.concat_str(s1, "abcd");
+        assert_eq!(arena.nr_allocations(), 1);
+
+        let s3 = arena.concat_str(s2, "x");
+        assert_eq!(arena.nr_allocations(), 2);
+    }
+
+    #[test]
+    fn concat_copy_allocates_right() {
+        let arena = Arena::new();
+        assert_eq!(arena.nr_allocations(), 1);
+
+        let s1 = arena.push_str(&"x".repeat(MIN_DATA_BYTES - 8));
+        assert_eq!(arena.nr_allocations(), 1);
+        let s2 = "abcd";
+        let s3 = arena.concat_str(s2, s2);
+        assert_eq!(arena.nr_allocations(), 1);
+    }
+
+    #[test]
     fn concats_from_same_base() {
         let arena = Arena::new();
         let s = arena.push_str("lala");
@@ -385,11 +412,8 @@ mod tests {
 }
 
 // FIXME: CI unittests
-// FIXME: mutants
 // FIXME: alloc alignment
 // FIXME: test for str bad lifetime shouldnt compile (rustdoc compile_fail)
 // FIXME: sizing units in with_sizes
-// FIXME: more unittests
 // FIXME: docs
 // FIXME: non-null opts
-// FIXME: overlapping concats?
