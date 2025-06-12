@@ -110,9 +110,9 @@ impl ArenaChunk {
                 current = next;
             }
 
-            let used_layout = Layout::from_size_align(self.used, layout.align()).unwrap();
+            let used_layout = Layout::from_size_align((*current).used, layout.align()).unwrap();
             let used_layout = used_layout.pad_to_align();
-            let offset = used_layout.size() - self.used;
+            let offset = used_layout.size() - (*current).used;
             let ptr = (*current).mem.byte_add((*current).used + offset);
             (*current).last = ptr;
             (*current).used += layout.size() + offset;
@@ -454,9 +454,8 @@ mod tests {
 
         for i in 0..CHARS.len() {
             arena.push_str(&CHARS[..i]);
-            // alloc
-            //iks_stack_alloc (s, i);
-            //if (((unsigned long) mem) & ALIGN_MASK) {
+            let ptr = arena.alloc(Layout::from_size_align(i, 8).unwrap());
+            assert_eq!(ptr.align_offset(8), 0);
             s = arena.concat_str(s, &CHARS.chars().nth(i).unwrap().to_string())
         }
         assert_eq!(s, CHARS);
@@ -472,10 +471,10 @@ mod tests {
 }
 
 // FIXME: CI unittests
-// FIXME: alloc alignment
 // FIXME: test for str bad lifetime shouldnt compile (rustdoc compile_fail)
 // FIXME: docs
 // FIXME: non-null opts
 // FIXME: MaybeUninit?
+
 // FIXME: cleanup alignment code
-// FIXME: more aligntment tests
+// FIXME: more alignment tests
