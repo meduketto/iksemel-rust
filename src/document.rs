@@ -9,58 +9,114 @@
 */
 
 use std::alloc::Layout;
+use std::marker::PhantomPinned;
+use std::ptr::null_mut;
 
 use super::arena::Arena;
 
 pub struct Document {
     arena: Arena,
-    root: usize,
+    root: *mut Node,
 }
 
-enum NodeContent {
-    Tag,
-    CData,
+enum NodePayload {
+    Tag(*mut Tag),
+    CData(*mut CData),
 }
 
 struct Node {
-    next: usize,
-    prev: usize,
-    parent: usize,
-    content: NodeContent,
+    next: *mut Node,
+    prev: *mut Node,
+    parent: *mut Node,
+    payload: NodePayload,
+
+    _pin: PhantomPinned,
 }
 
 struct Tag {
-    children: usize,
-    last_child: usize,
-    attributes: usize,
-    last_attribute: usize,
-    name: usize,
+    children: *mut Node,
+    last_child: *mut Node,
+    attributes: *mut Attribute,
+    last_attribute: *mut Attribute,
+    name: *const u8,
+    name_size: usize,
+
+    _pin: PhantomPinned,
 }
 
 struct CData {
-    cdata: usize,
+    cdata: *mut u8,
+    cdata_size: usize,
+
+    _pin: PhantomPinned,
 }
 
 struct Attribute {
-    next: usize,
-    prev: usize,
-    name: usize,
-    value: usize,
+    next: *mut Attribute,
+    prev: *mut Attribute,
+    name: *mut u8,
+    name_size: usize,
+    value: *mut u8,
+    value_size: usize,
+
+    _pin: PhantomPinned,
 }
 
 impl Document {
+    fn create_node(arena: &Arena, payload: NodePayload) -> *mut Node {
+        let node = arena.alloc(Layout::new::<Node>()) as *mut Node;
+        unsafe {
+            (*node).next = null_mut();
+            (*node).prev = null_mut();
+            (*node).parent = null_mut();
+            (*node).payload = payload;
+        }
+        node
+    }
+
+    fn create_tag(arena: &Arena, tag_name: &str) -> *mut Node {
+        let name = arena.push_str(tag_name);
+
+        let tag = arena.alloc(Layout::new::<Tag>()) as *mut Tag;
+        unsafe {
+            (*tag).children = null_mut();
+            (*tag).last_child = null_mut();
+            (*tag).attributes = null_mut();
+            (*tag).last_attribute = null_mut();
+            (*tag).name = name.as_ptr();
+            (*tag).name_size = name.len();
+        }
+
+        Document::create_node(arena, NodePayload::Tag(tag))
+    }
+
     pub fn new(root_tag_name: &str) -> Document {
         let arena = Arena::new();
-
-        arena.alloc(Layout::new::<Tag>());
-        arena.alloc(Layout::new::<CData>());
-        arena.alloc(Layout::new::<Attribute>());
-
-        Document { arena, root: 0 }
+        let node = Document::create_tag(&arena, root_tag_name);
+        Document { arena, root: node }
     }
-    /*
-        fn create_tag(arena: *mut Arena, tag_name: &str) -> Tag {
-            let mut node = arena.alloc();
-        }
-    */
+
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn it_works() {
+        let doc = Document::new("test");
+    }
+}
+
+
+// FIXME: MaybeUninit?
+// FIXME: NodePayload niche optimization
+// FIXME: unit tests
+// FIXME: docs
+// FIXME: insert/append/prepend funcs
+// FIXME: Cursor and navigation funcs
+// FIXME: serializer
+// FIXME: Drop
+// FIXME: find/xpath funcs
+// FIXME: delete funcs
+// FIXME: duplicate

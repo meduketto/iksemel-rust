@@ -8,6 +8,13 @@
 ** the License, or (at your option) any later version.
 */
 
+//! Custom memory allocator for XML data
+//!
+//! This module implements a custom memory allocation system to pack
+//! XML structures and character data efficiently for the purpose of
+//! fast querying and modification.
+//!
+
 use std::alloc::{Layout, alloc, dealloc, handle_alloc_error};
 use std::cell::UnsafeCell;
 use std::cmp;
@@ -417,3 +424,4 @@ mod tests {
 // FIXME: sizing units in with_sizes
 // FIXME: docs
 // FIXME: non-null opts
+// FIXME: MaybeUninit?
