@@ -25,6 +25,7 @@ const MIN_NODE_WORDS: usize = 32;
 
 const MIN_DATA_BYTES: usize = 256;
 
+/// A memory area group which can store XML structures and character data.
 pub struct Arena {
     info: UnsafeCell<*mut ArenaInfo>,
 }
@@ -170,6 +171,7 @@ impl ArenaChunk {
 }
 
 impl Arena {
+    /// Creates a new 'Arena' with the default initial chunk sizes.
     pub fn new() -> Arena {
         // Minimums are defaults
         Self::with_chunk_sizes(0, 0)
@@ -447,6 +449,42 @@ mod tests {
         assert_eq!(p4.align_offset(2), 0);
     }
 
+    #[test]
+    fn alloc_weird_alignments() {
+        let arena = Arena::new();
+
+        // Rust types don't have sizes like these but they can be created
+        // manually or via #[packed] so let's test them too.
+        let lay1 = Layout::from_size_align(3, 2).unwrap();
+        let lay2 = Layout::from_size_align(5, 8).unwrap();
+        let lay3 = Layout::from_size_align(13, 8).unwrap();
+
+        let p1 = arena.alloc(lay1);
+        assert_eq!(p1.align_offset(2), 0);
+        let p2 = arena.alloc(lay2);
+        assert_eq!(p2.align_offset(8), 0);
+        let p3 = arena.alloc(lay1);
+        assert_eq!(p3.align_offset(2), 0);
+        let p4 = arena.alloc(lay3);
+        assert_eq!(p4.align_offset(8), 0);
+    }
+
+    #[test]
+    fn alloc_chunk_border() {
+        let arena = Arena::new();
+        assert_eq!(arena.nr_allocations(), 1);
+
+        let lay1 = Layout::array::<*const usize>(MIN_NODE_WORDS - 2).unwrap();
+        let lay2 = Layout::array::<*const usize>(2).unwrap();
+
+        let p1 = arena.alloc(lay1);
+        assert_eq!(arena.nr_allocations(), 1);
+        let p2 = arena.alloc(lay2);
+        assert_eq!(arena.nr_allocations(), 1);
+        let p3 = arena.alloc(lay2);
+        assert_eq!(arena.nr_allocations(), 2);
+    }
+
     fn old_iksemel_test_step(size: usize) {
         let arena = Arena::with_chunk_sizes(size, size);
 
@@ -475,6 +513,3 @@ mod tests {
 // FIXME: docs
 // FIXME: non-null opts
 // FIXME: MaybeUninit?
-
-// FIXME: cleanup alignment code
-// FIXME: more alignment tests
