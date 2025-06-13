@@ -513,3 +513,4 @@ mod tests {
 // FIXME: docs
 // FIXME: non-null opts
 // FIXME: MaybeUninit?
+// FIXME: Arena vs ArenaInfo?

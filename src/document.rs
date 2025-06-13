@@ -62,6 +62,11 @@ struct Attribute {
     _pin: PhantomPinned,
 }
 
+struct Cursor<'a> {
+    arena: &'a Arena,
+    node: *mut Node,
+}
+
 impl Document {
     fn create_node(arena: &Arena, payload: NodePayload) -> *mut Node {
         let node = arena.alloc(Layout::new::<Node>()) as *mut Node;
@@ -96,6 +101,45 @@ impl Document {
         Document { arena, root: node }
     }
 
+    pub fn insert_tag(&mut self, tag_name: &str) -> Cursor {
+        let node = Document::create_tag(&self.arena, tag_name);
+
+        Cursor { arena: &self.arena, node }
+    }
+
+    pub fn str_size(&self) -> usize {
+        Cursor { arena: &self.arena, node: self.root }.str_size()
+    }
+}
+
+impl Cursor<'_> {
+    pub fn insert_tag(&mut self, tag_name: &str) -> Cursor {
+        let node = Document::create_tag(self.arena, tag_name);
+
+        Cursor { arena: self.arena, node }
+    }
+
+    pub fn str_size(&self) -> usize {
+        let mut size = 0;
+        let mut current: *const Node = self.node;
+
+        unsafe {
+            match (*current).payload {
+                NodePayload::Tag(tag) => {
+                    size += 1;  // Tag opening '<'
+                    size += (*tag).name_size;
+                    if (*tag).children.is_null() {
+                        size += 2;  // Standalone tag closing '/>'
+                    } else {
+                        // FIXME: not implemented
+                    }
+                },
+                NodePayload::CData(cdata) => (),
+            }
+        }
+
+        size
+    }
 }
 
 #[cfg(test)]
@@ -104,7 +148,12 @@ mod tests {
 
     #[test]
     fn it_works() {
-        let doc = Document::new("test");
+        let mut doc = Document::new("html");
+
+        let mut p = doc.insert_tag("p");
+        let b = p.insert_tag("b");
+
+        assert_eq!(doc.str_size(), 7);
     }
 }
 
