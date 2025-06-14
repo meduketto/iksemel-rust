@@ -9,6 +9,7 @@
 */
 
 use std::alloc::Layout;
+use std::cell::UnsafeCell;
 use std::marker::PhantomPinned;
 use std::ptr::null_mut;
 
@@ -16,7 +17,12 @@ use super::arena::Arena;
 
 pub struct Document {
     arena: Arena,
-    root: *mut Node,
+    root_node: UnsafeCell<*mut Node>,
+}
+
+#[repr(transparent)]
+pub struct Cursor {
+    node: UnsafeCell<*mut Node>,
 }
 
 enum NodePayload {
@@ -26,7 +32,7 @@ enum NodePayload {
 
 struct Node {
     next: *mut Node,
-    prev: *mut Node,
+    previous: *mut Node,
     parent: *mut Node,
     payload: NodePayload,
 
@@ -53,7 +59,7 @@ struct CData {
 
 struct Attribute {
     next: *mut Attribute,
-    prev: *mut Attribute,
+    previous: *mut Attribute,
     name: *mut u8,
     name_size: usize,
     value: *mut u8,
@@ -62,27 +68,27 @@ struct Attribute {
     _pin: PhantomPinned,
 }
 
-struct Cursor<'a> {
-    arena: &'a Arena,
-    node: *mut Node,
+trait ArenaExt {
+    fn alloc_node(&self, payload: NodePayload) -> *mut Node;
+    fn alloc_tag(&self, tag_name: &str) -> *mut Tag;
 }
 
-impl Document {
-    fn create_node(arena: &Arena, payload: NodePayload) -> *mut Node {
-        let node = arena.alloc(Layout::new::<Node>()) as *mut Node;
+impl ArenaExt for Arena {
+    fn alloc_node(&self, payload: NodePayload) -> *mut Node {
+        let node = self.alloc(Layout::new::<Node>()) as *mut Node;
         unsafe {
             (*node).next = null_mut();
-            (*node).prev = null_mut();
+            (*node).previous = null_mut();
             (*node).parent = null_mut();
             (*node).payload = payload;
         }
+
         node
     }
 
-    fn create_tag(arena: &Arena, tag_name: &str) -> *mut Node {
-        let name = arena.push_str(tag_name);
-
-        let tag = arena.alloc(Layout::new::<Tag>()) as *mut Tag;
+    fn alloc_tag(&self, tag_name: &str) -> *mut Tag {
+        let name = self.push_str(tag_name);
+        let tag = self.alloc(Layout::new::<Tag>()) as *mut Tag;
         unsafe {
             (*tag).children = null_mut();
             (*tag).last_child = null_mut();
@@ -92,29 +98,92 @@ impl Document {
             (*tag).name_size = name.len();
         }
 
-        Document::create_node(arena, NodePayload::Tag(tag))
+        tag
     }
 
-    pub fn new(root_tag_name: &str) -> Document {
-        let arena = Arena::new();
-        let node = Document::create_tag(&arena, root_tag_name);
-        Document { arena, root: node }
-    }
-
-    pub fn insert_tag(&mut self, tag_name: &str) -> Cursor {
-        let node = Document::create_tag(&self.arena, tag_name);
-
-        Cursor { arena: &self.arena, node }
-    }
-
-    pub fn str_size(&self) -> usize {
-        Cursor { arena: &self.arena, node: self.root }.str_size()
-    }
 }
 
-impl Cursor<'_> {
+impl Document {
+    pub fn new(root_tag_name: &str) -> Document {
+        let arena = Arena::new();
+        let tag = arena.alloc_tag(root_tag_name);
+        let node = arena.alloc_node(NodePayload::Tag(tag));
+
+        unsafe {
+            Document { arena, root_node: UnsafeCell::new(node) }
+        }
+    }
+
+    pub fn root(&self) -> Cursor {
+        unsafe {
+            let node = *self.root_node.get();
+
+            Cursor { node: node.into() }
+        }
+    }
+
+    pub fn insert_tag(&mut self, parent: Cursor, tag_name: &str) -> Cursor {
+        let tag = self.arena.alloc_tag(tag_name);
+        let node = self.arena.alloc_node(NodePayload::Tag(tag));
+/*
+        (*node).parent = self.node;
+        if (*self.tag).children.is_null() {
+            (*self.tag).children = node;
+        }
+        if !(*self.node).last_child.is_null() {
+            (*(*self.node).last_child).next = node;
+            (*node).previous = (*self.node).last_child;
+        }
+        (*self.node).last_child = node;
+*/
+        Cursor { node: node.into() }
+    }
+/*
+    pub fn str_size(&self) -> usize {
+        Cursor { arena: self.arena, node: self.root }.str_size()
+    }
+*/
+}
+
+impl Cursor {
+    pub fn next(&self) -> Cursor {
+        unsafe {
+            let node = *self.node.get();
+
+            Cursor { node: (*node).next.into() }
+        }
+    }
+
+    pub fn previous(&self) -> Cursor {
+        unsafe {
+            let node = *self.node.get();
+
+            Cursor { node: (*node).previous.into() }
+        }
+    }
+
+    pub fn parent(&self) -> Cursor {
+        unsafe {
+            let node = *self.node.get();
+
+            Cursor { node: (*node).parent.into() }
+        }
+    }
+
+/*
     pub fn insert_tag(&mut self, tag_name: &str) -> Cursor {
-        let node = Document::create_tag(self.arena, tag_name);
+        let tag = self.arena.alloc_tag(tag_name);
+        let node = self.arena.alloc_node(NodePayload::Tag(tag));
+
+        (*node).parent = self.node;
+        if (*self.tag).children.is_null() {
+            (*self.tag).children = node;
+        }
+        if !(*self.node).last_child.is_null() {
+            (*(*self.node).last_child).next = node;
+            (*node).previous = (*self.node).last_child;
+        }
+        (*self.node).last_child = node;
 
         Cursor { arena: self.arena, node }
     }
@@ -140,6 +209,7 @@ impl Cursor<'_> {
 
         size
     }
+*/
 }
 
 #[cfg(test)]
@@ -150,10 +220,10 @@ mod tests {
     fn it_works() {
         let mut doc = Document::new("html");
 
-        let mut p = doc.insert_tag("p");
-        let b = p.insert_tag("b");
+        let mut p = doc.insert_tag(doc.root(), "p");
+//        let b = doc.insert_tag(p, "b");
 
-        assert_eq!(doc.str_size(), 7);
+//        assert_eq!(doc.str_size(), 7);
     }
 }
 

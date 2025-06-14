@@ -26,6 +26,7 @@ const MIN_NODE_WORDS: usize = 32;
 const MIN_DATA_BYTES: usize = 256;
 
 /// A memory area group which can store XML structures and character data.
+#[repr(transparent)]
 pub struct Arena {
     info: UnsafeCell<*mut ArenaInfo>,
 }
