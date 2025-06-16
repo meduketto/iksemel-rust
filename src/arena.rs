@@ -262,7 +262,6 @@ impl Arena {
                 let ptr2 = ptr.byte_add(old_s.len());
                 std::ptr::copy_nonoverlapping(s.as_ptr(), ptr2, s.len());
                 slice = std::slice::from_raw_parts(ptr, old_s.len() + s.len());
-
             }
 
             std::str::from_utf8_unchecked(slice)

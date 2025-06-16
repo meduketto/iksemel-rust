@@ -25,11 +25,6 @@ pub struct Cursor {
     node: UnsafeCell<*mut Node>,
 }
 
-pub trait OptionCursorExt {
-    fn next(&self) -> Option<Cursor>;
-    fn insert_tag(&self, document: &mut Document, tag_name: &str) -> Option<Cursor>;
-}
-
 enum NodePayload {
     Tag(*mut Tag),
     CData(*mut CData),
@@ -117,7 +112,6 @@ impl ArenaExt for Arena {
 
         cdata
     }
-
 }
 
 impl Document {
@@ -127,7 +121,10 @@ impl Document {
         let node = arena.alloc_node(NodePayload::Tag(tag));
 
         unsafe {
-            Document { arena, root_node: node.into() }
+            Document {
+                arena,
+                root_node: node.into(),
+            }
         }
     }
 
@@ -139,105 +136,125 @@ impl Document {
         }
     }
 
-    pub fn insert_tag(&mut self, tag_name: &str) -> Option<Cursor> {
+    pub fn insert_tag(&mut self, tag_name: &str) -> Cursor {
         self.root().insert_tag(self, tag_name)
     }
-/*
+
     pub fn str_size(&self) -> usize {
-        Cursor { arena: self.arena, node: self.root }.str_size()
+        self.root().str_size()
     }
-*/
+}
+
+macro_rules! null_cursor_guard {
+    ($x:expr) => {
+        unsafe {
+            if (*$x.node.get()).is_null() {
+                return Cursor {
+                    node: (null_mut() as *mut Node).into(),
+                };
+            }
+        }
+    };
 }
 
 impl Cursor {
-    pub fn insert_tag(&self, document: &mut Document, tag_name: &str) -> Option<Cursor> {
+    pub fn insert_tag(&self, document: &mut Document, tag_name: &str) -> Cursor {
+        null_cursor_guard!(self);
+
         unsafe {
             let node = *self.node.get();
-            // FIXME: check it is a tag node
-        }
+            match (*node).payload {
+                NodePayload::CData(_) => {
+                    // Cannot insert a tag into a cdata element
+                    Cursor {
+                        node: (null_mut() as *mut Node).into(),
+                    }
+                }
+                NodePayload::Tag(tag) => {
+                    let new_tag = document.arena.alloc_tag(tag_name);
+                    let new_node = document.arena.alloc_node(NodePayload::Tag(tag));
 
-        let tag = document.arena.alloc_tag(tag_name);
-        let node = document.arena.alloc_node(NodePayload::Tag(tag));
-/*
-        (*node).parent = self.node;
-        if (*self.tag).children.is_null() {
-            (*self.tag).children = node;
+                    (*new_node).parent = node;
+                    if (*tag).children.is_null() {
+                        (*tag).children = new_node;
+                    }
+                    if !(*tag).last_child.is_null() {
+                        (*(*tag).last_child).next = new_node;
+                        (*new_node).previous = (*tag).last_child;
+                    }
+                    (*tag).last_child = new_node;
+
+                    Cursor {
+                        node: new_node.into(),
+                    }
+                }
+            }
         }
-        if !(*self.node).last_child.is_null() {
-            (*(*self.node).last_child).next = node;
-            (*node).previous = (*self.node).last_child;
-        }
-        (*self.node).last_child = node;
-*/
-        Some(Cursor { node: node.into() })
     }
 
     pub fn next(&self) -> Cursor {
+        null_cursor_guard!(self);
+
         unsafe {
             let node = *self.node.get();
 
-            Cursor { node: (*node).next.into() }
+            Cursor {
+                node: (*node).next.into(),
+            }
         }
     }
 
     pub fn previous(&self) -> Cursor {
+        null_cursor_guard!(self);
+
         unsafe {
             let node = *self.node.get();
 
-            Cursor { node: (*node).previous.into() }
+            Cursor {
+                node: (*node).previous.into(),
+            }
         }
     }
 
     pub fn parent(&self) -> Cursor {
+        null_cursor_guard!(self);
+
         unsafe {
             let node = *self.node.get();
 
-            Cursor { node: (*node).parent.into() }
+            Cursor {
+                node: (*node).parent.into(),
+            }
         }
     }
 
-/*
-
     pub fn str_size(&self) -> usize {
-        let mut size = 0;
-        let mut current: *const Node = self.node;
-
         unsafe {
+            if (*self.node.get()).is_null() {
+                return 0;
+            }
+        }
+
+        let mut size = 0;
+        unsafe {
+            let current: *const Node = *self.node.get();
             match (*current).payload {
                 NodePayload::Tag(tag) => {
-                    size += 1;  // Tag opening '<'
+                    size += 1; // Tag opening '<'
                     size += (*tag).name_size;
                     if (*tag).children.is_null() {
-                        size += 2;  // Standalone tag closing '/>'
+                        size += 2; // Standalone tag closing '/>'
                     } else {
                         // FIXME: not implemented
                     }
-                },
+                }
                 NodePayload::CData(cdata) => (),
             }
         }
 
         size
     }
-*/
 }
-
-
-impl OptionCursorExt for Option<Cursor> {
-    fn next(&self) -> Option<Cursor> {
-        None
-    }
-    
-    fn insert_tag(&self, document: &mut Document, tag_name: &str) -> Option<Cursor> {
-        match self {
-            Some(cursor) => cursor.insert_tag(document, tag_name),
-            None => None,
-        }
-    }
-}
-
-
-
 
 #[cfg(test)]
 mod tests {
@@ -248,14 +265,12 @@ mod tests {
         let mut doc = Document::new("html");
 
         let p = doc.insert_tag("p");
-        let b = p.insert_tag(&mut doc, "b").next();
-        let c = b.insert_tag(&mut doc, "lala");
-//        let b = doc.insert_tag(p, "b");
+        //        let b = p.insert_tag(&mut doc, "b").next();
+        //        let c = b.insert_tag(&mut doc, "lala");
 
-//        assert_eq!(doc.str_size(), 7);
+        assert_eq!(doc.str_size(), 7);
     }
 }
-
 
 // FIXME: MaybeUninit?
 // FIXME: NodePayload niche optimization
@@ -268,6 +283,3 @@ mod tests {
 // FIXME: find/xpath funcs
 // FIXME: delete funcs
 // FIXME: clone
-
-
-// FIXME: Option vs built-in Cursor checks
