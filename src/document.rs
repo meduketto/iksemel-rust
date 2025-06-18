@@ -176,7 +176,7 @@ impl Visitor {
             self.current = next;
             self.direction = VisitorDirection::Down;
         }
-        return true;
+        true
     }
 }
 
