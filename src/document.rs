@@ -10,9 +10,9 @@
 
 use std::alloc::Layout;
 use std::cell::UnsafeCell;
+use std::fmt::Write;
 use std::marker::PhantomPinned;
 use std::ptr::null_mut;
-use std::fmt::Write;
 
 use super::arena::Arena;
 
@@ -224,7 +224,7 @@ macro_rules! null_cursor {
         Cursor {
             node: (null_mut() as *mut Node).into(),
         }
-    }
+    };
 }
 
 macro_rules! null_cursor_guard {
@@ -319,11 +319,9 @@ impl Cursor {
                 NodePayload::CData(_) => {
                     null_cursor!()
                 }
-                NodePayload::Tag(tag) => {
-                    Cursor {
-                        node: (*tag).children.into(),
-                    }
-                }
+                NodePayload::Tag(tag) => Cursor {
+                    node: (*tag).children.into(),
+                },
             }
         }
     }
@@ -344,7 +342,9 @@ impl Cursor {
 
         let mut size = 0;
         unsafe {
-            let mut v = Visitor::new(Cursor { node: (*self.node.get()).into() });
+            let mut v = Visitor::new(Cursor {
+                node: (*self.node.get()).into(),
+            });
             loop {
                 let current: *const Node = *v.current.node.get();
                 unsafe {
@@ -359,7 +359,7 @@ impl Cursor {
                                     } else {
                                         size += 1;
                                     }
-                                },
+                                }
                                 VisitorDirection::Up => {
                                     if (*tag).children.is_null() {
                                         // Already handled
@@ -373,7 +373,9 @@ impl Cursor {
                         }
                         NodePayload::CData(cdata) => (),
                     }
-                    if !v.take_step() { break; }
+                    if !v.take_step() {
+                        break;
+                    }
                 }
             }
         }
@@ -383,10 +385,10 @@ impl Cursor {
 
     fn to_string(&self) -> String {
         let mut buf = String::with_capacity(self.str_size());
-        write!(&mut buf, "{}", self).expect("a Display implementation returned an error unexpectedly");
+        write!(&mut buf, "{}", self)
+            .expect("a Display implementation returned an error unexpectedly");
         buf
     }
-
 }
 
 impl std::fmt::Display for Cursor {
@@ -397,7 +399,9 @@ impl std::fmt::Display for Cursor {
             }
         }
         unsafe {
-            let mut v = Visitor::new(Cursor { node: (*self.node.get()).into() });
+            let mut v = Visitor::new(Cursor {
+                node: (*self.node.get()).into(),
+            });
 
             loop {
                 let current: *const Node = *v.current.node.get();
@@ -406,7 +410,8 @@ impl std::fmt::Display for Cursor {
                         match v.direction {
                             VisitorDirection::Down => {
                                 f.write_str("<");
-                                let slice = std::slice::from_raw_parts((*tag).name, (*tag).name_size);
+                                let slice =
+                                    std::slice::from_raw_parts((*tag).name, (*tag).name_size);
                                 let s = std::str::from_utf8_unchecked(slice);
                                 f.write_str(s);
                                 if (*tag).children.is_null() {
@@ -414,13 +419,14 @@ impl std::fmt::Display for Cursor {
                                 } else {
                                     f.write_str(">");
                                 }
-                            },
+                            }
                             VisitorDirection::Up => {
                                 if (*tag).children.is_null() {
                                     // Already handled
                                 } else {
                                     f.write_str("</");
-                                    let slice = std::slice::from_raw_parts((*tag).name, (*tag).name_size);
+                                    let slice =
+                                        std::slice::from_raw_parts((*tag).name, (*tag).name_size);
                                     let s = std::str::from_utf8_unchecked(slice);
                                     f.write_str(s);
                                     f.write_str(">");
@@ -431,7 +437,9 @@ impl std::fmt::Display for Cursor {
                     NodePayload::CData(cdata) => (),
                 }
 
-                if !v.take_step() { break; }
+                if !v.take_step() {
+                    break;
+                }
             }
         }
         Result::Ok(())
