@@ -72,6 +72,7 @@ trait ArenaExt {
     fn alloc_node(&self, payload: NodePayload) -> *mut Node;
     fn alloc_tag(&self, tag_name: &str) -> *mut Tag;
     fn alloc_cdata(&self, cdata_value: &str) -> *mut CData;
+    fn alloc_attribute(&self, name: &str, value: &str) -> *mut Attribute;
 }
 
 impl ArenaExt for Arena {
@@ -112,6 +113,70 @@ impl ArenaExt for Arena {
 
         cdata
     }
+
+    fn alloc_attribute(&self, name: &str, value: &str) -> *mut Attribute {
+        let name = self.push_str(name);
+        let value = self.push_str(value);
+        let attribute = self.alloc(Layout::new::<Attribute>()) as *mut Attribute;
+        unsafe {
+            (*attribute).next = null_mut();
+            (*attribute).previous = null_mut();
+            (*attribute).name = name.as_ptr();
+            (*attribute).name_size = name.len();
+            (*attribute).value = value.as_ptr();
+            (*attribute).value_size = value.len();
+        }
+
+        attribute
+    }
+}
+
+enum VisitorDirection {
+    Up,
+    Down,
+}
+
+struct Visitor {
+    level: usize,
+    direction: VisitorDirection,
+    current: Cursor,
+}
+
+impl Visitor {
+    fn new(start: Cursor) -> Visitor {
+        Visitor {
+            level: 0,
+            direction: VisitorDirection::Down,
+            current: start,
+        }
+    }
+
+    fn take_step(&mut self) -> bool {
+        if self.current.is_null() {
+            return false;
+        }
+        if let VisitorDirection::Down = self.direction {
+            let child = self.current.first_child();
+            if !child.is_null() {
+                self.level += 1;
+                self.current = child;
+                return true;
+            }
+        }
+        let next = self.current.next();
+        if next.is_null() {
+            self.direction = VisitorDirection::Up;
+            self.current = self.current.parent();
+            if self.level == 0 {
+                return false;
+            }
+            self.level -= 1;
+        } else {
+            self.current = next;
+            self.direction = VisitorDirection::Down;
+        }
+        return true;
+    }
 }
 
 impl Document {
@@ -145,13 +210,19 @@ impl Document {
     }
 }
 
+macro_rules! null_cursor {
+    () => {
+        Cursor {
+            node: (null_mut() as *mut Node).into(),
+        }
+    }
+}
+
 macro_rules! null_cursor_guard {
     ($x:expr) => {
         unsafe {
             if (*$x.node.get()).is_null() {
-                return Cursor {
-                    node: (null_mut() as *mut Node).into(),
-                };
+                return null_cursor!();
             }
         }
     };
@@ -166,13 +237,11 @@ impl Cursor {
             match (*node).payload {
                 NodePayload::CData(_) => {
                     // Cannot insert a tag into a cdata element
-                    Cursor {
-                        node: (null_mut() as *mut Node).into(),
-                    }
+                    null_cursor!()
                 }
                 NodePayload::Tag(tag) => {
                     let new_tag = document.arena.alloc_tag(tag_name);
-                    let new_node = document.arena.alloc_node(NodePayload::Tag(tag));
+                    let new_node = document.arena.alloc_node(NodePayload::Tag(new_tag));
 
                     (*new_node).parent = node;
                     if (*tag).children.is_null() {
@@ -191,6 +260,10 @@ impl Cursor {
             }
         }
     }
+
+    //
+    // Navigation methods
+    //
 
     pub fn next(&self) -> Cursor {
         null_cursor_guard!(self);
@@ -228,6 +301,31 @@ impl Cursor {
         }
     }
 
+    pub fn first_child(&self) -> Cursor {
+        null_cursor_guard!(self);
+
+        unsafe {
+            let node = *self.node.get();
+            match (*node).payload {
+                NodePayload::CData(_) => {
+                    null_cursor!()
+                }
+                NodePayload::Tag(tag) => {
+                    Cursor {
+                        node: (*tag).children.into(),
+                    }
+                }
+            }
+        }
+    }
+
+    pub fn is_null(&self) -> bool {
+        unsafe {
+            let node = *self.node.get();
+            node.is_null()
+        }
+    }
+
     pub fn str_size(&self) -> usize {
         unsafe {
             if (*self.node.get()).is_null() {
@@ -237,18 +335,37 @@ impl Cursor {
 
         let mut size = 0;
         unsafe {
-            let current: *const Node = *self.node.get();
-            match (*current).payload {
-                NodePayload::Tag(tag) => {
-                    size += 1; // Tag opening '<'
-                    size += (*tag).name_size;
-                    if (*tag).children.is_null() {
-                        size += 2; // Standalone tag closing '/>'
-                    } else {
-                        // FIXME: not implemented
+            let mut v = Visitor::new(Cursor { node: (*self.node.get()).into() });
+            loop {
+                let current: *const Node = *v.current.node.get();
+                unsafe {
+                    match (*current).payload {
+                        NodePayload::Tag(tag) => {
+                            match v.direction {
+                                VisitorDirection::Down => {
+                                    size += 1; // Tag opening '<'
+                                    size += (*tag).name_size;
+                                    if (*tag).children.is_null() {
+                                        size += 2; // Standalone tag closing '/>'
+                                    } else {
+                                        size += 1;
+                                    }
+                                },
+                                VisitorDirection::Up => {
+                                    if (*tag).children.is_null() {
+                                        // Already handled
+                                    } else {
+                                        size += 2; // End tag opening '</'
+                                        size += (*tag).name_size;
+                                        size += 1; // End tag closing '>'
+                                    }
+                                }
+                            }
+                        }
+                        NodePayload::CData(cdata) => (),
                     }
+                    if !v.take_step() { break; }
                 }
-                NodePayload::CData(cdata) => (),
             }
         }
 
@@ -265,10 +382,11 @@ mod tests {
         let mut doc = Document::new("html");
 
         let p = doc.insert_tag("p");
-        //        let b = p.insert_tag(&mut doc, "b").next();
-        //        let c = b.insert_tag(&mut doc, "lala");
+        let b = p.insert_tag(&mut doc, "b");
+        let c = b.insert_tag(&mut doc, "lala");
 
-        assert_eq!(doc.str_size(), 7);
+        // <html><p><b><lala/></b></p></html>
+        assert_eq!(doc.str_size(), 34);
     }
 }
 
