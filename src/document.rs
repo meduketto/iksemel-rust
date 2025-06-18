@@ -12,6 +12,7 @@ use std::alloc::Layout;
 use std::cell::UnsafeCell;
 use std::marker::PhantomPinned;
 use std::ptr::null_mut;
+use std::fmt::Write;
 
 use super::arena::Arena;
 
@@ -201,12 +202,20 @@ impl Document {
         }
     }
 
+    //
+    // Convenience functions to avoid typing .root() all the time
+    //
+
     pub fn insert_tag(&mut self, tag_name: &str) -> Cursor {
         self.root().insert_tag(self, tag_name)
     }
 
     pub fn str_size(&self) -> usize {
         self.root().str_size()
+    }
+
+    pub fn to_string(&self) -> String {
+        self.root().to_string()
     }
 }
 
@@ -371,6 +380,62 @@ impl Cursor {
 
         size
     }
+
+    fn to_string(&self) -> String {
+        let mut buf = String::with_capacity(self.str_size());
+        write!(&mut buf, "{}", self).expect("a Display implementation returned an error unexpectedly");
+        buf
+    }
+
+}
+
+impl std::fmt::Display for Cursor {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        unsafe {
+            if (*self.node.get()).is_null() {
+                return Result::Ok(());
+            }
+        }
+        unsafe {
+            let mut v = Visitor::new(Cursor { node: (*self.node.get()).into() });
+
+            loop {
+                let current: *const Node = *v.current.node.get();
+                match (*current).payload {
+                    NodePayload::Tag(tag) => {
+                        match v.direction {
+                            VisitorDirection::Down => {
+                                f.write_str("<");
+                                let slice = std::slice::from_raw_parts((*tag).name, (*tag).name_size);
+                                let s = std::str::from_utf8_unchecked(slice);
+                                f.write_str(s);
+                                if (*tag).children.is_null() {
+                                    f.write_str("/>");
+                                } else {
+                                    f.write_str(">");
+                                }
+                            },
+                            VisitorDirection::Up => {
+                                if (*tag).children.is_null() {
+                                    // Already handled
+                                } else {
+                                    f.write_str("</");
+                                    let slice = std::slice::from_raw_parts((*tag).name, (*tag).name_size);
+                                    let s = std::str::from_utf8_unchecked(slice);
+                                    f.write_str(s);
+                                    f.write_str(">");
+                                }
+                            }
+                        }
+                    }
+                    NodePayload::CData(cdata) => (),
+                }
+
+                if !v.take_step() { break; }
+            }
+        }
+        Result::Ok(())
+    }
 }
 
 #[cfg(test)]
@@ -383,10 +448,11 @@ mod tests {
 
         let p = doc.insert_tag("p");
         let b = p.insert_tag(&mut doc, "b");
-        let c = b.insert_tag(&mut doc, "lala");
 
-        // <html><p><b><lala/></b></p></html>
-        assert_eq!(doc.str_size(), 34);
+        let xml = doc.to_string();
+        assert_eq!(xml, "<html><p><b/></p></html>");
+        // Verify that the capacity is measured correctly
+        assert_eq!(xml.len(), xml.capacity());
     }
 }
 
@@ -396,8 +462,8 @@ mod tests {
 // FIXME: docs
 // FIXME: insert/append/prepend funcs
 // FIXME: Cursor and navigation funcs
-// FIXME: serializer
 // FIXME: Drop
 // FIXME: find/xpath funcs
 // FIXME: delete funcs
 // FIXME: clone
+// FIXME: TagCursor and CDataCursor
