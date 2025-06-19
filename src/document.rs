@@ -12,6 +12,7 @@ use std::alloc::Layout;
 use std::cell::UnsafeCell;
 use std::fmt::Write;
 use std::marker::PhantomPinned;
+use std::marker::PhantomData;
 use std::ptr::null_mut;
 
 use super::arena::Arena;
@@ -22,8 +23,9 @@ pub struct Document {
 }
 
 #[repr(transparent)]
-pub struct Cursor {
+pub struct Cursor<'a> {
     node: UnsafeCell<*mut Node>,
+    marker: PhantomData<&'a Document>,
 }
 
 enum NodePayload {
@@ -140,15 +142,17 @@ enum VisitorDirection {
 struct Visitor {
     level: usize,
     direction: VisitorDirection,
-    current: Cursor,
+    current: *mut Node,
 }
 
 impl Visitor {
-    fn new(start: Cursor) -> Visitor {
-        Visitor {
-            level: 0,
-            direction: VisitorDirection::Down,
-            current: start,
+    fn new(start: *mut Node) -> Visitor {
+        unsafe {
+            Visitor {
+                level: 0,
+                direction: VisitorDirection::Down,
+                current: start,
+            }
         }
     }
 
@@ -156,25 +160,30 @@ impl Visitor {
         if self.current.is_null() {
             return false;
         }
-        if let VisitorDirection::Down = self.direction {
-            let child = self.current.first_child();
-            if !child.is_null() {
-                self.level += 1;
-                self.current = child;
-                return true;
+        unsafe {
+            if let VisitorDirection::Down = self.direction {
+                let child = match (*self.current).payload {
+                    NodePayload::Tag(tag) => (*tag).children,
+                    NodePayload::CData(_) => null_mut(),
+                };
+                if !child.is_null() {
+                    self.level += 1;
+                    self.current = child;
+                    return true;
+                }
             }
-        }
-        let next = self.current.next();
-        if next.is_null() {
-            self.direction = VisitorDirection::Up;
-            self.current = self.current.parent();
-            if self.level == 0 {
-                return false;
+            let next = (*self.current).next;
+            if next.is_null() {
+                self.direction = VisitorDirection::Up;
+                self.current = (*self.current).parent;
+                if self.level == 0 {
+                    return false;
+                }
+                self.level -= 1;
+            } else {
+                self.current = next;
+                self.direction = VisitorDirection::Down;
             }
-            self.level -= 1;
-        } else {
-            self.current = next;
-            self.direction = VisitorDirection::Down;
         }
         true
     }
@@ -194,11 +203,11 @@ impl Document {
         }
     }
 
-    pub fn root(&self) -> Cursor {
+    pub fn root<'a>(&'a self) -> Cursor<'a> {
         unsafe {
             let node = *self.root_node.get();
 
-            Cursor { node: node.into() }
+            Cursor::new(node)
         }
     }
 
@@ -206,7 +215,7 @@ impl Document {
     // Convenience functions to avoid typing .root() all the time
     //
 
-    pub fn insert_tag(&mut self, tag_name: &str) -> Cursor {
+    pub fn insert_tag<'a,'b>(&'a self, tag_name: &'b str) -> Cursor<'a> {
         self.root().insert_tag(self, tag_name)
     }
 
@@ -221,9 +230,7 @@ impl Document {
 
 macro_rules! null_cursor {
     () => {
-        Cursor {
-            node: (null_mut() as *mut Node).into(),
-        }
+        Cursor::new(null_mut() as *mut Node)
     };
 }
 
@@ -237,8 +244,15 @@ macro_rules! null_cursor_guard {
     };
 }
 
-impl Cursor {
-    pub fn insert_tag(&self, document: &mut Document, tag_name: &str) -> Cursor {
+impl<'a> Cursor<'a> {
+    fn new(node: *mut Node) -> Cursor<'a> {
+        Cursor {
+            node: node.into(),
+            marker: PhantomData,
+        }
+    }
+
+    pub fn insert_tag<'b,'c>(&'a self, document: &'b Document, tag_name: &'c str) -> Cursor<'b> {
         null_cursor_guard!(self);
 
         unsafe {
@@ -262,9 +276,7 @@ impl Cursor {
                     }
                     (*tag).last_child = new_node;
 
-                    Cursor {
-                        node: new_node.into(),
-                    }
+                    Cursor::new(new_node)
                 }
             }
         }
@@ -280,9 +292,7 @@ impl Cursor {
         unsafe {
             let node = *self.node.get();
 
-            Cursor {
-                node: (*node).next.into(),
-            }
+            Cursor::new((*node).next)
         }
     }
 
@@ -292,9 +302,7 @@ impl Cursor {
         unsafe {
             let node = *self.node.get();
 
-            Cursor {
-                node: (*node).previous.into(),
-            }
+            Cursor::new((*node).previous)
         }
     }
 
@@ -304,9 +312,7 @@ impl Cursor {
         unsafe {
             let node = *self.node.get();
 
-            Cursor {
-                node: (*node).parent.into(),
-            }
+            Cursor::new((*node).parent)
         }
     }
 
@@ -319,8 +325,8 @@ impl Cursor {
                 NodePayload::CData(_) => {
                     null_cursor!()
                 }
-                NodePayload::Tag(tag) => Cursor {
-                    node: (*tag).children.into(),
+                NodePayload::Tag(tag) => {
+                    Cursor::new((*tag).children)
                 },
             }
         }
@@ -342,11 +348,9 @@ impl Cursor {
 
         let mut size = 0;
         unsafe {
-            let mut v = Visitor::new(Cursor {
-                node: (*self.node.get()).into(),
-            });
+            let mut v = Visitor::new(*self.node.get());
             loop {
-                let current: *const Node = *v.current.node.get();
+                let current: *const Node = v.current;
                 unsafe {
                     match (*current).payload {
                         NodePayload::Tag(tag) => {
@@ -391,7 +395,7 @@ impl Cursor {
     }
 }
 
-impl std::fmt::Display for Cursor {
+impl<'a> std::fmt::Display for Cursor<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         unsafe {
             if (*self.node.get()).is_null() {
@@ -399,12 +403,10 @@ impl std::fmt::Display for Cursor {
             }
         }
         unsafe {
-            let mut v = Visitor::new(Cursor {
-                node: (*self.node.get()).into(),
-            });
+            let mut v = Visitor::new(*self.node.get());
 
             loop {
-                let current: *const Node = *v.current.node.get();
+                let current: *const Node = v.current;
                 match (*current).payload {
                     NodePayload::Tag(tag) => {
                         match v.direction {
@@ -452,16 +454,16 @@ mod tests {
 
     #[test]
     fn it_works() {
-        let mut doc = Document::new("html");
-
-        let p = doc.insert_tag("p");
-        let b = p.insert_tag(&mut doc, "b");
+        let doc = Document::new("html");
+        let blink = doc.insert_tag("p").insert_tag(&doc, "b").insert_tag(&doc, "blink");
+        assert_eq!(blink.is_null(), false);
 
         let xml = doc.to_string();
-        assert_eq!(xml, "<html><p><b/></p></html>");
+        assert_eq!(xml, "<html><p><b><blink/></b></p></html>");
         // Verify that the capacity is measured correctly
         assert_eq!(xml.len(), xml.capacity());
     }
+
 }
 
 // FIXME: MaybeUninit?
@@ -474,4 +476,3 @@ mod tests {
 // FIXME: find/xpath funcs
 // FIXME: delete funcs
 // FIXME: clone
-// FIXME: TagCursor and CDataCursor
