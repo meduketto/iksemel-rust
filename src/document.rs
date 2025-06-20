@@ -282,6 +282,36 @@ impl<'a> Cursor<'a> {
         }
     }
 
+    pub fn insert_cdata<'b,'c>(&'a self, document: &'b Document, cdata: &'c str) -> Cursor<'b> {
+        null_cursor_guard!(self);
+
+        unsafe {
+            let node = *self.node.get();
+            match (*node).payload {
+                NodePayload::CData(_) => {
+                    // Cannot insert a tag into a cdata element
+                    null_cursor!()
+                }
+                NodePayload::Tag(tag) => {
+                    let new_cdata = document.arena.alloc_cdata(cdata);
+                    let new_node = document.arena.alloc_node(NodePayload::CData(new_cdata));
+
+                    (*new_node).parent = node;
+                    if (*tag).children.is_null() {
+                        (*tag).children = new_node;
+                    }
+                    if !(*tag).last_child.is_null() {
+                        (*(*tag).last_child).next = new_node;
+                        (*new_node).previous = (*tag).last_child;
+                    }
+                    (*tag).last_child = new_node;
+
+                    Cursor::new(new_node)
+                }
+            }
+        }
+    }
+
     //
     // Navigation methods
     //
@@ -332,6 +362,10 @@ impl<'a> Cursor<'a> {
         }
     }
 
+    //
+    // Node property methods
+    //
+
     pub fn is_null(&self) -> bool {
         unsafe {
             let node = *self.node.get();
@@ -375,7 +409,11 @@ impl<'a> Cursor<'a> {
                                 }
                             }
                         }
-                        NodePayload::CData(cdata) => (),
+                        NodePayload::CData(cdata) => {
+                            if let VisitorDirection::Down = v.direction {
+                                size += (*cdata).value_size;
+                            }
+                        },
                     }
                     if !v.take_step() {
                         break;
@@ -436,7 +474,15 @@ impl<'a> std::fmt::Display for Cursor<'a> {
                             }
                         }
                     }
-                    NodePayload::CData(cdata) => (),
+                    NodePayload::CData(cdata) => {
+                        if let VisitorDirection::Down = v.direction {
+                            let slice =
+                                std::slice::from_raw_parts((*cdata).value, (*cdata).value_size);
+                            let s = std::str::from_utf8_unchecked(slice);
+                            f.write_str(s);
+                        }
+                    },
+
                 }
 
                 if !v.take_step() {
@@ -455,11 +501,11 @@ mod tests {
     #[test]
     fn it_works() {
         let doc = Document::new("html");
-        let blink = doc.insert_tag("p").insert_tag(&doc, "b").insert_tag(&doc, "blink");
+        let blink = doc.insert_tag("p").insert_tag(&doc, "b").insert_tag(&doc, "blink").insert_cdata(&doc, "lala");
         assert_eq!(blink.is_null(), false);
 
         let xml = doc.to_string();
-        assert_eq!(xml, "<html><p><b><blink/></b></p></html>");
+        assert_eq!(xml, "<html><p><b><blink>lala</blink></b></p></html>");
         // Verify that the capacity is measured correctly
         assert_eq!(xml.len(), xml.capacity());
     }
