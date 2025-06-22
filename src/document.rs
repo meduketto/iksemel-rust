@@ -11,8 +11,8 @@
 use std::alloc::Layout;
 use std::cell::UnsafeCell;
 use std::fmt::Write;
-use std::marker::PhantomPinned;
 use std::marker::PhantomData;
+use std::marker::PhantomPinned;
 use std::ptr::null_mut;
 
 use super::arena::Arena;
@@ -215,11 +215,11 @@ impl Document {
     // Convenience functions to avoid typing .root() all the time
     //
 
-    pub fn insert_tag<'a,'b>(&'a self, tag_name: &'b str) -> Cursor<'a> {
+    pub fn insert_tag<'a>(&'a self, tag_name: &str) -> Cursor<'a> {
         self.root().insert_tag(self, tag_name)
     }
 
-    pub fn insert_cdata<'a,'b>(&'a self, cdata: &'b str) -> Cursor<'a> {
+    pub fn insert_cdata<'a>(&'a self, cdata: &str) -> Cursor<'a> {
         self.root().insert_cdata(self, cdata)
     }
 
@@ -256,7 +256,7 @@ impl<'a> Cursor<'a> {
         }
     }
 
-    pub fn insert_tag<'b,'c>(&'a self, document: &'b Document, tag_name: &'c str) -> Cursor<'b> {
+    pub fn insert_tag<'b, 'c>(&'a self, document: &'b Document, tag_name: &'c str) -> Cursor<'b> {
         null_cursor_guard!(self);
 
         unsafe {
@@ -286,7 +286,7 @@ impl<'a> Cursor<'a> {
         }
     }
 
-    pub fn append_tag<'b,'c>(&'a self, document: &'b Document, tag_name: &'c str) -> Cursor<'b> {
+    pub fn append_tag<'b, 'c>(&'a self, document: &'b Document, tag_name: &'c str) -> Cursor<'b> {
         null_cursor_guard!(self);
 
         unsafe {
@@ -324,7 +324,45 @@ impl<'a> Cursor<'a> {
         }
     }
 
-    pub fn insert_cdata<'b,'c>(&'a self, document: &'b Document, cdata: &'c str) -> Cursor<'b> {
+    pub fn prepend_tag<'b, 'c>(&'a self, document: &'b Document, tag_name: &'c str) -> Cursor<'b> {
+        null_cursor_guard!(self);
+
+        unsafe {
+            let node = *self.node.get();
+            if (*node).parent.is_null() {
+                // Root tag cannot have siblings
+                return null_cursor!();
+            }
+
+            let new_tag = document.arena.alloc_tag(tag_name);
+            let new_node = document.arena.alloc_node(NodePayload::Tag(new_tag));
+
+            let parent = (*node).parent;
+            (*new_node).parent = parent;
+
+            let previous = (*node).previous;
+            (*new_node).previous = previous;
+            if previous.is_null() {
+                match (*parent).payload {
+                    NodePayload::CData(_) => {
+                        // We never create a node under a non Tag node
+                        unreachable!();
+                    }
+                    NodePayload::Tag(tag) => {
+                        (*tag).children = new_node;
+                    }
+                }
+            } else {
+                (*previous).next = new_node;
+            }
+            (*new_node).next = node;
+            (*node).previous = new_node;
+
+            Cursor::new(new_node)
+        }
+    }
+
+    pub fn insert_cdata<'b, 'c>(&'a self, document: &'b Document, cdata: &'c str) -> Cursor<'b> {
         null_cursor_guard!(self);
 
         unsafe {
@@ -332,7 +370,7 @@ impl<'a> Cursor<'a> {
             match (*node).payload {
                 NodePayload::CData(_) => {
                     // Cannot insert a tag into a cdata element
-                    return null_cursor!()
+                    null_cursor!()
                 }
                 NodePayload::Tag(tag) => {
                     let new_cdata = document.arena.alloc_cdata(cdata);
@@ -354,7 +392,7 @@ impl<'a> Cursor<'a> {
         }
     }
 
-    pub fn append_cdata<'b,'c>(&'a self, document: &'b Document, cdata: &'c str) -> Cursor<'b> {
+    pub fn append_cdata<'b, 'c>(&'a self, document: &'b Document, cdata: &'c str) -> Cursor<'b> {
         null_cursor_guard!(self);
 
         unsafe {
@@ -386,6 +424,44 @@ impl<'a> Cursor<'a> {
             }
             (*new_node).previous = node;
             (*node).next = new_node;
+
+            Cursor::new(new_node)
+        }
+    }
+
+    pub fn prepend_cdata<'b, 'c>(&'a self, document: &'b Document, cdata: &'c str) -> Cursor<'b> {
+        null_cursor_guard!(self);
+
+        unsafe {
+            let node = *self.node.get();
+            if (*node).parent.is_null() {
+                // Root tag cannot have siblings
+                return null_cursor!();
+            }
+
+            let new_cdata = document.arena.alloc_cdata(cdata);
+            let new_node = document.arena.alloc_node(NodePayload::CData(new_cdata));
+
+            let parent = (*node).parent;
+            (*new_node).parent = parent;
+
+            let previous = (*node).previous;
+            (*new_node).previous = previous;
+            if previous.is_null() {
+                match (*parent).payload {
+                    NodePayload::CData(_) => {
+                        // We never create a node under a non Tag node
+                        unreachable!();
+                    }
+                    NodePayload::Tag(tag) => {
+                        (*tag).children = new_node;
+                    }
+                }
+            } else {
+                (*previous).next = new_node;
+            }
+            (*new_node).next = node;
+            (*node).previous = new_node;
 
             Cursor::new(new_node)
         }
@@ -434,9 +510,7 @@ impl<'a> Cursor<'a> {
                 NodePayload::CData(_) => {
                     null_cursor!()
                 }
-                NodePayload::Tag(tag) => {
-                    Cursor::new((*tag).children)
-                },
+                NodePayload::Tag(tag) => Cursor::new((*tag).children),
             }
         }
     }
@@ -492,7 +566,7 @@ impl<'a> Cursor<'a> {
                             if let VisitorDirection::Down = v.direction {
                                 size += (*cdata).value_size;
                             }
-                        },
+                        }
                     }
                     if !v.take_step() {
                         break;
@@ -560,8 +634,7 @@ impl<'a> std::fmt::Display for Cursor<'a> {
                             let s = std::str::from_utf8_unchecked(slice);
                             f.write_str(s);
                         }
-                    },
-
+                    }
                 }
 
                 if !v.take_step() {
@@ -580,29 +653,41 @@ mod tests {
     #[test]
     fn it_works() {
         let doc = Document::new("html");
-        let blink = doc.insert_tag("p").insert_tag(&doc, "b").insert_tag(&doc, "blink").insert_cdata(&doc, "lala");
-        assert_eq!(blink.is_null(), false);
+        let blink = doc
+            .insert_tag("p")
+            .insert_tag(&doc, "b")
+            .insert_tag(&doc, "blink")
+            .insert_cdata(&doc, "lala");
+        assert!(!blink.is_null());
 
-        doc.root().first_child().append_cdata(&doc, "foo").append_tag(&doc, "p2");
+        let p2 = doc
+            .root()
+            .first_child()
+            .append_cdata(&doc, "foo")
+            .append_tag(&doc, "p2");
+
+        p2.prepend_cdata(&doc, "bar").prepend_tag(&doc, "p3");
 
         let xml = doc.to_string();
-        assert_eq!(xml, "<html><p><b><blink>lala</blink></b></p>foo<p2/></html>");
+        assert_eq!(
+            xml,
+            "<html><p><b><blink>lala</blink></b></p>foo<p3/>bar<p2/></html>"
+        );
         // Verify that the capacity is measured correctly
         assert_eq!(xml.len(), xml.capacity());
     }
-
 }
 
 // FIXME: MaybeUninit?
 // FIXME: NodePayload niche optimization
 // FIXME: unit tests
 // FIXME: docs
-// FIXME: prepend funcs
 // FIXME: Cursor and navigation funcs
 // FIXME: Drop
 // FIXME: find/xpath funcs
 // FIXME: delete funcs
 // FIXME: clone
 // FIXME: node property funcs
+// FIXME: typed cursors
 
 // FIXME: string escape/unescape
