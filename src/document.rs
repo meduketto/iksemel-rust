@@ -219,6 +219,10 @@ impl Document {
         self.root().insert_tag(self, tag_name)
     }
 
+    pub fn insert_cdata<'a,'b>(&'a self, cdata: &'b str) -> Cursor<'a> {
+        self.root().insert_cdata(self, cdata)
+    }
+
     pub fn str_size(&self) -> usize {
         self.root().str_size()
     }
@@ -282,6 +286,44 @@ impl<'a> Cursor<'a> {
         }
     }
 
+    pub fn append_tag<'b,'c>(&'a self, document: &'b Document, tag_name: &'c str) -> Cursor<'b> {
+        null_cursor_guard!(self);
+
+        unsafe {
+            let node = *self.node.get();
+            if (*node).parent.is_null() {
+                // Root tag cannot have siblings
+                return null_cursor!();
+            }
+
+            let new_tag = document.arena.alloc_tag(tag_name);
+            let new_node = document.arena.alloc_node(NodePayload::Tag(new_tag));
+
+            let parent = (*node).parent;
+            (*new_node).parent = parent;
+
+            let next = (*node).next;
+            (*new_node).next = next;
+            if next.is_null() {
+                match (*parent).payload {
+                    NodePayload::CData(_) => {
+                        // We never create a node under a non Tag node
+                        unreachable!();
+                    }
+                    NodePayload::Tag(tag) => {
+                        (*tag).last_child = new_node;
+                    }
+                }
+            } else {
+                (*next).previous = new_node;
+            }
+            (*new_node).previous = node;
+            (*node).next = new_node;
+
+            Cursor::new(new_node)
+        }
+    }
+
     pub fn insert_cdata<'b,'c>(&'a self, document: &'b Document, cdata: &'c str) -> Cursor<'b> {
         null_cursor_guard!(self);
 
@@ -290,7 +332,7 @@ impl<'a> Cursor<'a> {
             match (*node).payload {
                 NodePayload::CData(_) => {
                     // Cannot insert a tag into a cdata element
-                    null_cursor!()
+                    return null_cursor!()
                 }
                 NodePayload::Tag(tag) => {
                     let new_cdata = document.arena.alloc_cdata(cdata);
@@ -309,6 +351,43 @@ impl<'a> Cursor<'a> {
                     Cursor::new(new_node)
                 }
             }
+        }
+    }
+
+    pub fn append_cdata<'b,'c>(&'a self, document: &'b Document, cdata: &'c str) -> Cursor<'b> {
+        null_cursor_guard!(self);
+
+        unsafe {
+            let node = *self.node.get();
+            if (*node).parent.is_null() {
+                // Root tag cannot have siblings
+                return null_cursor!();
+            }
+
+            let new_cdata = document.arena.alloc_cdata(cdata);
+            let new_node = document.arena.alloc_node(NodePayload::CData(new_cdata));
+
+            let parent = (*node).parent;
+            (*new_node).parent = parent;
+
+            let next = (*node).next;
+            (*new_node).next = next;
+            if next.is_null() {
+                match (*parent).payload {
+                    NodePayload::CData(_) => {
+                        unreachable!();
+                    }
+                    NodePayload::Tag(tag) => {
+                        (*tag).last_child = new_node;
+                    }
+                }
+            } else {
+                (*next).previous = new_node;
+            }
+            (*new_node).previous = node;
+            (*node).next = new_node;
+
+            Cursor::new(new_node)
         }
     }
 
@@ -504,8 +583,10 @@ mod tests {
         let blink = doc.insert_tag("p").insert_tag(&doc, "b").insert_tag(&doc, "blink").insert_cdata(&doc, "lala");
         assert_eq!(blink.is_null(), false);
 
+        doc.root().first_child().append_cdata(&doc, "foo").append_tag(&doc, "p2");
+
         let xml = doc.to_string();
-        assert_eq!(xml, "<html><p><b><blink>lala</blink></b></p></html>");
+        assert_eq!(xml, "<html><p><b><blink>lala</blink></b></p>foo<p2/></html>");
         // Verify that the capacity is measured correctly
         assert_eq!(xml.len(), xml.capacity());
     }
@@ -516,9 +597,12 @@ mod tests {
 // FIXME: NodePayload niche optimization
 // FIXME: unit tests
 // FIXME: docs
-// FIXME: insert/append/prepend funcs
+// FIXME: prepend funcs
 // FIXME: Cursor and navigation funcs
 // FIXME: Drop
 // FIXME: find/xpath funcs
 // FIXME: delete funcs
 // FIXME: clone
+// FIXME: node property funcs
+
+// FIXME: string escape/unescape
