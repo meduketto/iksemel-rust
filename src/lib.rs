@@ -10,3 +10,4 @@
 
 mod arena;
 mod document;
+mod entities;
