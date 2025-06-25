@@ -13,7 +13,7 @@ pub mod predefined {
     pub const GT : &str = "&gt;";
     pub const AMP : &str = "&amp;";
     pub const APOS : &str = "&apos;";
-    pub const QUOT : &str = "&qout;";
+    pub const QUOT : &str = "&quot;";
 }
 
 pub fn escaped_size(s: &str) -> usize {
@@ -32,19 +32,84 @@ pub fn escaped_size(s: &str) -> usize {
     size
 }
 
-pub fn escape(s: &str, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-    Result::Ok(())
+pub struct Encoder<'a> {
+    bytes: &'a [u8],
+    i: usize,
+    back: usize,
 }
+
+impl<'a> Encoder<'a> {
+    pub fn new(s: &'a str) -> Encoder<'a> {
+        Encoder {
+            bytes: s.as_bytes(),
+            i: 0,
+            back: 0,
+        }
+    }
+
+    pub fn escape(&mut self, out: &mut String, max_bytes: usize) -> () {
+        while self.i < self.bytes.len() {
+            self.back = 0;
+            while self.i < self.bytes.len() {
+                match self.bytes[self.i] {
+                    b'<' | b'>' | b'&' | b'\'' | b'"' => break,
+                    _ => self.back += 1,
+                };
+                self.i += 1;
+            }
+            unsafe {
+                out.push_str(std::str::from_utf8_unchecked(&self.bytes[self.i-self.back..self.i]));
+            }
+            if self.i < self.bytes.len() {
+                match self.bytes[self.i] {
+                    b'<' => out.push_str(predefined::LT),
+                    b'>' => out.push_str(predefined::GT),
+                    b'&' => out.push_str(predefined::AMP),
+                    b'\'' => out.push_str(predefined::APOS),
+                    b'"' => out.push_str(predefined::QUOT),
+                    _ => unreachable!(),
+                };
+                self.i += 1;
+            }
+        }
+    }
+}
+
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
+    const NOESCAPE: &str = "abc$#@!%^*(){}[]=-+/.,;:FDSF3443";
+    const MID_CHAR: &str = "abc&def";
+    const MID_CHAR_ESC: &str = "abc&amp;def";
+    const ALL: &str = "<>&'\"";
+    const ALL_ESC: &str = "&lt;&gt;&amp;&apos;&quot;";
+
     #[test]
-    fn escape_size() {
-        const NOESCAPE: &str = "abc$#@!%^*(){}[]=-+/.,;:FDSF3443";
+    fn escaped_size_correct() {
         assert_eq!(escaped_size(NOESCAPE), NOESCAPE.len());
-        assert_eq!(escaped_size("abc&def"), "abc&amp;def".len());
-        assert_eq!(escaped_size("<>&'\""), "&lt;&gt;&amp;&apos;&quot;".len());
+        assert_eq!(escaped_size(MID_CHAR), MID_CHAR_ESC.len());
+        assert_eq!(escaped_size(ALL), ALL_ESC.len());
     }
+
+    #[test]
+    fn escape_correct() {
+        let mut s = String::new();
+        Encoder::new(NOESCAPE).escape(&mut s, 0);
+        assert_eq!(s, NOESCAPE);
+        s.clear();
+        Encoder::new(MID_CHAR).escape(&mut s, 0);
+        assert_eq!(s, MID_CHAR_ESC);
+        s.clear();
+        Encoder::new(ALL).escape(&mut s, 0);
+        assert_eq!(s, ALL_ESC);
+    }
+
 }
+
+
+// FIXME: escaped_size to method?
+// FIXME: unescape
+// FIXME: mutant tests
+// FIXME: max_bytes impl
