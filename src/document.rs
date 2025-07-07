@@ -10,12 +10,14 @@
 
 use std::alloc::Layout;
 use std::cell::UnsafeCell;
-use std::fmt::Write;
 use std::marker::PhantomData;
 use std::marker::PhantomPinned;
 use std::ptr::null_mut;
 
 use super::arena::Arena;
+use super::entities::escape;
+use super::entities::escape_fmt;
+use super::entities::escaped_size;
 
 pub struct Document {
     arena: Arena,
@@ -87,6 +89,22 @@ struct Attribute {
     value_size: usize,
 
     _pin: PhantomPinned,
+}
+
+impl Attribute {
+    fn name_as_str(&self) -> &str {
+        unsafe {
+            let slice = std::slice::from_raw_parts(self.name, self.name_size);
+            std::str::from_utf8_unchecked(slice)
+        }
+    }
+
+    fn value_as_str(&self) -> &str {
+        unsafe {
+            let slice = std::slice::from_raw_parts(self.value, self.value_size);
+            std::str::from_utf8_unchecked(slice)
+        }
+    }
 }
 
 trait ArenaExt {
@@ -165,26 +183,21 @@ enum VisitorStep<'a> {
 
 impl Visitor {
     fn new(start: *mut Node) -> Visitor {
-        unsafe {
-            Visitor {
-                going_down: true,
-                current: start,
-            }
+        Visitor {
+            going_down: true,
+            current: start,
         }
     }
 
-    fn step(&mut self) -> () {
+    fn step(&mut self) {
         unsafe {
             if self.going_down {
-                match (*self.current).payload {
-                    NodePayload::Tag(tag) => {
-                        let child = (*tag).children;
-                        if !child.is_null() {
-                            self.current = child;
-                            return;
-                        }
-                    },
-                    _ => (),
+                if let NodePayload::Tag(tag) = (*self.current).payload {
+                    let child = (*tag).children;
+                    if !child.is_null() {
+                        self.current = child;
+                        return;
+                    }
                 };
             };
             let next = (*self.current).next;
@@ -209,15 +222,15 @@ impl Visitor {
             match (*old).payload {
                 NodePayload::Tag(tag) => {
                     if old_going_down {
-                        return Some(VisitorStep::StartTag(&*tag));
+                        Some(VisitorStep::StartTag(&*tag))
                     } else {
-                        return Some(VisitorStep::EndTag(&*tag));
+                        Some(VisitorStep::EndTag(&*tag))
                     }
-                },
+                }
                 NodePayload::CData(cdata) => {
-                    return Some(VisitorStep::CData(&*cdata));
-                },
-            };
+                    Some(VisitorStep::CData(&*cdata))
+                }
+            }
         }
     }
 }
@@ -228,11 +241,9 @@ impl Document {
         let tag = arena.alloc_tag(root_tag_name);
         let node = arena.alloc_node(NodePayload::Tag(tag));
 
-        unsafe {
-            Document {
-                arena,
-                root_node: node.into(),
-            }
+        Document {
+            arena,
+            root_node: node.into(),
         }
     }
 
@@ -290,9 +301,7 @@ impl<'a> Cursor<'a> {
     }
 
     fn visitor(&self) -> Visitor {
-        unsafe {
-            Visitor::new(*self.node.get())
-        }
+        unsafe { Visitor::new(*self.node.get()) }
     }
 
     //
@@ -402,6 +411,45 @@ impl<'a> Cursor<'a> {
             (*node).previous = new_node;
 
             Cursor::new(new_node)
+        }
+    }
+
+    pub fn set_attribute<'b, 'c>(&'a self, document: &'b Document, name: &'c str, value: &'c str) -> Cursor<'b> {
+        null_cursor_guard!(self);
+
+        let value = document.arena.push_str(value);
+        unsafe {
+            let node = *self.node.get();
+            match (*node).payload {
+                NodePayload::CData(_) => {
+                    // Cannot set attributes on a cdata element
+                    null_cursor!()
+                }
+                NodePayload::Tag(tag) => {
+                    let mut attr = (*tag).attributes;
+                    while !attr.is_null() {
+                        if name == (*attr).name_as_str() {
+                            // Existing attribute, change the value
+                            (*attr).value = value.as_ptr();
+                            (*attr).value_size = value.len();
+                            return Cursor::new(node);
+                        }
+                        attr = (*attr).next;
+                    }
+                    // Add a new attribute
+                    let attribute = document.arena.alloc_attribute(name, value);
+                    if (*tag).attributes.is_null() {
+                        (*tag).attributes = attribute;
+                    }
+                    if !(*tag).last_attribute.is_null() {
+                        (*(*tag).last_attribute).next = attribute;
+                        (*attribute).previous = (*tag).last_attribute;
+                    }
+                    (*tag).last_attribute = attribute;
+
+                    Cursor::new(node)
+                }
+            }
         }
     }
 
@@ -583,12 +631,23 @@ impl<'a> Cursor<'a> {
                 VisitorStep::StartTag(tag) => {
                     size += 1; // Tag opening '<'
                     size += tag.name_size;
+                    let mut attr = (*tag).attributes;
+                    while !attr.is_null() {
+                        size += 1; // space
+                        unsafe {
+                            size += (*attr).name_size;
+                            size += 2; // =" characters
+                            size += escaped_size((*attr).value_as_str());
+                            size += 1; // " character
+                            attr = (*attr).next;
+                        }
+                    }
                     if tag.children.is_null() {
                         size += 2; // Standalone tag closing '/>'
                     } else {
                         size += 1;
                     }
-                },
+                }
                 VisitorStep::EndTag(tag) => {
                     if tag.children.is_null() {
                         // Already handled
@@ -597,10 +656,10 @@ impl<'a> Cursor<'a> {
                         size += tag.name_size;
                         size += 1; // End tag closing '>'
                     }
-                },
+                }
                 VisitorStep::CData(cdata) => {
-                    size += cdata.value_size;
-                },
+                    size += escaped_size(cdata.as_str());
+                }
             }
         }
 
@@ -614,26 +673,37 @@ impl<'a> Cursor<'a> {
         while let Some(step) = visitor.next() {
             match step {
                 VisitorStep::StartTag(tag) => {
-                    buf.push_str("<");
+                    buf.push('<');
                     buf.push_str(tag.as_str());
+                    let mut attr = (*tag).attributes;
+                    while !attr.is_null() {
+                        buf.push(' ');
+                        unsafe {
+                            buf.push_str((*attr).name_as_str());
+                            buf.push_str("=\"");
+                            escape((*attr).value_as_str(), &mut buf);
+                            buf.push_str("\"");
+                            attr = (*attr).next;
+                        }
+                    }
                     if tag.children.is_null() {
                         buf.push_str("/>");
                     } else {
-                        buf.push_str(">");
+                        buf.push('>');
                     }
-                },
+                }
                 VisitorStep::EndTag(tag) => {
                     if tag.children.is_null() {
                         // Already handled
                     } else {
                         buf.push_str("</");
                         buf.push_str(tag.as_str());
-                        buf.push_str(">");
+                        buf.push('>');
                     }
-                },
+                }
                 VisitorStep::CData(cdata) => {
-                    buf.push_str(cdata.as_str());
-                },
+                    escape(cdata.as_str(), &mut buf);
+                }
             }
         }
 
@@ -653,26 +723,37 @@ impl<'a> std::fmt::Display for Cursor<'a> {
         while let Some(step) = visitor.next() {
             match step {
                 VisitorStep::StartTag(tag) => {
-                    f.write_str("<");
-                    f.write_str(tag.as_str());
-                    if tag.children.is_null() {
-                        f.write_str("/>");
-                    } else {
-                        f.write_str(">");
+                    f.write_str("<")?;
+                    f.write_str(tag.as_str())?;
+                    let mut attr = (*tag).attributes;
+                    while !attr.is_null() {
+                        f.write_str(" ");
+                        unsafe {
+                            f.write_str((*attr).name_as_str());
+                            f.write_str("=\"");
+                            escape_fmt((*attr).value_as_str(), f)?;
+                            f.write_str("\"");
+                            attr = (*attr).next;
+                        }
                     }
-                },
+                    if tag.children.is_null() {
+                        f.write_str("/>")?;
+                    } else {
+                        f.write_str(">")?;
+                    }
+                }
                 VisitorStep::EndTag(tag) => {
                     if tag.children.is_null() {
                         // Already handled
                     } else {
-                        f.write_str("</");
-                        f.write_str(tag.as_str());
-                        f.write_str(">");
+                        f.write_str("</")?;
+                        f.write_str(tag.as_str())?;
+                        f.write_str(">")?;
                     }
-                },
+                }
                 VisitorStep::CData(cdata) => {
-                    f.write_str(cdata.as_str());
-                },
+                    escape_fmt(cdata.as_str(), f)?;
+                }
             }
         }
 
@@ -684,7 +765,7 @@ impl<'a> std::fmt::Display for Cursor<'a> {
 mod tests {
     use super::*;
 
-    fn check_str(doc: &Document, expected: &str) {
+    fn check_doc_xml(doc: &Document, expected: &str) {
         let xml = doc.to_string();
         assert_eq!(xml, expected);
         // Verify that the capacity is measured correctly
@@ -707,12 +788,32 @@ mod tests {
         let p2 = doc
             .root()
             .first_child()
-            .append_cdata(&doc, "foo")
+            .append_cdata(&doc, "foo&")
             .append_tag(&doc, "p2");
 
         p2.prepend_cdata(&doc, "bar").prepend_tag(&doc, "p3");
 
-        check_str(&doc, "<html><p><b><blink>lala</blink></b></p>foo<p3/>bar<p2/></html>");
+        check_doc_xml(
+            &doc,
+            "<html><p><b><blink>lala</blink></b></p>foo&amp;<p3/>bar<p2/></html>",
+        );
+    }
+
+    #[test]
+    fn attributes() {
+        let doc = Document::new("doc");
+        let _ = doc.insert_tag("a").set_attribute(&doc, "i", "1").set_attribute(&doc, "j", "2");
+        let _ = doc.insert_tag("b").set_attribute(&doc, "i", "1").set_attribute(&doc, "i", "2");
+        check_doc_xml(
+            &doc,
+            "<doc><a i=\"1\" j=\"2\"/><b i=\"2\"/></doc>",
+        );
+
+        let _ = doc.root().first_child().set_attribute(&doc, "k", "3");
+        check_doc_xml(
+            &doc,
+            "<doc><a i=\"1\" j=\"2\" k=\"3\"/><b i=\"2\"/></doc>",
+        );
     }
 }
 
@@ -727,4 +828,4 @@ mod tests {
 // FIXME: clone
 // FIXME: node property funcs
 
-// FIXME: string escape/unescape
+// FIXME: hide attribute

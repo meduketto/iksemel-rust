@@ -304,6 +304,12 @@ impl Drop for Arena {
     }
 }
 
+impl Default for Arena {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -322,7 +328,7 @@ mod tests {
         let s2 = arena.concat_str(s, "moretest");
         assert_eq!(s2, "testmoretest");
 
-        let p = arena.alloc(Layout::new::<Layout>());
+        let _p = arena.alloc(Layout::new::<Layout>());
     }
 
     #[test]
@@ -359,7 +365,7 @@ mod tests {
         let s2 = arena.concat_str(s1, "abcd");
         assert_eq!(arena.nr_allocations(), 1);
 
-        let s3 = arena.concat_str(s2, "x");
+        let _s3 = arena.concat_str(s2, "x");
         assert_eq!(arena.nr_allocations(), 2);
     }
 
@@ -368,10 +374,10 @@ mod tests {
         let arena = Arena::new();
         assert_eq!(arena.nr_allocations(), 1);
 
-        let s1 = arena.push_str(&"x".repeat(MIN_DATA_BYTES - 8));
+        let _s1 = arena.push_str(&"x".repeat(MIN_DATA_BYTES - 8));
         assert_eq!(arena.nr_allocations(), 1);
         let s2 = "abcd";
-        let s3 = arena.concat_str(s2, s2);
+        let _s3 = arena.concat_str(s2, s2);
         assert_eq!(arena.nr_allocations(), 1);
     }
 
@@ -477,11 +483,11 @@ mod tests {
         let lay1 = Layout::array::<*const usize>(MIN_NODE_WORDS - 2).unwrap();
         let lay2 = Layout::array::<*const usize>(2).unwrap();
 
-        let p1 = arena.alloc(lay1);
+        let _p1 = arena.alloc(lay1);
         assert_eq!(arena.nr_allocations(), 1);
-        let p2 = arena.alloc(lay2);
+        let _p2 = arena.alloc(lay2);
         assert_eq!(arena.nr_allocations(), 1);
-        let p3 = arena.alloc(lay2);
+        let _p3 = arena.alloc(lay2);
         assert_eq!(arena.nr_allocations(), 2);
     }
 

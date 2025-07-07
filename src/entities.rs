@@ -9,11 +9,11 @@
 */
 
 pub mod predefined {
-    pub const LT : &str = "&lt;";
-    pub const GT : &str = "&gt;";
-    pub const AMP : &str = "&amp;";
-    pub const APOS : &str = "&apos;";
-    pub const QUOT : &str = "&quot;";
+    pub const LT: &str = "&lt;";
+    pub const GT: &str = "&gt;";
+    pub const AMP: &str = "&amp;";
+    pub const APOS: &str = "&apos;";
+    pub const QUOT: &str = "&quot;";
 }
 
 pub fn escaped_size(s: &str) -> usize {
@@ -32,49 +32,69 @@ pub fn escaped_size(s: &str) -> usize {
     size
 }
 
-pub struct Encoder<'a> {
-    bytes: &'a [u8],
-    i: usize,
-    back: usize,
-}
+pub fn escape(s: &str, output: &mut String) {
+    let bytes = s.as_bytes();
+    let mut i: usize = 0;
+    let mut back: usize = 0;
 
-impl<'a> Encoder<'a> {
-    pub fn new(s: &'a str) -> Encoder<'a> {
-        Encoder {
-            bytes: s.as_bytes(),
-            i: 0,
-            back: 0,
+    while i < bytes.len() {
+        while i < bytes.len() {
+            match bytes[i] {
+                b'<' | b'>' | b'&' | b'\'' | b'"' => break,
+                _ => back += 1,
+            };
+            i += 1;
         }
-    }
-
-    pub fn escape(&mut self, out: &mut String, max_bytes: usize) -> () {
-        while self.i < self.bytes.len() {
-            self.back = 0;
-            while self.i < self.bytes.len() {
-                match self.bytes[self.i] {
-                    b'<' | b'>' | b'&' | b'\'' | b'"' => break,
-                    _ => self.back += 1,
-                };
-                self.i += 1;
-            }
-            unsafe {
-                out.push_str(std::str::from_utf8_unchecked(&self.bytes[self.i-self.back..self.i]));
-            }
-            if self.i < self.bytes.len() {
-                match self.bytes[self.i] {
-                    b'<' => out.push_str(predefined::LT),
-                    b'>' => out.push_str(predefined::GT),
-                    b'&' => out.push_str(predefined::AMP),
-                    b'\'' => out.push_str(predefined::APOS),
-                    b'"' => out.push_str(predefined::QUOT),
-                    _ => unreachable!(),
-                };
-                self.i += 1;
-            }
+        unsafe {
+            output.push_str(std::str::from_utf8_unchecked(&bytes[i - back..i]));
         }
+        if i < bytes.len() {
+            match bytes[i] {
+                b'<' => output.push_str(predefined::LT),
+                b'>' => output.push_str(predefined::GT),
+                b'&' => output.push_str(predefined::AMP),
+                b'\'' => output.push_str(predefined::APOS),
+                b'"' => output.push_str(predefined::QUOT),
+                _ => unreachable!(),
+            };
+            i += 1;
+        }
+        back = 0;
     }
 }
 
+pub fn escape_fmt(s: &str, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    let bytes = s.as_bytes();
+    let mut i: usize = 0;
+    let mut back: usize = 0;
+
+    while i < bytes.len() {
+        while i < bytes.len() {
+            match bytes[i] {
+                b'<' | b'>' | b'&' | b'\'' | b'"' => break,
+                _ => back += 1,
+            };
+            i += 1;
+        }
+        unsafe {
+            f.write_str(std::str::from_utf8_unchecked(&bytes[i - back..i]))?;
+        }
+        if i < bytes.len() {
+            match bytes[i] {
+                b'<' => f.write_str(predefined::LT),
+                b'>' => f.write_str(predefined::GT),
+                b'&' => f.write_str(predefined::AMP),
+                b'\'' => f.write_str(predefined::APOS),
+                b'"' => f.write_str(predefined::QUOT),
+                _ => unreachable!(),
+            }?;
+            i += 1;
+        }
+        back = 0;
+    }
+
+    Result::Ok(())
+}
 
 #[cfg(test)]
 mod tests {
@@ -93,23 +113,19 @@ mod tests {
         assert_eq!(escaped_size(ALL), ALL_ESC.len());
     }
 
-    #[test]
-    fn escape_correct() {
+    fn check_escape(input: &str, expected: &str) {
         let mut s = String::new();
-        Encoder::new(NOESCAPE).escape(&mut s, 0);
-        assert_eq!(s, NOESCAPE);
-        s.clear();
-        Encoder::new(MID_CHAR).escape(&mut s, 0);
-        assert_eq!(s, MID_CHAR_ESC);
-        s.clear();
-        Encoder::new(ALL).escape(&mut s, 0);
-        assert_eq!(s, ALL_ESC);
+        escape(input, &mut s);
+        assert_eq!(s, expected);
     }
 
+    #[test]
+    fn escape_correct() {
+        check_escape(NOESCAPE, NOESCAPE);
+        check_escape(MID_CHAR, MID_CHAR_ESC);
+        check_escape(ALL, ALL_ESC);
+    }
 }
 
-
-// FIXME: escaped_size to method?
 // FIXME: unescape
 // FIXME: mutant tests
-// FIXME: max_bytes impl?
