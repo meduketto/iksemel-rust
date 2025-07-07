@@ -8,11 +8,10 @@
 ** the License, or (at your option) any later version.
 */
 
-mod arena;
-mod document;
-mod entities;
-
-pub use arena::Arena;
-
-pub use document::Cursor;
-pub use document::Document;
+enum Element {
+    StartTag,
+    EndTag,
+    CData,
+    Comment,
+    PI,
+}

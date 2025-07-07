@@ -508,9 +508,7 @@ mod tests {
     }
 }
 
-// FIXME: CI unittests
 // FIXME: test for str bad lifetime shouldnt compile (rustdoc compile_fail)
 // FIXME: docs
-// FIXME: non-null opts
 // FIXME: MaybeUninit?
-// FIXME: Arena vs ArenaInfo?
+// FIXME: better min size tuning

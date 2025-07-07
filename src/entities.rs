@@ -112,4 +112,4 @@ mod tests {
 // FIXME: escaped_size to method?
 // FIXME: unescape
 // FIXME: mutant tests
-// FIXME: max_bytes impl
+// FIXME: max_bytes impl?

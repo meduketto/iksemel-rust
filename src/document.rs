@@ -53,11 +53,29 @@ struct Tag {
     _pin: PhantomPinned,
 }
 
+impl Tag {
+    fn as_str(&self) -> &str {
+        unsafe {
+            let slice = std::slice::from_raw_parts(self.name, self.name_size);
+            std::str::from_utf8_unchecked(slice)
+        }
+    }
+}
+
 struct CData {
     value: *const u8,
     value_size: usize,
 
     _pin: PhantomPinned,
+}
+
+impl CData {
+    fn as_str(&self) -> &str {
+        unsafe {
+            let slice = std::slice::from_raw_parts(self.value, self.value_size);
+            std::str::from_utf8_unchecked(slice)
+        }
+    }
 }
 
 struct Attribute {
@@ -134,58 +152,73 @@ impl ArenaExt for Arena {
     }
 }
 
-enum VisitorDirection {
-    Up,
-    Down,
+struct Visitor {
+    going_down: bool,
+    current: *mut Node,
 }
 
-struct Visitor {
-    level: usize,
-    direction: VisitorDirection,
-    current: *mut Node,
+enum VisitorStep<'a> {
+    StartTag(&'a Tag),
+    EndTag(&'a Tag),
+    CData(&'a CData),
 }
 
 impl Visitor {
     fn new(start: *mut Node) -> Visitor {
         unsafe {
             Visitor {
-                level: 0,
-                direction: VisitorDirection::Down,
+                going_down: true,
                 current: start,
             }
         }
     }
 
-    fn take_step(&mut self) -> bool {
-        if self.current.is_null() {
-            return false;
-        }
+    fn step(&mut self) -> () {
         unsafe {
-            if let VisitorDirection::Down = self.direction {
-                let child = match (*self.current).payload {
-                    NodePayload::Tag(tag) => (*tag).children,
-                    NodePayload::CData(_) => null_mut(),
+            if self.going_down {
+                match (*self.current).payload {
+                    NodePayload::Tag(tag) => {
+                        let child = (*tag).children;
+                        if !child.is_null() {
+                            self.current = child;
+                            return;
+                        }
+                    },
+                    _ => (),
                 };
-                if !child.is_null() {
-                    self.level += 1;
-                    self.current = child;
-                    return true;
-                }
-            }
+            };
             let next = (*self.current).next;
             if next.is_null() {
-                self.direction = VisitorDirection::Up;
                 self.current = (*self.current).parent;
-                if self.level == 0 {
-                    return false;
-                }
-                self.level -= 1;
+                self.going_down = false;
             } else {
                 self.current = next;
-                self.direction = VisitorDirection::Down;
+                self.going_down = true;
             }
         }
-        true
+    }
+
+    fn next(&mut self) -> Option<VisitorStep> {
+        if self.current.is_null() {
+            return None;
+        }
+        unsafe {
+            let old = self.current;
+            let old_going_down = self.going_down;
+            self.step();
+            match (*old).payload {
+                NodePayload::Tag(tag) => {
+                    if old_going_down {
+                        return Some(VisitorStep::StartTag(&*tag));
+                    } else {
+                        return Some(VisitorStep::EndTag(&*tag));
+                    }
+                },
+                NodePayload::CData(cdata) => {
+                    return Some(VisitorStep::CData(&*cdata));
+                },
+            };
+        }
     }
 }
 
@@ -255,6 +288,16 @@ impl<'a> Cursor<'a> {
             marker: PhantomData,
         }
     }
+
+    fn visitor(&self) -> Visitor {
+        unsafe {
+            Visitor::new(*self.node.get())
+        }
+    }
+
+    //
+    // Edit methods
+    //
 
     pub fn insert_tag<'b, 'c>(&'a self, document: &'b Document, tag_name: &'c str) -> Cursor<'b> {
         null_cursor_guard!(self);
@@ -534,44 +577,30 @@ impl<'a> Cursor<'a> {
         }
 
         let mut size = 0;
-        unsafe {
-            let mut v = Visitor::new(*self.node.get());
-            loop {
-                let current: *const Node = v.current;
-                unsafe {
-                    match (*current).payload {
-                        NodePayload::Tag(tag) => {
-                            match v.direction {
-                                VisitorDirection::Down => {
-                                    size += 1; // Tag opening '<'
-                                    size += (*tag).name_size;
-                                    if (*tag).children.is_null() {
-                                        size += 2; // Standalone tag closing '/>'
-                                    } else {
-                                        size += 1;
-                                    }
-                                }
-                                VisitorDirection::Up => {
-                                    if (*tag).children.is_null() {
-                                        // Already handled
-                                    } else {
-                                        size += 2; // End tag opening '</'
-                                        size += (*tag).name_size;
-                                        size += 1; // End tag closing '>'
-                                    }
-                                }
-                            }
-                        }
-                        NodePayload::CData(cdata) => {
-                            if let VisitorDirection::Down = v.direction {
-                                size += (*cdata).value_size;
-                            }
-                        }
+        let mut visitor = self.visitor();
+        while let Some(step) = visitor.next() {
+            match step {
+                VisitorStep::StartTag(tag) => {
+                    size += 1; // Tag opening '<'
+                    size += tag.name_size;
+                    if tag.children.is_null() {
+                        size += 2; // Standalone tag closing '/>'
+                    } else {
+                        size += 1;
                     }
-                    if !v.take_step() {
-                        break;
+                },
+                VisitorStep::EndTag(tag) => {
+                    if tag.children.is_null() {
+                        // Already handled
+                    } else {
+                        size += 2; // End tag opening '</'
+                        size += tag.name_size;
+                        size += 1; // End tag closing '>'
                     }
-                }
+                },
+                VisitorStep::CData(cdata) => {
+                    size += cdata.value_size;
+                },
             }
         }
 
@@ -580,8 +609,34 @@ impl<'a> Cursor<'a> {
 
     fn to_string(&self) -> String {
         let mut buf = String::with_capacity(self.str_size());
-        write!(&mut buf, "{}", self)
-            .expect("a Display implementation returned an error unexpectedly");
+
+        let mut visitor = self.visitor();
+        while let Some(step) = visitor.next() {
+            match step {
+                VisitorStep::StartTag(tag) => {
+                    buf.push_str("<");
+                    buf.push_str(tag.as_str());
+                    if tag.children.is_null() {
+                        buf.push_str("/>");
+                    } else {
+                        buf.push_str(">");
+                    }
+                },
+                VisitorStep::EndTag(tag) => {
+                    if tag.children.is_null() {
+                        // Already handled
+                    } else {
+                        buf.push_str("</");
+                        buf.push_str(tag.as_str());
+                        buf.push_str(">");
+                    }
+                },
+                VisitorStep::CData(cdata) => {
+                    buf.push_str(cdata.as_str());
+                },
+            }
+        }
+
         buf
     }
 }
@@ -593,55 +648,34 @@ impl<'a> std::fmt::Display for Cursor<'a> {
                 return Result::Ok(());
             }
         }
-        unsafe {
-            let mut v = Visitor::new(*self.node.get());
 
-            loop {
-                let current: *const Node = v.current;
-                match (*current).payload {
-                    NodePayload::Tag(tag) => {
-                        match v.direction {
-                            VisitorDirection::Down => {
-                                f.write_str("<");
-                                let slice =
-                                    std::slice::from_raw_parts((*tag).name, (*tag).name_size);
-                                let s = std::str::from_utf8_unchecked(slice);
-                                f.write_str(s);
-                                if (*tag).children.is_null() {
-                                    f.write_str("/>");
-                                } else {
-                                    f.write_str(">");
-                                }
-                            }
-                            VisitorDirection::Up => {
-                                if (*tag).children.is_null() {
-                                    // Already handled
-                                } else {
-                                    f.write_str("</");
-                                    let slice =
-                                        std::slice::from_raw_parts((*tag).name, (*tag).name_size);
-                                    let s = std::str::from_utf8_unchecked(slice);
-                                    f.write_str(s);
-                                    f.write_str(">");
-                                }
-                            }
-                        }
+        let mut visitor = self.visitor();
+        while let Some(step) = visitor.next() {
+            match step {
+                VisitorStep::StartTag(tag) => {
+                    f.write_str("<");
+                    f.write_str(tag.as_str());
+                    if tag.children.is_null() {
+                        f.write_str("/>");
+                    } else {
+                        f.write_str(">");
                     }
-                    NodePayload::CData(cdata) => {
-                        if let VisitorDirection::Down = v.direction {
-                            let slice =
-                                std::slice::from_raw_parts((*cdata).value, (*cdata).value_size);
-                            let s = std::str::from_utf8_unchecked(slice);
-                            f.write_str(s);
-                        }
+                },
+                VisitorStep::EndTag(tag) => {
+                    if tag.children.is_null() {
+                        // Already handled
+                    } else {
+                        f.write_str("</");
+                        f.write_str(tag.as_str());
+                        f.write_str(">");
                     }
-                }
-
-                if !v.take_step() {
-                    break;
-                }
+                },
+                VisitorStep::CData(cdata) => {
+                    f.write_str(cdata.as_str());
+                },
             }
         }
+
         Result::Ok(())
     }
 }
@@ -649,6 +683,16 @@ impl<'a> std::fmt::Display for Cursor<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn check_str(doc: &Document, expected: &str) {
+        let xml = doc.to_string();
+        assert_eq!(xml, expected);
+        // Verify that the capacity is measured correctly
+        assert_eq!(xml.len(), xml.capacity());
+        // Verify that the Display and to_string are same
+        let xml2 = format!("{}", doc.root());
+        assert_eq!(xml2, expected);
+    }
 
     #[test]
     fn it_works() {
@@ -668,13 +712,7 @@ mod tests {
 
         p2.prepend_cdata(&doc, "bar").prepend_tag(&doc, "p3");
 
-        let xml = doc.to_string();
-        assert_eq!(
-            xml,
-            "<html><p><b><blink>lala</blink></b></p>foo<p3/>bar<p2/></html>"
-        );
-        // Verify that the capacity is measured correctly
-        assert_eq!(xml.len(), xml.capacity());
+        check_str(&doc, "<html><p><b><blink>lala</blink></b></p>foo<p3/>bar<p2/></html>");
     }
 }
 
@@ -688,6 +726,5 @@ mod tests {
 // FIXME: delete funcs
 // FIXME: clone
 // FIXME: node property funcs
-// FIXME: typed cursors
 
 // FIXME: string escape/unescape
