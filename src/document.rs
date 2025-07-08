@@ -227,9 +227,7 @@ impl Visitor {
                         Some(VisitorStep::EndTag(&*tag))
                     }
                 }
-                NodePayload::CData(cdata) => {
-                    Some(VisitorStep::CData(&*cdata))
-                }
+                NodePayload::CData(cdata) => Some(VisitorStep::CData(&*cdata)),
             }
         }
     }
@@ -414,7 +412,12 @@ impl<'a> Cursor<'a> {
         }
     }
 
-    pub fn set_attribute<'b, 'c>(&'a self, document: &'b Document, name: &'c str, value: &'c str) -> Cursor<'b> {
+    pub fn set_attribute<'b, 'c>(
+        &'a self,
+        document: &'b Document,
+        name: &'c str,
+        value: &'c str,
+    ) -> Cursor<'b> {
         null_cursor_guard!(self);
 
         let value = document.arena.push_str(value);
@@ -727,12 +730,12 @@ impl<'a> std::fmt::Display for Cursor<'a> {
                     f.write_str(tag.as_str())?;
                     let mut attr = (*tag).attributes;
                     while !attr.is_null() {
-                        f.write_str(" ");
+                        f.write_str(" ")?;
                         unsafe {
-                            f.write_str((*attr).name_as_str());
-                            f.write_str("=\"");
+                            f.write_str((*attr).name_as_str())?;
+                            f.write_str("=\"")?;
                             escape_fmt((*attr).value_as_str(), f)?;
-                            f.write_str("\"");
+                            f.write_str("\"")?;
                             attr = (*attr).next;
                         }
                     }
@@ -802,18 +805,18 @@ mod tests {
     #[test]
     fn attributes() {
         let doc = Document::new("doc");
-        let _ = doc.insert_tag("a").set_attribute(&doc, "i", "1").set_attribute(&doc, "j", "2");
-        let _ = doc.insert_tag("b").set_attribute(&doc, "i", "1").set_attribute(&doc, "i", "2");
-        check_doc_xml(
-            &doc,
-            "<doc><a i=\"1\" j=\"2\"/><b i=\"2\"/></doc>",
-        );
+        let _ = doc
+            .insert_tag("a")
+            .set_attribute(&doc, "i", "1")
+            .set_attribute(&doc, "j", "2");
+        let _ = doc
+            .insert_tag("b")
+            .set_attribute(&doc, "i", "1")
+            .set_attribute(&doc, "i", "2");
+        check_doc_xml(&doc, "<doc><a i=\"1\" j=\"2\"/><b i=\"2\"/></doc>");
 
         let _ = doc.root().first_child().set_attribute(&doc, "k", "3");
-        check_doc_xml(
-            &doc,
-            "<doc><a i=\"1\" j=\"2\" k=\"3\"/><b i=\"2\"/></doc>",
-        );
+        check_doc_xml(&doc, "<doc><a i=\"1\" j=\"2\" k=\"3\"/><b i=\"2\"/></doc>");
     }
 }
 
