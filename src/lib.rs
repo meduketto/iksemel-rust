@@ -11,8 +11,13 @@
 mod arena;
 mod document;
 mod entities;
+mod parser;
 
 pub use arena::Arena;
 
 pub use document::Cursor;
 pub use document::Document;
+
+pub use parser::Element;
+pub use parser::Parser;
+pub use parser::ParserError;
