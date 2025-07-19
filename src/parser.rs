@@ -8,21 +8,13 @@
 ** the License, or (at your option) any later version.
 */
 
-enum State {
-    Prolog,
-    PrologTag,
-    PI,
-    TagName,
-    AttributeName,
-    Whitespace,
-}
-
 pub enum ParserError {
     NoMemory,
     BadXml,
     HandlerError,
 }
 
+#[derive(Debug, Eq, PartialEq)]
 pub enum SaxElement<'a> {
     StartTag(&'a str),
     Attribute(&'a str, &'a str),
@@ -44,13 +36,24 @@ pub struct Parser {
     buffer: Vec<u8>,
 }
 
+enum State {
+    Prolog,
+    PrologTag,
+    PI,
+    TagName,
+    TagEnd,
+    AttributeName,
+    CData,
+    Whitespace,
+}
+
+const INITIAL_BUFFER_CAPACITY: usize = 128;
+
 macro_rules! whitespace {
     () => {
         b' ' | b'\t' | b'\r' | b'\n'
     };
 }
-
-const INITIAL_BUFFER_CAPACITY: usize = 128;
 
 impl Parser {
     pub fn new() -> Parser {
@@ -93,6 +96,12 @@ impl Parser {
                         }
                         handler.handle_element(SaxElement::StartTag("lala"))?;
                         self.buffer.clear();
+                        match c {
+                            b'/' => self.state = State::TagEnd,
+                            b'>' => self.state = State::CData,
+                            whitespace!() => self.state = State::AttributeName,
+                            _ => unreachable!(),
+                        }
                     },
                     _ => (),
                 },
@@ -132,31 +141,30 @@ impl Parser {
 mod tests {
     use super::*;
 
-    struct TestHandler<'a> {
+    struct Tester<'a> {
         expected: &'a [SaxElement<'a>],
         current: usize,
     }
 
-    impl<'a> TestHandler<'a> {
-        fn new(expected: &'a [SaxElement]) -> TestHandler<'a> {
-            TestHandler {
+    impl<'a> Tester<'a> {
+        fn new(expected: &'a [SaxElement]) -> Tester<'a> {
+            Tester {
                 expected,
                 current: 0,
             }
         }
 
-        fn check(&mut self, s: &str) {
+        fn compare(&mut self, s: &str) {
             let mut parser = Parser::new();
             assert!(parser.parse_bytes(self, &s.as_bytes()).is_ok());
             assert_eq!(self.current, self.expected.len());
         }
     }
 
-    impl<'a> SaxHandler for TestHandler<'a> {
+    impl<'a> SaxHandler for Tester<'a> {
         fn handle_element(&mut self, element: SaxElement) -> Result<(), ParserError> {
-            if self.current >= self.expected.len() {
-                return Err(ParserError::HandlerError);
-            }
+            assert!(self.current < self.expected.len());
+            assert_eq!(element, self.expected[self.current]);
             match self.expected[self.current] {
                 SaxElement::StartTag(s) => (), // Check tag name
                 _ => return Err(ParserError::HandlerError),
@@ -168,11 +176,11 @@ mod tests {
 
     #[test]
     fn it_works() {
-        TestHandler::new(&[SaxElement::StartTag("a")]).check("<a>lala</a>");
+        Tester::new(&[SaxElement::StartTag("a")]).compare("<a>lala</a>");
     }
 }
 
-// FIXME: finish testing util
+// FIXME: Handle CData partials
 
 // FIXME: nr_column
 
