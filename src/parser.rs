@@ -67,7 +67,11 @@ impl Parser {
         }
     }
 
-    pub fn parse_bytes(&mut self, handler: &mut impl SaxHandler, bytes: &[u8]) -> Result<(), ParserError> {
+    pub fn parse_bytes(
+        &mut self,
+        handler: &mut impl SaxHandler,
+        bytes: &[u8],
+    ) -> Result<(), ParserError> {
         let mut pos: usize = 0;
         let mut back: usize = 0;
 
@@ -88,7 +92,7 @@ impl Parser {
                     _ => {
                         back = pos;
                         self.state = State::TagName;
-                    },
+                    }
                 },
 
                 State::TagName => match c {
@@ -105,12 +109,12 @@ impl Parser {
                             b'/' => {
                                 handler.handle_element(&SaxElement::EmptyElementTag)?;
                                 self.state = State::TagEnd;
-                            },
+                            }
                             b'>' => self.state = State::CData,
                             whitespace!() => self.state = State::AttributeWhitespace,
                             _ => unreachable!(),
                         }
-                    },
+                    }
                     _ => (),
                 },
 
@@ -119,14 +123,14 @@ impl Parser {
                     _ => {
                         self.state = State::AttributeName;
                         redo = true;
-                    },
+                    }
                 },
 
                 State::AttributeName => match c {
                     b'/' => {
                         handler.handle_element(&SaxElement::EmptyElementTag)?;
                         self.state = State::TagEnd;
-                    },
+                    }
                     b'>' => self.state = State::CData,
                     whitespace!() => (),
                     _ => (),
@@ -146,7 +150,7 @@ impl Parser {
             }
         }
 
-        if back < pos  {
+        if back < pos {
             match self.state {
                 State::TagName => self.buffer.extend_from_slice(&bytes[back..pos]),
                 _ => (),
@@ -209,7 +213,6 @@ mod tests {
 }
 
 // FIXME: Handle CData partials
-
 
 // FIXME: intake type for parse() str? io?
 // FIXME: return value for parse()

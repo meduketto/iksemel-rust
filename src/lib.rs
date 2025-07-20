@@ -18,7 +18,7 @@ pub use arena::Arena;
 pub use document::Cursor;
 pub use document::Document;
 
+pub use parser::Parser;
 pub use parser::ParserError;
 pub use parser::SaxElement;
 pub use parser::SaxHandler;
-pub use parser::Parser;
