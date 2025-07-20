@@ -274,6 +274,12 @@ impl Document {
     }
 }
 
+impl<'a> std::fmt::Display for Document {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.root().fmt(f)
+    }
+}
+
 macro_rules! null_cursor {
     () => {
         Cursor::new(null_mut() as *mut Node)
@@ -774,7 +780,7 @@ mod tests {
         // Verify that the capacity is measured correctly
         assert_eq!(xml.len(), xml.capacity());
         // Verify that the Display and to_string are same
-        let xml2 = format!("{}", doc.root());
+        let xml2 = format!("{}", doc);
         assert_eq!(xml2, expected);
     }
 

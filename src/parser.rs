@@ -26,13 +26,14 @@ pub enum SaxElement<'a> {
 }
 
 pub trait SaxHandler {
-    fn handle_element(&mut self, element: SaxElement) -> Result<(), ParserError> { Ok(()) }
+    fn handle_element(&mut self, element: &SaxElement) -> Result<(), ParserError>;
 }
 
 pub struct Parser {
     state: State,
     nr_bytes: usize,
     nr_lines: usize,
+    nr_column: usize,
     buffer: Vec<u8>,
 }
 
@@ -42,9 +43,9 @@ enum State {
     PI,
     TagName,
     TagEnd,
+    AttributeWhitespace,
     AttributeName,
     CData,
-    Whitespace,
 }
 
 const INITIAL_BUFFER_CAPACITY: usize = 128;
@@ -61,6 +62,7 @@ impl Parser {
             state: State::Prolog,
             nr_bytes: 0,
             nr_lines: 0,
+            nr_column: 0,
             buffer: Vec::<u8>::with_capacity(INITIAL_BUFFER_CAPACITY),
         }
     }
@@ -94,15 +96,39 @@ impl Parser {
                         if back < pos {
                             self.buffer.extend_from_slice(&bytes[back..pos]);
                         }
-                        handler.handle_element(SaxElement::StartTag("lala"))?;
+                        {
+                            let s = unsafe { std::str::from_utf8_unchecked(&self.buffer) };
+                            handler.handle_element(&SaxElement::StartTag(&s))?;
+                        }
                         self.buffer.clear();
                         match c {
-                            b'/' => self.state = State::TagEnd,
+                            b'/' => {
+                                handler.handle_element(&SaxElement::EmptyElementTag)?;
+                                self.state = State::TagEnd;
+                            },
                             b'>' => self.state = State::CData,
-                            whitespace!() => self.state = State::AttributeName,
+                            whitespace!() => self.state = State::AttributeWhitespace,
                             _ => unreachable!(),
                         }
                     },
+                    _ => (),
+                },
+
+                State::AttributeWhitespace => match c {
+                    whitespace!() => (),
+                    _ => {
+                        self.state = State::AttributeName;
+                        redo = true;
+                    },
+                },
+
+                State::AttributeName => match c {
+                    b'/' => {
+                        handler.handle_element(&SaxElement::EmptyElementTag)?;
+                        self.state = State::TagEnd;
+                    },
+                    b'>' => self.state = State::CData,
+                    whitespace!() => (),
                     _ => (),
                 },
 
@@ -112,8 +138,10 @@ impl Parser {
             if !redo {
                 pos += 1;
                 self.nr_bytes += 1;
+                self.nr_column += 1;
                 if c == b'\n' {
                     self.nr_lines += 1;
+                    self.nr_column = 0;
                 }
             }
         }
@@ -134,6 +162,10 @@ impl Parser {
 
     pub fn nr_lines(&self) -> usize {
         self.nr_lines
+    }
+
+    pub fn nr_column(&self) -> usize {
+        self.nr_column
     }
 }
 
@@ -162,13 +194,9 @@ mod tests {
     }
 
     impl<'a> SaxHandler for Tester<'a> {
-        fn handle_element(&mut self, element: SaxElement) -> Result<(), ParserError> {
+        fn handle_element(&mut self, element: &SaxElement) -> Result<(), ParserError> {
             assert!(self.current < self.expected.len());
-            assert_eq!(element, self.expected[self.current]);
-            match self.expected[self.current] {
-                SaxElement::StartTag(s) => (), // Check tag name
-                _ => return Err(ParserError::HandlerError),
-            }
+            assert_eq!(element, &self.expected[self.current]);
             self.current += 1;
             Ok(())
         }
@@ -182,7 +210,6 @@ mod tests {
 
 // FIXME: Handle CData partials
 
-// FIXME: nr_column
 
 // FIXME: intake type for parse() str? io?
 // FIXME: return value for parse()
