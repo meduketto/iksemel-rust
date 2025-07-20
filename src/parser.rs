@@ -42,6 +42,7 @@ enum State {
     PrologTag,
     PI,
     TagName,
+    EmptyTagEnd,
     TagEnd,
     AttributeWhitespace,
     AttributeName,
@@ -108,9 +109,12 @@ impl Parser {
                         match c {
                             b'/' => {
                                 handler.handle_element(&SaxElement::EmptyElementTag)?;
-                                self.state = State::TagEnd;
+                                self.state = State::EmptyTagEnd;
                             }
-                            b'>' => self.state = State::CData,
+                            b'>' => {
+                                back = pos + 1;
+                                self.state = State::CData;
+                            }
                             whitespace!() => self.state = State::AttributeWhitespace,
                             _ => unreachable!(),
                         }
@@ -131,8 +135,46 @@ impl Parser {
                         handler.handle_element(&SaxElement::EmptyElementTag)?;
                         self.state = State::TagEnd;
                     }
-                    b'>' => self.state = State::CData,
+                    b'>' => {
+                        back = pos + 1;
+                        self.state = State::CData;
+                    }
                     whitespace!() => (),
+                    _ => (),
+                },
+
+                State::EmptyTagEnd => match c {
+                    b'>' => {
+                        // FIXME: epilog
+                        back = pos + 1;
+                        self.state = State::CData;
+                    },
+                    whitespace!() => (),
+                    _ => (),
+                },
+
+                State::TagEnd => match c {
+                    b'>' => {
+                        // FIXME: epilog
+                        let s = unsafe { std::str::from_utf8_unchecked(&self.buffer) };
+                        handler.handle_element(&SaxElement::EndTag(&s))?;
+                        back = pos + 1;
+                        self.state = State::CData;
+                    },
+                    whitespace!() => (),
+                    _ => (),
+                },
+
+                State::CData => match c {
+                    b'<' => {
+                        if back < pos {
+                            let s = unsafe { std::str::from_utf8_unchecked(&bytes[back..pos]) };
+                            handler.handle_element(&SaxElement::CData(&s))?;
+                        }
+                        back = pos + 1;
+                        self.state = State::TagName;
+                    }
+                    b'&' => (),
                     _ => (),
                 },
 
@@ -153,6 +195,10 @@ impl Parser {
         if back < pos {
             match self.state {
                 State::TagName => self.buffer.extend_from_slice(&bytes[back..pos]),
+                State::CData => {
+                    let s = unsafe { std::str::from_utf8_unchecked(&bytes[back..pos]) };
+                    handler.handle_element(&SaxElement::CData(&s))?;
+                }
                 _ => (),
             }
         }
@@ -199,6 +245,7 @@ mod tests {
 
     impl<'a> SaxHandler for Tester<'a> {
         fn handle_element(&mut self, element: &SaxElement) -> Result<(), ParserError> {
+            println!("{:?}", element);
             assert!(self.current < self.expected.len());
             assert_eq!(element, &self.expected[self.current]);
             self.current += 1;
@@ -207,8 +254,20 @@ mod tests {
     }
 
     #[test]
-    fn it_works() {
-        Tester::new(&[SaxElement::StartTag("a")]).compare("<a>lala</a>");
+    fn tags() {
+        Tester::new(&[SaxElement::StartTag("lonely"), SaxElement::EmptyElementTag])
+            .compare("<lonely/>");
+
+        Tester::new(&[
+            SaxElement::StartTag("parent"),
+            SaxElement::StartTag("child"),
+            SaxElement::EmptyElementTag,
+            SaxElement::StartTag("child"),
+            SaxElement::EmptyElementTag,
+            SaxElement::CData("child"),
+            SaxElement::EndTag("parent"),
+        ])
+        .compare("<parent><child/><child/>child</parent>");
     }
 }
 
