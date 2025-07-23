@@ -22,8 +22,6 @@ pub enum SaxElement<'a> {
     EmptyElementTag,
     EndTag(&'a str),
     CData(&'a str),
-    Comment(&'a str),
-    PI(&'a str),
 }
 
 pub trait SaxHandler {
@@ -730,6 +728,9 @@ mod tests {
     fn bad_cdatas() {
         BadTester::new(2).check("<![CDATA[lala]> <a/>");
         BadTester::new(8).check(" <a/> <![CDATA[lala]>");
+        BadTester::new(7).check("<a> <![DATA[lala]> </a>");
+        BadTester::new(9).check("<a> <![CDaTA[lala]> </a>");
+        BadTester::new(12).check("<a> <![CDATAlala]> </a>");
     }
 }
 
@@ -737,7 +738,7 @@ mod tests {
 
 // FIXME: consolidate tag end code
 
-// FIXME: parse doctype
+// FIXME: parse doctype declaration
 // FIXME: check utf8
 
 // FIXME: returned error details
