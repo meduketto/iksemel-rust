@@ -49,6 +49,10 @@ enum State {
     PI,
     PIEnd,
     Markup,
+    CommentStart,
+    CommentBody,
+    CommentMaybeEnd,
+    CommentEnd,
     TagName,
     EndTagWhitespace,
     EmptyTagEnd,
@@ -131,11 +135,44 @@ impl Parser {
                 },
 
                 State::Markup => match c {
-                    //b'-' => self.state = State::CommentStart,
+                    b'-' => self.state = State::CommentStart,
                     //b'[' => self.state = State::CDataSection,
                     // FIXME: doctype
                     _ => return Err(ParserError::BadXml),
                 },
+
+                State::CommentStart => {
+                    if c != b'-' {
+                        return Err(ParserError::BadXml);
+                    }
+                    self.state = State::CommentBody;
+                }
+
+                State::CommentBody => match c {
+                    b'-' => self.state = State::CommentMaybeEnd,
+                    _ => (),
+                },
+
+                State::CommentMaybeEnd => match c {
+                    b'-' => self.state = State::CommentEnd,
+                    _ => self.state = State::CommentBody,
+                },
+
+                State::CommentEnd => {
+                    if c != b'>' {
+                        return Err(ParserError::BadXml);
+                    }
+                    if self.depth > 0 {
+                        back = pos + 1;
+                        self.state = State::CData;
+                    } else {
+                        if self.seen_content {
+                            self.state = State::Epilog;
+                        } else {
+                            self.state = State::Prolog;
+                        }
+                    }
+                }
 
                 State::PI => match c {
                     b'?' => self.state = State::PIEnd,
@@ -507,6 +544,30 @@ mod tests {
     }
 
     #[test]
+    fn comments() {
+        Tester::new(&[
+            SaxElement::StartTag("item"),
+            SaxElement::Attribute("url", "http://jabber.org"),
+            SaxElement::CData("Jabber Site"),
+            SaxElement::EndTag("item"),
+        ])
+        .check("<item url='http://jabber.org'><!-- little comment -->Jabber Site</item>");
+
+        Tester::new(&[
+            SaxElement::StartTag("index"),
+            SaxElement::StartTag("item"),
+            SaxElement::Attribute("name", "lala"),
+            SaxElement::Attribute("page", "42"),
+            SaxElement::EmptyElementTag,
+            SaxElement::EndTag("index"),
+        ])
+        .check("<index><!-- <item> - tag has no childs --><item name='lala' page='42'/></index>");
+
+        Tester::new(&[SaxElement::StartTag("empty"), SaxElement::EmptyElementTag])
+            .check("<!-- comment --> <empty/> <!-- lala -->");
+    }
+
+    #[test]
     fn bad_tags() {
         BadTester::new(4).check("<a>< b/></a>");
         BadTester::new(6).check("<a><b/ ></a>");
@@ -525,6 +586,14 @@ mod tests {
         BadTester::new(17).check("<g><test a='123'/ b='lala'></g>");
         //        BadTester::new(2).check("<a a='1' b='></a>");
     }
+
+    #[test]
+    fn bad_comments() {
+        BadTester::new(10).check("<e><!-- -- --></e>");
+        BadTester::new(22).check("<ha><!-- <lala> --><!- comment -></ha>");
+        BadTester::new(12).check("<!-- c1 --> lala <ha/>");
+        BadTester::new(31).check("<!-- c1 --> <ha/> <!-- pika -->c");
+    }
 }
 
 // FIXME: Handle CData partials
@@ -533,7 +602,6 @@ mod tests {
 // FIXME: consolidate tag end code
 
 // FIXME: parse CDATA[[
-// FIXME: parse comments
 // FIXME: parse doctype
 // FIXME: check utf8
 
