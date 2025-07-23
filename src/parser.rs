@@ -441,7 +441,6 @@ mod tests {
 
     impl<'a> SaxHandler for Tester<'a> {
         fn handle_element(&mut self, element: &SaxElement) -> Result<(), ParserError> {
-            println!("{:?}", element);
             assert!(self.current < self.expected.len());
             assert_eq!(element, &self.expected[self.current]);
             self.current += 1;
@@ -593,6 +592,7 @@ mod tests {
         BadTester::new(22).check("<ha><!-- <lala> --><!- comment -></ha>");
         BadTester::new(12).check("<!-- c1 --> lala <ha/>");
         BadTester::new(31).check("<!-- c1 --> <ha/> <!-- pika -->c");
+        BadTester::new(9).check("<!-- c ---> <ha/>");
     }
 }
 
