@@ -49,6 +49,15 @@ enum State {
     PI,
     PIEnd,
     Markup,
+    CDataSectionC,
+    CDataSectionCD,
+    CDataSectionCDA,
+    CDataSectionCDAT,
+    CDataSectionCDATA,
+    CDataSectionCDATAb,
+    CDataSectionBody,
+    CDataSectionMaybeEnd,
+    CDataSectionMaybeEnd2,
     CommentStart,
     CommentBody,
     CommentMaybeEnd,
@@ -136,9 +145,92 @@ impl Parser {
 
                 State::Markup => match c {
                     b'-' => self.state = State::CommentStart,
-                    //b'[' => self.state = State::CDataSection,
+                    b'[' => {
+                        if self.depth == 0 {
+                            return Err(ParserError::BadXml);
+                        }
+                        self.state = State::CDataSectionC;
+                    }
                     // FIXME: doctype
                     _ => return Err(ParserError::BadXml),
+                },
+
+                State::CDataSectionC => {
+                    if c != b'C' {
+                        return Err(ParserError::BadXml);
+                    }
+                    self.state = State::CDataSectionCD;
+                }
+
+                State::CDataSectionCD => {
+                    if c != b'D' {
+                        return Err(ParserError::BadXml);
+                    }
+                    self.state = State::CDataSectionCDA;
+                }
+
+                State::CDataSectionCDA => {
+                    if c != b'A' {
+                        return Err(ParserError::BadXml);
+                    }
+                    self.state = State::CDataSectionCDAT;
+                }
+
+                State::CDataSectionCDAT => {
+                    if c != b'T' {
+                        return Err(ParserError::BadXml);
+                    }
+                    self.state = State::CDataSectionCDATA;
+                }
+
+                State::CDataSectionCDATA => {
+                    if c != b'A' {
+                        return Err(ParserError::BadXml);
+                    }
+                    self.state = State::CDataSectionCDATAb;
+                }
+
+                State::CDataSectionCDATAb => {
+                    if c != b'[' {
+                        return Err(ParserError::BadXml);
+                    }
+                    back = pos + 1;
+                    self.state = State::CDataSectionBody;
+                }
+
+                State::CDataSectionBody => match c {
+                    b']' => {
+                        if back < pos {
+                            let s = unsafe { std::str::from_utf8_unchecked(&bytes[back..pos]) };
+                            handler.handle_element(&SaxElement::CData(&s))?;
+                        }
+                        self.state = State::CDataSectionMaybeEnd;
+                    }
+                    _ => (),
+                },
+
+                State::CDataSectionMaybeEnd => match c {
+                    b']' => self.state = State::CDataSectionMaybeEnd2,
+                    _ => {
+                        handler.handle_element(&SaxElement::CData("]"))?;
+                        back = pos;
+                        self.state = State::CDataSectionBody;
+                    }
+                },
+
+                State::CDataSectionMaybeEnd2 => match c {
+                    b'>' => {
+                        back = pos + 1;
+                        self.state = State::CData;
+                    }
+                    b']' => {
+                        handler.handle_element(&SaxElement::CData("]"))?;
+                    }
+                    _ => {
+                        handler.handle_element(&SaxElement::CData("]]"))?;
+                        back = pos;
+                        self.state = State::CDataSectionBody;
+                    }
                 },
 
                 State::CommentStart => {
@@ -391,7 +483,7 @@ impl Parser {
                 State::TagName | State::AttributeName | State::AttributeValue => {
                     self.buffer.extend_from_slice(&bytes[back..pos])
                 }
-                State::CData => {
+                State::CData | State::CDataSectionBody => {
                     let s = unsafe { std::str::from_utf8_unchecked(&bytes[back..pos]) };
                     handler.handle_element(&SaxElement::CData(&s))?;
                 }
@@ -422,6 +514,7 @@ mod tests {
     struct Tester<'a> {
         expected: &'a [SaxElement<'a>],
         current: usize,
+        cdata_buf: String,
     }
 
     impl<'a> Tester<'a> {
@@ -429,6 +522,7 @@ mod tests {
             Tester {
                 expected,
                 current: 0,
+                cdata_buf: String::new(),
             }
         }
 
@@ -442,8 +536,21 @@ mod tests {
     impl<'a> SaxHandler for Tester<'a> {
         fn handle_element(&mut self, element: &SaxElement) -> Result<(), ParserError> {
             assert!(self.current < self.expected.len());
-            assert_eq!(element, &self.expected[self.current]);
-            self.current += 1;
+            if let SaxElement::CData(cdata) = element {
+                if let SaxElement::CData(cdata2) = self.expected[self.current] {
+                    self.cdata_buf.push_str(cdata);
+                    if self.cdata_buf.len() >= cdata2.len() {
+                        assert_eq!(self.cdata_buf, cdata2);
+                        self.current += 1;
+                        self.cdata_buf.clear();
+                    }
+                } else {
+                    assert_eq!(element, &self.expected[self.current]);
+                }
+            } else {
+                assert_eq!(element, &self.expected[self.current]);
+                self.current += 1;
+            }
             Ok(())
         }
     }
@@ -567,6 +674,30 @@ mod tests {
     }
 
     #[test]
+    fn cdatas() {
+        Tester::new(&[
+            SaxElement::StartTag("ka"),
+            SaxElement::CData("1234 <ka> lala ] ]] ]]] 4321"),
+            SaxElement::EndTag("ka"),
+        ])
+        .check("<ka>1234<![CDATA[ <ka> lala ] ]] ]]] ]]>4321</ka>");
+
+        Tester::new(&[
+            SaxElement::StartTag("data"),
+            SaxElement::CData("[TEST]"),
+            SaxElement::EndTag("data"),
+        ])
+        .check("<data><![CDATA[[TEST]]]></data>");
+
+        Tester::new(&[
+            SaxElement::StartTag("data"),
+            SaxElement::CData("[TEST]]"),
+            SaxElement::EndTag("data"),
+        ])
+        .check("<data><![CDATA[[TEST]]]]></data>");
+    }
+
+    #[test]
     fn bad_tags() {
         BadTester::new(4).check("<a>< b/></a>");
         BadTester::new(6).check("<a><b/ ></a>");
@@ -594,14 +725,18 @@ mod tests {
         BadTester::new(31).check("<!-- c1 --> <ha/> <!-- pika -->c");
         BadTester::new(9).check("<!-- c ---> <ha/>");
     }
+
+    #[test]
+    fn bad_cdatas() {
+        BadTester::new(2).check("<![CDATA[lala]> <a/>");
+        BadTester::new(8).check(" <a/> <![CDATA[lala]>");
+    }
 }
 
-// FIXME: Handle CData partials
 // FIXME: parse entitites in cdata and attrib values
 
 // FIXME: consolidate tag end code
 
-// FIXME: parse CDATA[[
 // FIXME: parse doctype
 // FIXME: check utf8
 
