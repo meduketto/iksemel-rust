@@ -15,6 +15,18 @@ pub enum ParserError {
     HandlerError,
 }
 
+impl std::fmt::Display for ParserError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ParserError::NoMemory => write!(f, "not enough memory"),
+            ParserError::BadXml => write!(f, "invalid xml syntax"),
+            ParserError::HandlerError => write!(f, "error from sax handler"),
+        }
+    }
+}
+
+impl std::error::Error for ParserError {}
+
 #[derive(Debug, Eq, PartialEq)]
 pub enum SaxElement<'a> {
     StartTag(&'a str),
@@ -36,6 +48,7 @@ pub struct Parser {
     seen_content: bool,
     value_pos: usize,
     buffer: Vec<u8>,
+    ref_buffer: Vec<u8>,
     nr_bytes: usize,
     nr_lines: usize,
     nr_column: usize,
@@ -69,10 +82,17 @@ enum State {
     AttributeValue,
     AttributeEq,
     CData,
+    Reference,
+    CharReference,
+    CharReferenceBody,
+    HexCharReference,
+    Entity,
     Epilog,
 }
 
 const INITIAL_BUFFER_CAPACITY: usize = 128;
+
+const REF_BUFFER_SIZE: usize = 8;
 
 macro_rules! whitespace {
     () => {
@@ -90,6 +110,7 @@ impl Parser {
             seen_content: false,
             value_pos: 0,
             buffer: Vec::<u8>::with_capacity(INITIAL_BUFFER_CAPACITY),
+            ref_buffer: Vec::<u8>::with_capacity(REF_BUFFER_SIZE),
             nr_bytes: 0,
             nr_lines: 0,
             nr_column: 0,
@@ -454,8 +475,66 @@ impl Parser {
                         back = pos + 1;
                         self.state = State::TagStart;
                     }
-                    b'&' => (),
+                    b'&' => {
+                        if back < pos {
+                            let s = unsafe { std::str::from_utf8_unchecked(&bytes[back..pos]) };
+                            handler.handle_element(&SaxElement::CData(&s))?;
+                        }
+                        self.ref_buffer.clear();
+                        self.state = State::Reference;
+                    }
                     _ => (),
+                },
+
+                State::Reference => match c {
+                    b'#' => self.state = State::CharReference,
+                    _ => {
+                        self.ref_buffer.push(c);
+                        self.state = State::Entity;
+                    }
+                },
+
+                State::Entity => match c {
+                    b';' => {
+                        match self.ref_buffer.as_slice() {
+                            b"amp" => handler.handle_element(&SaxElement::CData("&"))?,
+                            b"lt" => handler.handle_element(&SaxElement::CData("<"))?,
+                            b"gt" => handler.handle_element(&SaxElement::CData(">"))?,
+                            b"quot" => handler.handle_element(&SaxElement::CData("\""))?,
+                            b"apos" => handler.handle_element(&SaxElement::CData("'"))?,
+                            _ => return Err(ParserError::BadXml),
+                        };
+                        back = pos + 1;
+                        self.state = State::CData;
+                    }
+                    _ => {
+                        if self.ref_buffer.len() >= REF_BUFFER_SIZE {
+                            return Err(ParserError::BadXml);
+                        }
+                        self.ref_buffer.push(c);
+                    }
+                },
+
+                State::CharReference => match c {
+                    b'x' => self.state = State::HexCharReference,
+                    _ => {
+                        self.ref_buffer.push(c);
+                        self.state = State::CharReferenceBody;
+                    }
+                },
+
+                State::CharReferenceBody => match c {
+                    b';' => (),
+                    b'0'..=b'9' => (),
+                    _ => return Err(ParserError::BadXml),
+                },
+
+                State::HexCharReference => match c {
+                    b';' => self.state = State::HexCharReference,
+                    b'0'..=b'9' | b'a'..=b'f' | b'A'..=b'F' => {
+                        self.ref_buffer.push(c);
+                    }
+                    _ => return Err(ParserError::BadXml),
                 },
 
                 State::Epilog => match c {
@@ -696,6 +775,29 @@ mod tests {
     }
 
     #[test]
+    fn entities() {
+        Tester::new(&[
+            SaxElement::StartTag("body"),
+            SaxElement::CData("I'm fixing parser&tester for \"<\" and \">\" chars."),
+            SaxElement::EndTag("body"),
+        ])
+        .check("<body>I&apos;m fixing parser&amp;tester for &quot;&lt;&quot; and &quot;&gt;&quot; chars.</body>");
+
+        Tester::new(&[
+            SaxElement::StartTag("test"),
+            SaxElement::StartTag("standalone"),
+            SaxElement::Attribute("be", "happy"),
+            SaxElement::EmptyElementTag,
+            SaxElement::CData("abcd"),
+            SaxElement::StartTag("br"),
+            SaxElement::EmptyElementTag,
+            SaxElement::CData("<escape>"),
+            SaxElement::EndTag("test"),
+        ])
+        .check("<test><standalone be='happy'/>abcd<br/>&lt;escape&gt;</test>");
+    }
+
+    #[test]
     fn bad_tags() {
         BadTester::new(4).check("<a>< b/></a>");
         BadTester::new(6).check("<a><b/ ></a>");
@@ -732,13 +834,25 @@ mod tests {
         BadTester::new(9).check("<a> <![CDaTA[lala]> </a>");
         BadTester::new(12).check("<a> <![CDATAlala]> </a>");
     }
+
+    #[test]
+    fn bad_entities() {
+        BadTester::new(8).check("<a>&lala;<a/>");
+        BadTester::new(12).check("<a>&lala           <a/>");
+        BadTester::new(6).check("<a>&#1a;<a/>");
+        BadTester::new(6).check("<a>&#Xaa;<a/>");
+        BadTester::new(8).check("<a>&#xa5g;<a/>");
+    }
 }
 
-// FIXME: parse entitites in cdata and attrib values
+// FIXME: parse references in attrib values
+// FIXME: parse # and #x char references
 
 // FIXME: consolidate tag end code
-
+// FIXME: consolidate [CDATA[ states
 // FIXME: parse doctype declaration
 // FIXME: check utf8
+// FIXME: check char ranges
 
 // FIXME: returned error details
+// not supported error? for entity refs
