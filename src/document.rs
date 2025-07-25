@@ -18,6 +18,10 @@ use super::arena::Arena;
 use super::entities::escape;
 use super::entities::escape_fmt;
 use super::entities::escaped_size;
+use super::parser::SaxElement;
+use super::parser::SaxHandler;
+use super::parser::Parser;
+use super::parser::ParserError;
 
 pub struct Document {
     arena: Arena,
@@ -233,6 +237,24 @@ impl Visitor {
     }
 }
 
+struct DocumentParser<'a> {
+    arena: &'a Arena,
+}
+
+impl<'a> DocumentParser<'a> {
+    fn new(arena: &Arena) -> DocumentParser {
+        DocumentParser {
+            arena
+        }
+    }
+}
+
+impl<'a> SaxHandler for DocumentParser<'a> {
+    fn handle_element(&mut self, element: &SaxElement) -> Result<(), ParserError> {
+        Ok(())
+    }
+}
+
 impl Document {
     pub fn new(root_tag_name: &str) -> Document {
         let arena = Arena::new();
@@ -243,6 +265,13 @@ impl Document {
             arena,
             root_node: node.into(),
         }
+    }
+
+    pub fn from_str(xml_str: &str) -> Result<Document, ParserError> {
+        let arena = Arena::new();
+        let mut parser = DocumentParser::new(&arena);
+
+        Err(ParserError::BadXml)
     }
 
     pub fn root<'a>(&'a self) -> Cursor<'a> {

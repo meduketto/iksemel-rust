@@ -49,6 +49,7 @@ pub struct Parser {
     value_pos: usize,
     buffer: Vec<u8>,
     ref_buffer: Vec<u8>,
+    char_ref_value: u32,
     nr_bytes: usize,
     nr_lines: usize,
     nr_column: usize,
@@ -100,6 +101,13 @@ macro_rules! whitespace {
     };
 }
 
+fn is_valid_xml_char(c: u32) -> bool {
+    match c {
+        0x09 | 0x0a | 0x0d | 0x20..0xd7ff | 0xe000..0xfffd | 0x10000..0x10ffff => true,
+        _ => false,
+    }
+}
+
 impl Parser {
     pub fn new() -> Parser {
         Parser {
@@ -111,10 +119,51 @@ impl Parser {
             value_pos: 0,
             buffer: Vec::<u8>::with_capacity(INITIAL_BUFFER_CAPACITY),
             ref_buffer: Vec::<u8>::with_capacity(REF_BUFFER_SIZE),
+            char_ref_value: 0,
             nr_bytes: 0,
             nr_lines: 0,
             nr_column: 0,
         }
+    }
+
+    fn send_u32_cdata(
+        &mut self,
+        handler: &mut impl SaxHandler,
+        value: u32,
+    ) -> Result<(), ParserError> {
+        if !is_valid_xml_char(value) {
+            return Err(ParserError::BadXml);
+        }
+
+        let mut buf : [u8;4] = [0; 4];
+        let mut size = 1;
+        const DATA_MASK : u32 = 0b00111111;
+        const DATA_PREFIX : u8 = 0b10000000;
+        match value {
+            0..=0x7f => buf[0] = value as u8,
+            0x80..=0x7ff => {
+                buf[0] = 0b11000000 | ((value >> 6) as u8);
+                buf[1] = DATA_PREFIX | ((value & DATA_MASK) as u8);
+                size = 2;
+            },
+            0x800..=0xffff => {
+                buf[0] = 0b11100000 | ((value >> 12) as u8);
+                buf[1] = DATA_PREFIX | (((value >> 6) & DATA_MASK) as u8);
+                buf[2] = DATA_PREFIX | ((value & DATA_MASK) as u8);
+                size = 3;
+            },
+            0x10000..=0x10ffff => {
+                buf[0] = 0b11110000 | ((value >> 18) as u8);
+                buf[1] = DATA_PREFIX | (((value >> 12) & DATA_MASK) as u8);
+                buf[2] = DATA_PREFIX | (((value >> 6) & DATA_MASK) as u8);
+                buf[3] = DATA_PREFIX | ((value & DATA_MASK) as u8);
+                size = 4;
+            },
+            _ => (),
+        }
+
+        let s = unsafe { std::str::from_utf8_unchecked(&buf[0..size]) };
+        handler.handle_element(&SaxElement::CData(&s))
     }
 
     pub fn parse_bytes(
@@ -149,7 +198,7 @@ impl Parser {
                         self.is_end_tag = true;
                         self.state = State::TagName;
                     }
-                    whitespace!() => return Err(ParserError::BadXml),
+                    whitespace!() | b'>' => return Err(ParserError::BadXml),
                     _ => {
                         if self.depth == 0 && self.seen_content {
                             return Err(ParserError::BadXml);
@@ -312,6 +361,9 @@ impl Parser {
                             self.buffer.extend_from_slice(&bytes[back..pos]);
                         }
                         {
+                            if self.buffer.len() == 0 {
+                                return Err(ParserError::BadXml);
+                            }
                             let s = unsafe { std::str::from_utf8_unchecked(&self.buffer) };
                             if self.is_end_tag {
                                 if c == b'/' {
@@ -487,7 +539,10 @@ impl Parser {
                 },
 
                 State::Reference => match c {
-                    b'#' => self.state = State::CharReference,
+                    b'#' => {
+                        self.char_ref_value = 0;
+                        self.state = State::CharReference;
+                    }
                     _ => {
                         self.ref_buffer.push(c);
                         self.state = State::Entity;
@@ -518,21 +573,42 @@ impl Parser {
                 State::CharReference => match c {
                     b'x' => self.state = State::HexCharReference,
                     _ => {
-                        self.ref_buffer.push(c);
+                        let digit: u32 = (c - b'0').into();
+                        self.char_ref_value = digit;
                         self.state = State::CharReferenceBody;
                     }
                 },
 
                 State::CharReferenceBody => match c {
-                    b';' => (),
-                    b'0'..=b'9' => (),
+                    b';' => {
+                        self.send_u32_cdata(handler, self.char_ref_value)?;
+                        back = pos + 1;
+                        self.state = State::CData;
+                    }
+                    b'0'..=b'9' => {
+                        let digit: u32 = (c - b'0').into();
+                        self.char_ref_value = (self.char_ref_value * 10) + digit;
+                    }
                     _ => return Err(ParserError::BadXml),
                 },
 
                 State::HexCharReference => match c {
-                    b';' => self.state = State::HexCharReference,
-                    b'0'..=b'9' | b'a'..=b'f' | b'A'..=b'F' => {
-                        self.ref_buffer.push(c);
+                    b';' => {
+                        self.send_u32_cdata(handler, self.char_ref_value)?;
+                        back = pos + 1;
+                        self.state = State::CData;
+                    }
+                    b'0'..=b'9' => {
+                        let digit: u32 = (c - b'0').into();
+                        self.char_ref_value = (self.char_ref_value * 16) + digit;
+                    }
+                    b'a'..=b'f' => {
+                        let digit: u32 = (c - b'a').into();
+                        self.char_ref_value = (self.char_ref_value * 16) + digit + 10;
+                    }
+                    b'A'..=b'F' => {
+                        let digit: u32 = (c - b'A').into();
+                        self.char_ref_value = (self.char_ref_value * 16) + digit + 10;
                     }
                     _ => return Err(ParserError::BadXml),
                 },
@@ -795,6 +871,21 @@ mod tests {
             SaxElement::EndTag("test"),
         ])
         .check("<test><standalone be='happy'/>abcd<br/>&lt;escape&gt;</test>");
+
+        Tester::new(&[
+            SaxElement::StartTag("a"),
+            SaxElement::CData(";AB;"),
+            SaxElement::EndTag("a"),
+        ])
+        .check("<a>&#x3B;&#65;&#x42;&#x3b;</a>");
+
+        Tester::new(&[
+            SaxElement::StartTag("a"),
+            SaxElement::CData(" \u{90} \u{900} \u{10abc} "),
+            SaxElement::EndTag("a"),
+        ])
+        .check("<a> &#x90; &#x900; &#x10abc; </a>");
+
     }
 
     #[test]
@@ -814,7 +905,9 @@ mod tests {
         BadTester::new(13).check("<a a='123' b c='5'></a>");
         BadTester::new(14).check("<a a='12'></a b='1'>");
         BadTester::new(17).check("<g><test a='123'/ b='lala'></g>");
-        //        BadTester::new(2).check("<a a='1' b='></a>");
+        //BadTester::new(2).check("<a a='1' b='></a>");
+        BadTester::new(5).check("<a> <> </a>");
+        BadTester::new(6).check("<a> </> </a>");
     }
 
     #[test]
@@ -842,11 +935,18 @@ mod tests {
         BadTester::new(6).check("<a>&#1a;<a/>");
         BadTester::new(6).check("<a>&#Xaa;<a/>");
         BadTester::new(8).check("<a>&#xa5g;<a/>");
+        BadTester::new(6).check("<a>&#8;<a/>");
+        BadTester::new(7).check("<a>&#11;<a/>");
+        BadTester::new(7).check("<a>&#15;<a/>");
+        BadTester::new(10).check("<a>&#xD800;<a/>");
+        BadTester::new(10).check("<a>&#xDfFf;<a/>");
+        BadTester::new(10).check("<a>&#xfFfE;<a/>");
+        BadTester::new(10).check("<a>&#xFFff;<a/>");
+        BadTester::new(12).check("<a>&#x110000;<a/>");
     }
 }
 
 // FIXME: parse references in attrib values
-// FIXME: parse # and #x char references
 
 // FIXME: consolidate tag end code
 // FIXME: consolidate [CDATA[ states
