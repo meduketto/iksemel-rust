@@ -237,22 +237,64 @@ impl Visitor {
     }
 }
 
-struct DocumentParser<'a> {
-    arena: &'a Arena,
+struct DocumentBuilder {
+    doc: Option<Document>,
+    node: *mut Node,
 }
 
-impl<'a> DocumentParser<'a> {
-    fn new(arena: &Arena) -> DocumentParser {
-        DocumentParser {
-            arena
+impl DocumentBuilder {
+    pub fn new() -> DocumentBuilder {
+        DocumentBuilder {
+            doc: None,
+            node: null_mut(),
         }
     }
 }
 
-impl<'a> SaxHandler for DocumentParser<'a> {
+impl SaxHandler for DocumentBuilder {
     fn handle_element(&mut self, element: &SaxElement) -> Result<(), ParserError> {
+        match element {
+            SaxElement::StartTag(name) => {
+                match &self.doc {
+                    None => {
+                        let doc = Document::new(name);
+                        self.node = doc.root().get_node_ptr();
+                        self.doc = Some(doc);
+                    },
+                    Some(doc) => {
+                        let cursor = Cursor::new(self.node).insert_tag(doc, name);
+                        self.node = cursor.get_node_ptr();
+                    },
+                }
+            },
+            _ => (),
+        }
+
         Ok(())
     }
+}
+
+pub struct DocumentParser {
+    builder: DocumentBuilder,
+    parser: Parser,
+}
+
+impl DocumentParser {
+    pub fn new() -> DocumentParser {
+        DocumentParser {
+            builder: DocumentBuilder::new(),
+            parser: Parser::new(),
+        }
+    }
+
+    pub fn parse_bytes(&mut self, bytes: &[u8]) -> Result<(), ParserError> {
+        self.parser.parse_bytes(&mut self.builder, bytes)
+    }
+
+    pub fn lala(&self) {
+        println!("{}", self.builder.doc.as_ref().unwrap());
+    }
+
 }
 
 impl Document {
@@ -268,9 +310,9 @@ impl Document {
     }
 
     pub fn from_str(xml_str: &str) -> Result<Document, ParserError> {
-        let arena = Arena::new();
-        let mut parser = DocumentParser::new(&arena);
-
+        let mut parser = DocumentParser::new();
+        let _ = parser.parse_bytes(xml_str.as_bytes());
+        parser.lala();
         Err(ParserError::BadXml)
     }
 
@@ -314,7 +356,6 @@ macro_rules! null_cursor {
         Cursor::new(null_mut() as *mut Node)
     };
 }
-
 macro_rules! null_cursor_guard {
     ($x:expr) => {
         unsafe {
@@ -331,6 +372,10 @@ impl<'a> Cursor<'a> {
             node: node.into(),
             marker: PhantomData,
         }
+    }
+
+    fn get_node_ptr(&self) -> *mut Node {
+        unsafe { *self.node.get() }
     }
 
     fn visitor(&self) -> Visitor {
@@ -852,6 +897,11 @@ mod tests {
 
         let _ = doc.root().first_child().set_attribute(&doc, "k", "3");
         check_doc_xml(&doc, "<doc><a i=\"1\" j=\"2\" k=\"3\"/><b i=\"2\"/></doc>");
+    }
+
+    #[test]
+    fn from_str() {
+        let doc = Document::from_str("<a><b>123<c/>456</b></a>");
     }
 }
 
