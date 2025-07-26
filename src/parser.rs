@@ -832,9 +832,7 @@ mod tests {
             SaxElement::Attribute("b", "123'456"),
             SaxElement::EmptyElementTag,
         ])
-        .check(
-            "<tag a='12\"34' b=\"123'456\" />",
-        );
+        .check("<tag a='12\"34' b=\"123'456\" />");
     }
 
     #[test]
