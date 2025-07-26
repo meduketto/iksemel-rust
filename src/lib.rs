@@ -17,6 +17,7 @@ pub use arena::Arena;
 
 pub use document::Cursor;
 pub use document::Document;
+pub use document::DocumentParser;
 
 pub use parser::Parser;
 pub use parser::ParserError;
