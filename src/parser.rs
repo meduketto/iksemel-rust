@@ -55,6 +55,7 @@ pub struct Parser {
     nr_column: usize,
 }
 
+#[derive(Eq, PartialEq)]
 enum State {
     Prolog,
     TagStart,
@@ -164,6 +165,28 @@ impl Parser {
 
         let s = unsafe { std::str::from_utf8_unchecked(&buf[0..size]) };
         handler.handle_element(&SaxElement::CData(&s))
+    }
+
+    pub fn parse_finish(&self) -> Result<(), ParserError> {
+        if !self.seen_content {
+            return Err(ParserError::BadXml);
+        }
+        if self.depth > 0 {
+            return Err(ParserError::BadXml);
+        }
+        if self.state != State::Epilog {
+            return Err(ParserError::BadXml);
+        }
+        Ok(())
+    }
+
+    pub fn parse_bytes_finish(
+        &mut self,
+        handler: &mut impl SaxHandler,
+        bytes: &[u8],
+    ) -> Result<(), ParserError> {
+        self.parse_bytes(handler, bytes)?;
+        self.parse_finish()
     }
 
     pub fn parse_bytes(
@@ -515,6 +538,8 @@ impl Parser {
                         handler.handle_element(&SaxElement::Attribute(&attr, &value))?;
                         self.buffer.clear();
                         self.state = State::AttributeWhitespace;
+                    } else if c == b'<' {
+                        return Err(ParserError::BadXml);
                     }
                 }
 
@@ -720,7 +745,7 @@ mod tests {
         fn check(&mut self, s: &str) {
             let mut parser = Parser::new();
             assert_eq!(
-                parser.parse_bytes(self, &s.as_bytes()),
+                parser.parse_bytes_finish(self, &s.as_bytes()),
                 Err(ParserError::BadXml)
             );
             assert_eq!(parser.nr_bytes(), self.bad_byte);
@@ -799,6 +824,16 @@ mod tests {
         ])
         .check(
             "<tag a  =  '1' b  ='2' c=  '3' d='4'   e='5' f='6' g='7' id='xyz9'><sub></sub></tag>",
+        );
+
+        Tester::new(&[
+            SaxElement::StartTag("tag"),
+            SaxElement::Attribute("a", "12\"34"),
+            SaxElement::Attribute("b", "123'456"),
+            SaxElement::EmptyElementTag,
+        ])
+        .check(
+            "<tag a='12\"34' b=\"123'456\" />",
         );
     }
 
@@ -904,7 +939,8 @@ mod tests {
         BadTester::new(13).check("<a a='123' b c='5'></a>");
         BadTester::new(14).check("<a a='12'></a b='1'>");
         BadTester::new(17).check("<g><test a='123'/ b='lala'></g>");
-        //BadTester::new(2).check("<a a='1' b='></a>");
+        BadTester::new(13).check("<a a='1' b='></a>");
+        BadTester::new(13).check("<a a='1' b=\"></a>");
         BadTester::new(5).check("<a> <> </a>");
         BadTester::new(6).check("<a> </> </a>");
     }
@@ -943,9 +979,16 @@ mod tests {
         BadTester::new(10).check("<a>&#xFFff;<a/>");
         BadTester::new(12).check("<a>&#x110000;<a/>");
     }
+
+    #[test]
+    fn bad_unfinished() {
+        BadTester::new(5).check(" <a> ");
+        BadTester::new(20).check("  <!-- lala -->     ");
+        BadTester::new(27).check(" <a></a> <!-- open comment ");
+        BadTester::new(23).check(" <a></a> <?app open pi ");
+    }
 }
 
-// FIXME: parser func to check if xml completed valid
 // FIXME: parse references in attrib values
 
 // FIXME: consolidate tag end code

@@ -307,6 +307,7 @@ impl DocumentParser {
     }
 
     pub fn into_document(self) -> Result<Document, ParserError> {
+        self.parser.parse_finish()?;
         match self.builder.doc {
             None => Err(ParserError::HandlerError),
             Some(doc) => Ok(doc),

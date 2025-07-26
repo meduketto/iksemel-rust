@@ -23,3 +23,5 @@ pub use parser::Parser;
 pub use parser::ParserError;
 pub use parser::SaxElement;
 pub use parser::SaxHandler;
+
+// FIXME: rename to SaxParser?
