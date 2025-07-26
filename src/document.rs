@@ -18,10 +18,10 @@ use super::arena::Arena;
 use super::entities::escape;
 use super::entities::escape_fmt;
 use super::entities::escaped_size;
-use super::parser::SaxElement;
-use super::parser::SaxHandler;
 use super::parser::Parser;
 use super::parser::ParserError;
+use super::parser::SaxElement;
+use super::parser::SaxHandler;
 
 pub struct Document {
     arena: Arena,
@@ -253,21 +253,36 @@ impl DocumentBuilder {
 
 impl SaxHandler for DocumentBuilder {
     fn handle_element(&mut self, element: &SaxElement) -> Result<(), ParserError> {
-        match element {
-            SaxElement::StartTag(name) => {
-                match &self.doc {
-                    None => {
-                        let doc = Document::new(name);
-                        self.node = doc.root().get_node_ptr();
-                        self.doc = Some(doc);
-                    },
-                    Some(doc) => {
-                        let cursor = Cursor::new(self.node).insert_tag(doc, name);
-                        self.node = cursor.get_node_ptr();
-                    },
+        match &self.doc {
+            None => match element {
+                SaxElement::StartTag(name) => {
+                    let doc = Document::new(name);
+                    self.node = doc.root().get_node_ptr();
+                    self.doc = Some(doc);
                 }
+                _ => return Err(ParserError::HandlerError),
             },
-            _ => (),
+            Some(doc) => {
+                match element {
+                    SaxElement::StartTag(name) => {
+                        let new_tag = Cursor::new(self.node).insert_tag(doc, name);
+                        self.node = new_tag.get_node_ptr();
+                    }
+                    SaxElement::Attribute(name, value) => {
+                        Cursor::new(self.node).set_attribute(doc, name, value);
+                    }
+                    SaxElement::EmptyElementTag => {
+                        self.node = Cursor::new(self.node).parent().get_node_ptr();
+                    }
+                    SaxElement::CData(cdata) => {
+                        Cursor::new(self.node).insert_cdata(doc, cdata);
+                    }
+                    SaxElement::EndTag(name) => {
+                        self.node = Cursor::new(self.node).parent().get_node_ptr();
+                        // FIXME: compare tag names
+                    }
+                }
+            }
         }
 
         Ok(())
@@ -291,10 +306,12 @@ impl DocumentParser {
         self.parser.parse_bytes(&mut self.builder, bytes)
     }
 
-    pub fn lala(&self) {
-        println!("{}", self.builder.doc.as_ref().unwrap());
+    pub fn into_document(self) -> Result<Document, ParserError> {
+        match self.builder.doc {
+            None => Err(ParserError::HandlerError),
+            Some(doc) => Ok(doc),
+        }
     }
-
 }
 
 impl Document {
@@ -311,9 +328,8 @@ impl Document {
 
     pub fn from_str(xml_str: &str) -> Result<Document, ParserError> {
         let mut parser = DocumentParser::new();
-        let _ = parser.parse_bytes(xml_str.as_bytes());
-        parser.lala();
-        Err(ParserError::BadXml)
+        parser.parse_bytes(xml_str.as_bytes())?;
+        parser.into_document()
     }
 
     pub fn root<'a>(&'a self) -> Cursor<'a> {
@@ -901,9 +917,12 @@ mod tests {
 
     #[test]
     fn from_str() {
-        let doc = Document::from_str("<a><b>123<c/>456</b></a>");
+        let doc = Document::from_str("<a><b>123<c/>456</b><d x='1' y='2'>lala</d></a>");
+        println!("{}", doc.unwrap());
     }
 }
+
+// FIXME: insert cdata merge
 
 // FIXME: MaybeUninit?
 // FIXME: NodePayload niche optimization

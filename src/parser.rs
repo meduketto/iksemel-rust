@@ -135,30 +135,30 @@ impl Parser {
             return Err(ParserError::BadXml);
         }
 
-        let mut buf : [u8;4] = [0; 4];
+        let mut buf: [u8; 4] = [0; 4];
         let mut size = 1;
-        const DATA_MASK : u32 = 0b00111111;
-        const DATA_PREFIX : u8 = 0b10000000;
+        const DATA_MASK: u32 = 0b00111111;
+        const DATA_PREFIX: u8 = 0b10000000;
         match value {
             0..=0x7f => buf[0] = value as u8,
             0x80..=0x7ff => {
                 buf[0] = 0b11000000 | ((value >> 6) as u8);
                 buf[1] = DATA_PREFIX | ((value & DATA_MASK) as u8);
                 size = 2;
-            },
+            }
             0x800..=0xffff => {
                 buf[0] = 0b11100000 | ((value >> 12) as u8);
                 buf[1] = DATA_PREFIX | (((value >> 6) & DATA_MASK) as u8);
                 buf[2] = DATA_PREFIX | ((value & DATA_MASK) as u8);
                 size = 3;
-            },
+            }
             0x10000..=0x10ffff => {
                 buf[0] = 0b11110000 | ((value >> 18) as u8);
                 buf[1] = DATA_PREFIX | (((value >> 12) & DATA_MASK) as u8);
                 buf[2] = DATA_PREFIX | (((value >> 6) & DATA_MASK) as u8);
                 buf[3] = DATA_PREFIX | ((value & DATA_MASK) as u8);
                 size = 4;
-            },
+            }
             _ => (),
         }
 
@@ -885,7 +885,6 @@ mod tests {
             SaxElement::EndTag("a"),
         ])
         .check("<a> &#x90; &#x900; &#x10abc; </a>");
-
     }
 
     #[test]
@@ -946,6 +945,7 @@ mod tests {
     }
 }
 
+// FIXME: parser func to check if xml completed valid
 // FIXME: parse references in attrib values
 
 // FIXME: consolidate tag end code
