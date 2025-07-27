@@ -42,6 +42,9 @@ pub trait SaxHandler {
 
 pub struct Parser {
     state: State,
+    uni_len: u32,
+    uni_left: u32,
+    uni_char: u32,
     depth: usize,
     is_end_tag: bool,
     is_quot_value: bool,
@@ -122,6 +125,9 @@ impl Parser {
     pub fn new() -> Parser {
         Parser {
             state: State::Prolog,
+            uni_len: 0,
+            uni_left: 0,
+            uni_char: 0,
             depth: 0,
             is_end_tag: false,
             is_quot_value: false,
@@ -209,6 +215,46 @@ impl Parser {
         while pos < bytes.len() {
             let mut redo: bool = false;
             let c = bytes[pos];
+
+            if self.uni_left > 0 {
+                if c & 0xc0 != 0x80 {
+                    return Err(ParserError::BadXml);
+                }
+                self.uni_char <<= 6;
+                self.uni_char += c as u32 & 0x3f;
+                self.uni_left -= 1;
+                if self.uni_left == 0 {
+                    // Sequences longer than the actual character codepoint
+                    // size are security hazards.
+                    if self.uni_len == 2 && self.uni_char < 0x80
+                        || self.uni_len == 3 && self.uni_char < 0x7ff
+                        || self.uni_len == 4 && self.uni_char < 0xffff {
+                        return Err(ParserError::BadXml);
+                    }
+                }
+            } else {
+                if c & 0x80 == 0x80 {
+                    if c & 0x60 == 0x40 {
+                        self.uni_len = 2;
+                        self.uni_left = 1;
+                        self.uni_char = c as u32 & 0x1f;
+                    } else if c & 0x70 == 0x60 {
+                        self.uni_len = 3;
+                        self.uni_left = 2;
+                        self.uni_char = c as u32 & 0x0f;
+                    } else if c & 0x78 == 0x70 {
+                        self.uni_len = 4;
+                        self.uni_left = 3;
+                        self.uni_char = c as u32 & 0x07;
+                    } else {
+                        return Err(ParserError::BadXml);
+                    }
+                } else {
+                    if c < 0x20 && (c != 0x09 && c != 0x0a && c != 0x0d) {
+                        return Err(ParserError::BadXml);
+                    }
+                }
+            }
 
             match self.state {
                 State::Prolog => match c {
@@ -805,6 +851,15 @@ mod tests {
             );
             assert_eq!(parser.nr_bytes(), self.bad_byte);
         }
+
+        fn check_bytes(&mut self, bytes: &[u8]) {
+            let mut parser = Parser::new();
+            assert_eq!(
+                parser.parse_bytes_finish(self, bytes),
+                Err(ParserError::BadXml)
+            );
+            assert_eq!(parser.nr_bytes(), self.bad_byte);
+        }
     }
 
     impl SaxHandler for BadTester {
@@ -1068,19 +1123,31 @@ mod tests {
 
     #[test]
     fn bad_entities() {
-        BadTester::new(8).check("<a>&lala;<a/>");
-        BadTester::new(12).check("<a>&lala           <a/>");
-        BadTester::new(6).check("<a>&#1a;<a/>");
-        BadTester::new(6).check("<a>&#Xaa;<a/>");
-        BadTester::new(8).check("<a>&#xa5g;<a/>");
-        BadTester::new(6).check("<a>&#8;<a/>");
-        BadTester::new(7).check("<a>&#11;<a/>");
-        BadTester::new(7).check("<a>&#15;<a/>");
-        BadTester::new(10).check("<a>&#xD800;<a/>");
-        BadTester::new(10).check("<a>&#xDfFf;<a/>");
-        BadTester::new(10).check("<a>&#xfFfE;<a/>");
-        BadTester::new(10).check("<a>&#xFFff;<a/>");
-        BadTester::new(12).check("<a>&#x110000;<a/>");
+        BadTester::new(8).check("<a>&lala;</a>");
+        BadTester::new(12).check("<a>&lala           </a>");
+        BadTester::new(16).check("<lol>&lt;<&gt;</lol>");
+        BadTester::new(6).check("<a>&#1a;</a>");
+        BadTester::new(6).check("<a>&#Xaa;</a>");
+        BadTester::new(8).check("<a>&#xa5g;</a>");
+        BadTester::new(6).check("<a>&#8;</a>");
+        BadTester::new(7).check("<a>&#11;</a>");
+        BadTester::new(7).check("<a>&#15;</a>");
+        BadTester::new(10).check("<a>&#xD800;</a>");
+        BadTester::new(10).check("<a>&#xDfFf;</a>");
+        BadTester::new(10).check("<a>&#xfFfE;</a>");
+        BadTester::new(10).check("<a>&#xFFff;</a>");
+        BadTester::new(12).check("<a>&#x110000;</a>");
+    }
+
+    #[test]
+    fn bad_chars() {
+        BadTester::new(6).check_bytes(b"<test>\xFF</test>");
+        BadTester::new(6).check_bytes(b"<test>\xFE</test>");
+        BadTester::new(2).check_bytes(b"<t\x00></t>");
+        BadTester::new(2).check_bytes(b"<t\x19></t>");
+        BadTester::new(7).check_bytes(b"<test>\xC0\x80</test>");
+        BadTester::new(1).check_bytes(b"<\x8f\x85></\x8f\x85>");
+        BadTester::new(7).check_bytes(b"<utf8>\xC1\x80<br/>\xED\x95\x9C\xEA\xB5\xAD\xEC\x96\xB4<err>\xC1\x65</err></utf8>");
     }
 
     #[test]
@@ -1093,10 +1160,7 @@ mod tests {
 }
 
 // FIXME: parse references in attrib values
-
 // FIXME: consolidate tag end code
-// FIXME: check utf8
-// FIXME: check char ranges
 
 // FIXME: returned error details
 // not supported error? for entity refs
