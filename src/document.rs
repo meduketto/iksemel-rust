@@ -262,29 +262,27 @@ impl SaxHandler for DocumentBuilder {
                 }
                 _ => return Err(ParserError::HandlerError),
             },
-            Some(doc) => {
-                match element {
-                    SaxElement::StartTag(name) => {
-                        let new_tag = Cursor::new(self.node).insert_tag(doc, name);
-                        self.node = new_tag.get_node_ptr();
-                    }
-                    SaxElement::Attribute(name, value) => {
-                        Cursor::new(self.node).set_attribute(doc, name, value);
-                    }
-                    SaxElement::EmptyElementTag => {
-                        self.node = Cursor::new(self.node).parent().get_node_ptr();
-                    }
-                    SaxElement::CData(cdata) => {
-                        Cursor::new(self.node).insert_cdata(doc, cdata);
-                    }
-                    SaxElement::EndTag(name) => {
-                        if name != &Cursor::new(self.node).name() {
-                            return Err(ParserError::BadXml);
-                        }
-                        self.node = Cursor::new(self.node).parent().get_node_ptr();
-                    }
+            Some(doc) => match element {
+                SaxElement::StartTag(name) => {
+                    let new_tag = Cursor::new(self.node).insert_tag(doc, name);
+                    self.node = new_tag.get_node_ptr();
                 }
-            }
+                SaxElement::Attribute(name, value) => {
+                    Cursor::new(self.node).set_attribute(doc, name, value);
+                }
+                SaxElement::EmptyElementTag => {
+                    self.node = Cursor::new(self.node).parent().get_node_ptr();
+                }
+                SaxElement::CData(cdata) => {
+                    Cursor::new(self.node).insert_cdata(doc, cdata);
+                }
+                SaxElement::EndTag(name) => {
+                    if name != &Cursor::new(self.node).name() {
+                        return Err(ParserError::BadXml);
+                    }
+                    self.node = Cursor::new(self.node).parent().get_node_ptr();
+                }
+            },
         }
 
         Ok(())
@@ -942,9 +940,18 @@ mod tests {
 
     #[test]
     fn bad_doc_parser() {
-        assert_eq!(Document::from_str("<a>lala</b>").err(), Some(ParserError::BadXml));
-        assert_eq!(Document::from_str("<a><b><c/></d></a>").err(), Some(ParserError::BadXml));
-        assert_eq!(Document::from_str("<a><b><c/></b><d></d><e></e2></a>").err(), Some(ParserError::BadXml));
+        assert_eq!(
+            Document::from_str("<a>lala</b>").err(),
+            Some(ParserError::BadXml)
+        );
+        assert_eq!(
+            Document::from_str("<a><b><c/></d></a>").err(),
+            Some(ParserError::BadXml)
+        );
+        assert_eq!(
+            Document::from_str("<a><b><c/></b><d></d><e></e2></a>").err(),
+            Some(ParserError::BadXml)
+        );
     }
 }
 
