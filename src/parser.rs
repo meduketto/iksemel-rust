@@ -888,6 +888,23 @@ mod tests {
             SaxElement::EmptyElementTag,
         ])
         .check("<tag a='12\"34' b=\"123'456\" />");
+
+        Tester::new(&[
+            SaxElement::StartTag("a"),
+            SaxElement::StartTag("b"),
+            SaxElement::CData("john&mary"),
+            SaxElement::StartTag("c"),
+            SaxElement::StartTag("d"),
+            SaxElement::Attribute("e", "f"),
+            SaxElement::Attribute("g", "123456"),
+            SaxElement::Attribute("h", "madcat"),
+            SaxElement::Attribute("klm", "nop"),
+            SaxElement::EmptyElementTag,
+            SaxElement::EndTag("c"),
+            SaxElement::EndTag("b"),
+            SaxElement::EndTag("a"),
+        ])
+        .check("<a><b>john&amp;mary<c><d e='f' g='123456' h='madcat' klm='nop'/></c></b></a>");
     }
 
     #[test]
@@ -936,6 +953,13 @@ mod tests {
             SaxElement::EndTag("data"),
         ])
         .check("<data><![CDATA[[TEST]]]]></data>");
+
+        Tester::new(&[
+            SaxElement::StartTag("a"),
+            SaxElement::CData("[[bg:Чингис хан]][[bn:চেঙ্গিজ খান]]"),
+            SaxElement::EndTag("a"),
+        ])
+        .check("<a>[[bg:Чингис хан]][[bn:চেঙ্গিজ খান]]</a>");
     }
 
     #[test]
@@ -946,6 +970,16 @@ mod tests {
             SaxElement::EndTag("x"),
         ])
         .check(" <!DOCTYPE greeting [ <!ELEMENT greeting (#PCDATA)> ]> <x>foo</x>");
+    }
+
+    #[test]
+    fn pi() {
+        Tester::new(&[
+            SaxElement::StartTag("a"),
+            SaxElement::CData("bibi"),
+            SaxElement::EndTag("a"),
+        ])
+        .check("<a><?xml lala?>bibi</a>");
     }
 
     #[test]
@@ -1015,6 +1049,12 @@ mod tests {
         BadTester::new(12).check("<!-- c1 --> lala <ha/>");
         BadTester::new(31).check("<!-- c1 --> <ha/> <!-- pika -->c");
         BadTester::new(9).check("<!-- c ---> <ha/>");
+    }
+
+    #[test]
+    fn bad_pi() {
+        BadTester::new(12).check("<e/> <?xml >");
+        BadTester::new(13).check("<e/> <?xml ?>lala");
     }
 
     #[test]
