@@ -75,6 +75,15 @@ enum State {
     CommentBody,
     CommentMaybeEnd,
     CommentEnd,
+    DoctypeDO,
+    DoctypeDOC,
+    DoctypeDOCT,
+    DoctypeDOCTY,
+    DoctypeDOCTYP,
+    DoctypeDOCTYPE,
+    DoctypeWhitespace,
+    DoctypeSkip,
+    DoctypeMarkupDecl,
     TagName,
     EndTagWhitespace,
     EmptyTagEnd,
@@ -242,8 +251,54 @@ impl Parser {
                         }
                         self.state = State::CDataSectionC;
                     }
-                    // FIXME: doctype
+                    b'D' => self.state = State::DoctypeDO,
                     _ => return Err(ParserError::BadXml),
+                },
+
+                State::DoctypeDO => match c {
+                    b'O' => self.state = State::DoctypeDOC,
+                    _ => return Err(ParserError::BadXml),
+                },
+
+                State::DoctypeDOC => match c {
+                    b'C' => self.state = State::DoctypeDOCT,
+                    _ => return Err(ParserError::BadXml),
+                },
+
+                State::DoctypeDOCT => match c {
+                    b'T' => self.state = State::DoctypeDOCTY,
+                    _ => return Err(ParserError::BadXml),
+                },
+
+                State::DoctypeDOCTY => match c {
+                    b'Y' => self.state = State::DoctypeDOCTYP,
+                    _ => return Err(ParserError::BadXml),
+                },
+
+                State::DoctypeDOCTYP => match c {
+                    b'P' => self.state = State::DoctypeDOCTYPE,
+                    _ => return Err(ParserError::BadXml),
+                },
+
+                State::DoctypeDOCTYPE => match c {
+                    b'E' => self.state = State::DoctypeWhitespace,
+                    _ => return Err(ParserError::BadXml),
+                },
+
+                State::DoctypeWhitespace => match c {
+                    whitespace!() => self.state = State::DoctypeSkip,
+                    _ => return Err(ParserError::BadXml),
+                },
+
+                State::DoctypeSkip => match c {
+                    b'<' => self.state = State::DoctypeMarkupDecl,
+                    b'>' => self.state = State::Prolog,
+                    _ => (),
+                },
+
+                State::DoctypeMarkupDecl => match c {
+                    b'>' => self.state = State::DoctypeSkip,
+                    _ => (),
                 },
 
                 State::CDataSectionC => {
@@ -884,6 +939,16 @@ mod tests {
     }
 
     #[test]
+    fn dtds() {
+        Tester::new(&[
+            SaxElement::StartTag("x"),
+            SaxElement::CData("foo"),
+            SaxElement::EndTag("x"),
+        ])
+        .check(" <!DOCTYPE greeting [ <!ELEMENT greeting (#PCDATA)> ]> <x>foo</x>");
+    }
+
+    #[test]
     fn entities() {
         Tester::new(&[
             SaxElement::StartTag("body"),
@@ -991,7 +1056,6 @@ mod tests {
 
 // FIXME: consolidate tag end code
 // FIXME: consolidate [CDATA[ states
-// FIXME: parse doctype declaration
 // FIXME: check utf8
 // FIXME: check char ranges
 

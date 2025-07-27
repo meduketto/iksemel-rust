@@ -923,6 +923,7 @@ mod tests {
     }
 }
 
+// FIXME: error line/col/byte passing
 // FIXME: insert cdata merge
 
 // FIXME: MaybeUninit?
