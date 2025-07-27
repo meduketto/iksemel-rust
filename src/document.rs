@@ -278,8 +278,10 @@ impl SaxHandler for DocumentBuilder {
                         Cursor::new(self.node).insert_cdata(doc, cdata);
                     }
                     SaxElement::EndTag(name) => {
+                        if name != &Cursor::new(self.node).name() {
+                            return Err(ParserError::BadXml);
+                        }
                         self.node = Cursor::new(self.node).parent().get_node_ptr();
-                        // FIXME: compare tag names
                     }
                 }
             }
@@ -717,6 +719,22 @@ impl<'a> Cursor<'a> {
         }
     }
 
+    pub fn name(&self) -> &str {
+        unsafe {
+            let node = *self.node.get();
+            if node.is_null() {
+                return "";
+            }
+            match (*node).payload {
+                NodePayload::CData(_) => {
+                    // Not a tag
+                    ""
+                }
+                NodePayload::Tag(tag) => (*tag).as_str(),
+            }
+        }
+    }
+
     pub fn str_size(&self) -> usize {
         unsafe {
             if (*self.node.get()).is_null() {
@@ -917,9 +935,16 @@ mod tests {
     }
 
     #[test]
-    fn from_str() {
+    fn doc_parser() {
         let doc = Document::from_str("<a><b>123<c/>456</b><d x='1' y='2'>lala</d></a>");
         println!("{}", doc.unwrap());
+    }
+
+    #[test]
+    fn bad_doc_parser() {
+        assert_eq!(Document::from_str("<a>lala</b>").err(), Some(ParserError::BadXml));
+        assert_eq!(Document::from_str("<a><b><c/></d></a>").err(), Some(ParserError::BadXml));
+        assert_eq!(Document::from_str("<a><b><c/></b><d></d><e></e2></a>").err(), Some(ParserError::BadXml));
     }
 }
 

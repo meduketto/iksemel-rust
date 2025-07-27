@@ -1055,7 +1055,6 @@ mod tests {
 // FIXME: parse references in attrib values
 
 // FIXME: consolidate tag end code
-// FIXME: consolidate [CDATA[ states
 // FIXME: check utf8
 // FIXME: check char ranges
 

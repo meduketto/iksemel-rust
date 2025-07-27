@@ -518,3 +518,4 @@ mod tests {
 // FIXME: docs
 // FIXME: MaybeUninit?
 // FIXME: better min size tuning
+// FIXME: actual usage stat?
