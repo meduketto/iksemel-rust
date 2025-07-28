@@ -807,7 +807,19 @@ mod tests {
 
         fn check(&mut self, s: &str) {
             let mut parser = Parser::new();
-            assert!(parser.parse_bytes(self, &s.as_bytes()).is_ok());
+            assert!(parser.parse_bytes_finish(self, &s.as_bytes()).is_ok());
+            assert_eq!(self.current, self.expected.len());
+
+            self.current = 0;
+            self.cdata_buf.clear();
+
+            // now try byte by byte
+            let mut parser = Parser::new();
+            for i in 0..s.len() {
+                let x = &s.as_bytes()[i..i+1];
+                assert!(parser.parse_bytes(self, &s.as_bytes()[i..i+1]).is_ok());
+            }
+            assert!(parser.parse_finish().is_ok());
             assert_eq!(self.current, self.expected.len());
         }
     }
