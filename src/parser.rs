@@ -231,6 +231,9 @@ impl Parser {
                         || (self.uni_len == 4 && self.uni_char <= 0xffff) {
                         return Err(ParserError::BadXml);
                     }
+                    if !is_valid_xml_char(self.uni_char) {
+                        return Err(ParserError::BadXml);
+                    }
                 }
             } else {
                 if c & 0x80 == 0x80 {
@@ -816,7 +819,6 @@ mod tests {
             // now try byte by byte
             let mut parser = Parser::new();
             for i in 0..s.len() {
-                let x = &s.as_bytes()[i..i+1];
                 assert!(parser.parse_bytes(self, &s.as_bytes()[i..i+1]).is_ok());
             }
             assert!(parser.parse_finish().is_ok());
@@ -1179,7 +1181,6 @@ mod tests {
 }
 
 // FIXME: parse references in attrib values
-// FIXME: consolidate tag end code
 // FIXME: parser reset
 // FIXME: returned error details
 // not supported error? for entity refs
