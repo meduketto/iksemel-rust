@@ -226,9 +226,9 @@ impl Parser {
                 if self.uni_left == 0 {
                     // Sequences longer than the actual character codepoint
                     // size are security hazards.
-                    if self.uni_len == 2 && self.uni_char < 0x80
-                        || self.uni_len == 3 && self.uni_char < 0x7ff
-                        || self.uni_len == 4 && self.uni_char < 0xffff {
+                    if (self.uni_len == 2 && self.uni_char <= 0x7f)
+                        || (self.uni_len == 3 && self.uni_char <= 0x7ff)
+                        || (self.uni_len == 4 && self.uni_char <= 0xffff) {
                         return Err(ParserError::BadXml);
                     }
                 }
@@ -1145,7 +1145,14 @@ mod tests {
         BadTester::new(6).check_bytes(b"<test>\xFE</test>");
         BadTester::new(2).check_bytes(b"<t\x00></t>");
         BadTester::new(2).check_bytes(b"<t\x19></t>");
+        BadTester::new(8).check_bytes(b"<test>\xe3\x8fa</test>");
         BadTester::new(7).check_bytes(b"<test>\xC0\x80</test>");
+        BadTester::new(7).check_bytes(b"<test>\xC0\xaf</test>");
+        BadTester::new(8).check_bytes(b"<test>\xe0\x80\xaf</test>");
+        BadTester::new(9).check_bytes(b"<test>\xf0\x80\x80\xaf</test>");
+        BadTester::new(7).check_bytes(b"<test>\xc1\xbf</test>");
+        BadTester::new(8).check_bytes(b"<test>\xe0\x9f\xbf</test>");
+        BadTester::new(9).check_bytes(b"<test>\xf0\x8f\xbf\xbf</test>");
         BadTester::new(1).check_bytes(b"<\x8f\x85></\x8f\x85>");
         BadTester::new(7).check_bytes(b"<utf8>\xC1\x80<br/>\xED\x95\x9C\xEA\xB5\xAD\xEC\x96\xB4<err>\xC1\x65</err></utf8>");
     }
@@ -1161,6 +1168,6 @@ mod tests {
 
 // FIXME: parse references in attrib values
 // FIXME: consolidate tag end code
-
+// FIXME: parser reset
 // FIXME: returned error details
 // not supported error? for entity refs
