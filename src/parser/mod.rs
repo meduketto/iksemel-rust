@@ -8,24 +8,9 @@
 ** the License, or (at your option) any later version.
 */
 
-#[derive(Debug, Eq, PartialEq)]
-pub enum ParserError {
-    NoMemory,
-    BadXml,
-    HandlerError,
-}
+mod error;
 
-impl std::fmt::Display for ParserError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            ParserError::NoMemory => write!(f, "not enough memory"),
-            ParserError::BadXml => write!(f, "invalid xml syntax"),
-            ParserError::HandlerError => write!(f, "error from sax handler"),
-        }
-    }
-}
-
-impl std::error::Error for ParserError {}
+pub use error::ParserError;
 
 #[derive(Debug, Eq, PartialEq)]
 pub enum SaxElement<'a> {
