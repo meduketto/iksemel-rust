@@ -10,7 +10,9 @@
 
 mod error;
 
-pub use error::ParserError;
+pub use error::SaxError;
+
+use error::XmlError;
 
 #[derive(Debug, Eq, PartialEq)]
 pub enum SaxElement<'a> {
@@ -22,11 +24,12 @@ pub enum SaxElement<'a> {
 }
 
 pub trait SaxHandler {
-    fn handle_element(&mut self, element: &SaxElement) -> Result<(), ParserError>;
+    fn handle_element(&mut self, element: &SaxElement) -> Result<(), SaxError>;
 }
 
-pub struct Parser {
+pub struct SaxParser {
     state: State,
+    error: Option<XmlError>,
     uni_len: u32,
     uni_left: u32,
     uni_char: u32,
@@ -106,10 +109,25 @@ fn is_valid_xml_char(c: u32) -> bool {
     }
 }
 
-impl Parser {
-    pub fn new() -> Parser {
-        Parser {
+macro_rules! xml_error {
+    ($a:ident, $b:ident) => {
+        $a.error = Some(XmlError::$b);
+        return Err(SaxError::BadXml);
+    };
+}
+
+macro_rules! nosupp_error {
+    ($a:ident, $b:ident) => {
+        $a.error = Some(XmlError::$b);
+        return Err(SaxError::NotSupported);
+    };
+}
+
+impl SaxParser {
+    pub fn new() -> SaxParser {
+        SaxParser {
             state: State::Prolog,
+            error: None,
             uni_len: 0,
             uni_left: 0,
             uni_char: 0,
@@ -131,9 +149,9 @@ impl Parser {
         &mut self,
         handler: &mut impl SaxHandler,
         value: u32,
-    ) -> Result<(), ParserError> {
+    ) -> Result<(), SaxError> {
         if !is_valid_xml_char(value) {
-            return Err(ParserError::BadXml);
+            xml_error!(self, CharInvalid);
         }
 
         let mut buf: [u8; 4] = [0; 4];
@@ -167,15 +185,18 @@ impl Parser {
         handler.handle_element(&SaxElement::CData(&s))
     }
 
-    pub fn parse_finish(&self) -> Result<(), ParserError> {
+    pub fn parse_finish(&mut self) -> Result<(), SaxError> {
+        if self.error.is_some() {
+            nosupp_error!(self, ParserReuseWithoutReset);
+        }
         if !self.seen_content {
-            return Err(ParserError::BadXml);
+            return Err(SaxError::BadXml);
         }
         if self.depth > 0 {
-            return Err(ParserError::BadXml);
+            return Err(SaxError::BadXml);
         }
         if self.state != State::Epilog {
-            return Err(ParserError::BadXml);
+            return Err(SaxError::BadXml);
         }
         Ok(())
     }
@@ -184,7 +205,7 @@ impl Parser {
         &mut self,
         handler: &mut impl SaxHandler,
         bytes: &[u8],
-    ) -> Result<(), ParserError> {
+    ) -> Result<(), SaxError> {
         self.parse_bytes(handler, bytes)?;
         self.parse_finish()
     }
@@ -193,7 +214,11 @@ impl Parser {
         &mut self,
         handler: &mut impl SaxHandler,
         bytes: &[u8],
-    ) -> Result<(), ParserError> {
+    ) -> Result<(), SaxError> {
+        if self.error.is_some() {
+            nosupp_error!(self, ParserReuseWithoutReset);
+        }
+
         let mut pos: usize = 0;
         let mut back: usize = 0;
 
@@ -203,7 +228,7 @@ impl Parser {
 
             if self.uni_left > 0 {
                 if c & 0xc0 != 0x80 {
-                    return Err(ParserError::BadXml);
+                    xml_error!(self, Utf8InvalidContByte);
                 }
                 self.uni_char <<= 6;
                 self.uni_char += c as u32 & 0x3f;
@@ -213,11 +238,12 @@ impl Parser {
                     // size are security hazards.
                     if (self.uni_len == 2 && self.uni_char <= 0x7f)
                         || (self.uni_len == 3 && self.uni_char <= 0x7ff)
-                        || (self.uni_len == 4 && self.uni_char <= 0xffff) {
-                        return Err(ParserError::BadXml);
+                        || (self.uni_len == 4 && self.uni_char <= 0xffff)
+                    {
+                        xml_error!(self, Utf8OverlongSequence);
                     }
                     if !is_valid_xml_char(self.uni_char) {
-                        return Err(ParserError::BadXml);
+                        xml_error!(self, CharInvalid);
                     }
                 }
             } else {
@@ -235,11 +261,11 @@ impl Parser {
                         self.uni_left = 3;
                         self.uni_char = c as u32 & 0x07;
                     } else {
-                        return Err(ParserError::BadXml);
+                        xml_error!(self, Utf8InvalidPrefixByte);
                     }
                 } else {
                     if c < 0x20 && (c != 0x09 && c != 0x0a && c != 0x0d) {
-                        return Err(ParserError::BadXml);
+                        xml_error!(self, CharInvalid);
                     }
                 }
             }
@@ -248,7 +274,7 @@ impl Parser {
                 State::Prolog => match c {
                     b'<' => self.state = State::TagStart,
                     whitespace!() => (),
-                    _ => return Err(ParserError::BadXml),
+                    _ => return Err(SaxError::BadXml),
                 },
 
                 State::TagStart => match c {
@@ -258,16 +284,16 @@ impl Parser {
                     b'?' => self.state = State::PI,
                     b'/' => {
                         if self.depth == 0 {
-                            return Err(ParserError::BadXml);
+                            return Err(SaxError::BadXml);
                         }
                         back = pos + 1;
                         self.is_end_tag = true;
                         self.state = State::TagName;
                     }
-                    whitespace!() | b'>' => return Err(ParserError::BadXml),
+                    whitespace!() | b'>' => return Err(SaxError::BadXml),
                     _ => {
                         if self.depth == 0 && self.seen_content {
-                            return Err(ParserError::BadXml);
+                            return Err(SaxError::BadXml);
                         }
                         self.depth += 1;
                         back = pos;
@@ -281,47 +307,47 @@ impl Parser {
                     b'-' => self.state = State::CommentStart,
                     b'[' => {
                         if self.depth == 0 {
-                            return Err(ParserError::BadXml);
+                            return Err(SaxError::BadXml);
                         }
                         self.state = State::CDataSectionC;
                     }
                     b'D' => self.state = State::DoctypeDO,
-                    _ => return Err(ParserError::BadXml),
+                    _ => return Err(SaxError::BadXml),
                 },
 
                 State::DoctypeDO => match c {
                     b'O' => self.state = State::DoctypeDOC,
-                    _ => return Err(ParserError::BadXml),
+                    _ => return Err(SaxError::BadXml),
                 },
 
                 State::DoctypeDOC => match c {
                     b'C' => self.state = State::DoctypeDOCT,
-                    _ => return Err(ParserError::BadXml),
+                    _ => return Err(SaxError::BadXml),
                 },
 
                 State::DoctypeDOCT => match c {
                     b'T' => self.state = State::DoctypeDOCTY,
-                    _ => return Err(ParserError::BadXml),
+                    _ => return Err(SaxError::BadXml),
                 },
 
                 State::DoctypeDOCTY => match c {
                     b'Y' => self.state = State::DoctypeDOCTYP,
-                    _ => return Err(ParserError::BadXml),
+                    _ => return Err(SaxError::BadXml),
                 },
 
                 State::DoctypeDOCTYP => match c {
                     b'P' => self.state = State::DoctypeDOCTYPE,
-                    _ => return Err(ParserError::BadXml),
+                    _ => return Err(SaxError::BadXml),
                 },
 
                 State::DoctypeDOCTYPE => match c {
                     b'E' => self.state = State::DoctypeWhitespace,
-                    _ => return Err(ParserError::BadXml),
+                    _ => return Err(SaxError::BadXml),
                 },
 
                 State::DoctypeWhitespace => match c {
                     whitespace!() => self.state = State::DoctypeSkip,
-                    _ => return Err(ParserError::BadXml),
+                    _ => return Err(SaxError::BadXml),
                 },
 
                 State::DoctypeSkip => match c {
@@ -337,42 +363,42 @@ impl Parser {
 
                 State::CDataSectionC => {
                     if c != b'C' {
-                        return Err(ParserError::BadXml);
+                        return Err(SaxError::BadXml);
                     }
                     self.state = State::CDataSectionCD;
                 }
 
                 State::CDataSectionCD => {
                     if c != b'D' {
-                        return Err(ParserError::BadXml);
+                        return Err(SaxError::BadXml);
                     }
                     self.state = State::CDataSectionCDA;
                 }
 
                 State::CDataSectionCDA => {
                     if c != b'A' {
-                        return Err(ParserError::BadXml);
+                        return Err(SaxError::BadXml);
                     }
                     self.state = State::CDataSectionCDAT;
                 }
 
                 State::CDataSectionCDAT => {
                     if c != b'T' {
-                        return Err(ParserError::BadXml);
+                        return Err(SaxError::BadXml);
                     }
                     self.state = State::CDataSectionCDATA;
                 }
 
                 State::CDataSectionCDATA => {
                     if c != b'A' {
-                        return Err(ParserError::BadXml);
+                        return Err(SaxError::BadXml);
                     }
                     self.state = State::CDataSectionCDATAb;
                 }
 
                 State::CDataSectionCDATAb => {
                     if c != b'[' {
-                        return Err(ParserError::BadXml);
+                        return Err(SaxError::BadXml);
                     }
                     back = pos + 1;
                     self.state = State::CDataSectionBody;
@@ -415,7 +441,7 @@ impl Parser {
 
                 State::CommentStart => {
                     if c != b'-' {
-                        return Err(ParserError::BadXml);
+                        return Err(SaxError::BadXml);
                     }
                     self.state = State::CommentBody;
                 }
@@ -432,7 +458,7 @@ impl Parser {
 
                 State::CommentEnd => {
                     if c != b'>' {
-                        return Err(ParserError::BadXml);
+                        return Err(SaxError::BadXml);
                     }
                     if self.depth > 0 {
                         back = pos + 1;
@@ -464,7 +490,7 @@ impl Parser {
                             self.state = State::Prolog;
                         }
                     }
-                    _ => return Err(ParserError::BadXml),
+                    _ => return Err(SaxError::BadXml),
                 },
 
                 State::TagName => match c {
@@ -474,12 +500,12 @@ impl Parser {
                         }
                         {
                             if self.buffer.len() == 0 {
-                                return Err(ParserError::BadXml);
+                                return Err(SaxError::BadXml);
                             }
                             let s = unsafe { std::str::from_utf8_unchecked(&self.buffer) };
                             if self.is_end_tag {
                                 if c == b'/' {
-                                    return Err(ParserError::BadXml);
+                                    return Err(SaxError::BadXml);
                                 }
                                 handler.handle_element(&SaxElement::EndTag(&s))?;
                             } else {
@@ -495,7 +521,7 @@ impl Parser {
                             b'>' => {
                                 if self.is_end_tag {
                                     if self.depth == 0 {
-                                        return Err(ParserError::BadXml);
+                                        return Err(SaxError::BadXml);
                                     }
                                     self.depth -= 1;
                                     if self.depth == 0 {
@@ -525,7 +551,7 @@ impl Parser {
                 State::EmptyTagEnd => match c {
                     b'>' => {
                         if self.depth == 0 {
-                            return Err(ParserError::BadXml);
+                            return Err(SaxError::BadXml);
                         }
                         self.depth -= 1;
                         if self.depth == 0 {
@@ -535,13 +561,13 @@ impl Parser {
                             self.state = State::CData;
                         }
                     }
-                    _ => return Err(ParserError::BadXml),
+                    _ => return Err(SaxError::BadXml),
                 },
 
                 State::EndTagWhitespace => match c {
                     b'>' => {
                         if self.depth == 0 {
-                            return Err(ParserError::BadXml);
+                            return Err(SaxError::BadXml);
                         }
                         self.depth -= 1;
                         if self.depth == 0 {
@@ -552,14 +578,14 @@ impl Parser {
                         }
                     }
                     whitespace!() => (),
-                    _ => return Err(ParserError::BadXml),
+                    _ => return Err(SaxError::BadXml),
                 },
 
                 State::AttributeWhitespace => match c {
                     whitespace!() => (),
                     b'/' => {
                         if self.is_end_tag {
-                            return Err(ParserError::BadXml);
+                            return Err(SaxError::BadXml);
                         }
                         handler.handle_element(&SaxElement::EmptyElementTag)?;
                         self.state = State::EmptyTagEnd;
@@ -586,14 +612,14 @@ impl Parser {
                             self.state = State::AttributeEq;
                         }
                     }
-                    b'/' | b'>' | b'<' => return Err(ParserError::BadXml),
+                    b'/' | b'>' | b'<' => return Err(SaxError::BadXml),
                     _ => (),
                 },
 
                 State::AttributeEq => match c {
                     b'=' => self.state = State::AttributeValueStart,
                     whitespace!() => (),
-                    _ => return Err(ParserError::BadXml),
+                    _ => return Err(SaxError::BadXml),
                 },
 
                 State::AttributeValueStart => match c {
@@ -610,7 +636,7 @@ impl Parser {
                         self.state = State::AttributeValue;
                     }
                     whitespace!() => (),
-                    _ => return Err(ParserError::BadXml),
+                    _ => return Err(SaxError::BadXml),
                 },
 
                 State::AttributeValue => {
@@ -628,7 +654,7 @@ impl Parser {
                         self.buffer.clear();
                         self.state = State::AttributeWhitespace;
                     } else if c == b'<' {
-                        return Err(ParserError::BadXml);
+                        return Err(SaxError::BadXml);
                     }
                 }
 
@@ -671,14 +697,14 @@ impl Parser {
                             b"gt" => handler.handle_element(&SaxElement::CData(">"))?,
                             b"quot" => handler.handle_element(&SaxElement::CData("\""))?,
                             b"apos" => handler.handle_element(&SaxElement::CData("'"))?,
-                            _ => return Err(ParserError::BadXml),
+                            _ => return Err(SaxError::BadXml),
                         };
                         back = pos + 1;
                         self.state = State::CData;
                     }
                     _ => {
                         if self.ref_buffer.len() >= REF_BUFFER_SIZE {
-                            return Err(ParserError::BadXml);
+                            return Err(SaxError::BadXml);
                         }
                         self.ref_buffer.push(c);
                     }
@@ -703,7 +729,7 @@ impl Parser {
                         let digit: u32 = (c - b'0').into();
                         self.char_ref_value = (self.char_ref_value * 10) + digit;
                     }
-                    _ => return Err(ParserError::BadXml),
+                    _ => return Err(SaxError::BadXml),
                 },
 
                 State::HexCharReference => match c {
@@ -724,13 +750,13 @@ impl Parser {
                         let digit: u32 = (c - b'A').into();
                         self.char_ref_value = (self.char_ref_value * 16) + digit + 10;
                     }
-                    _ => return Err(ParserError::BadXml),
+                    _ => return Err(SaxError::BadXml),
                 },
 
                 State::Epilog => match c {
                     b'<' => self.state = State::TagStart,
                     whitespace!() => (),
-                    _ => return Err(ParserError::BadXml),
+                    _ => return Err(SaxError::BadXml),
                 },
             }
 
@@ -772,6 +798,13 @@ impl Parser {
     pub fn nr_column(&self) -> usize {
         self.nr_column
     }
+
+    pub fn error_description(&self) -> Option<&'static str> {
+        match &self.error {
+            None => None,
+            Some(e) => Some(e.description()),
+        }
+    }
 }
 
 #[cfg(test)]
@@ -794,7 +827,7 @@ mod tests {
         }
 
         fn check(&mut self, s: &str) {
-            let mut parser = Parser::new();
+            let mut parser = SaxParser::new();
             assert!(parser.parse_bytes_finish(self, &s.as_bytes()).is_ok());
             assert_eq!(self.current, self.expected.len());
 
@@ -802,9 +835,9 @@ mod tests {
             self.cdata_buf.clear();
 
             // now try byte by byte
-            let mut parser = Parser::new();
+            let mut parser = SaxParser::new();
             for i in 0..s.len() {
-                assert!(parser.parse_bytes(self, &s.as_bytes()[i..i+1]).is_ok());
+                assert!(parser.parse_bytes(self, &s.as_bytes()[i..i + 1]).is_ok());
             }
             assert!(parser.parse_finish().is_ok());
             assert_eq!(self.current, self.expected.len());
@@ -812,7 +845,7 @@ mod tests {
     }
 
     impl<'a> SaxHandler for Tester<'a> {
-        fn handle_element(&mut self, element: &SaxElement) -> Result<(), ParserError> {
+        fn handle_element(&mut self, element: &SaxElement) -> Result<(), SaxError> {
             assert!(self.current < self.expected.len());
             if let SaxElement::CData(cdata) = element {
                 if let SaxElement::CData(cdata2) = self.expected[self.current] {
@@ -843,26 +876,26 @@ mod tests {
         }
 
         fn check(&mut self, s: &str) {
-            let mut parser = Parser::new();
+            let mut parser = SaxParser::new();
             assert_eq!(
                 parser.parse_bytes_finish(self, &s.as_bytes()),
-                Err(ParserError::BadXml)
+                Err(SaxError::BadXml)
             );
             assert_eq!(parser.nr_bytes(), self.bad_byte);
         }
 
         fn check_bytes(&mut self, bytes: &[u8]) {
-            let mut parser = Parser::new();
+            let mut parser = SaxParser::new();
             assert_eq!(
                 parser.parse_bytes_finish(self, bytes),
-                Err(ParserError::BadXml)
+                Err(SaxError::BadXml)
             );
             assert_eq!(parser.nr_bytes(), self.bad_byte);
         }
     }
 
     impl SaxHandler for BadTester {
-        fn handle_element(&mut self, _element: &SaxElement) -> Result<(), ParserError> {
+        fn handle_element(&mut self, _element: &SaxElement) -> Result<(), SaxError> {
             Ok(())
         }
     }
@@ -1153,7 +1186,9 @@ mod tests {
         BadTester::new(8).check_bytes(b"<test>\xe0\x9f\xbf</test>");
         BadTester::new(9).check_bytes(b"<test>\xf0\x8f\xbf\xbf</test>");
         BadTester::new(1).check_bytes(b"<\x8f\x85></\x8f\x85>");
-        BadTester::new(7).check_bytes(b"<utf8>\xC1\x80<br/>\xED\x95\x9C\xEA\xB5\xAD\xEC\x96\xB4<err>\xC1\x65</err></utf8>");
+        BadTester::new(7).check_bytes(
+            b"<utf8>\xC1\x80<br/>\xED\x95\x9C\xEA\xB5\xAD\xEC\x96\xB4<err>\xC1\x65</err></utf8>",
+        );
     }
 
     #[test]

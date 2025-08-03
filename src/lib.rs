@@ -19,9 +19,9 @@ pub use document::Cursor;
 pub use document::Document;
 pub use document::DocumentParser;
 
-pub use parser::Parser;
-pub use parser::ParserError;
 pub use parser::SaxElement;
+pub use parser::SaxError;
 pub use parser::SaxHandler;
+pub use parser::SaxParser;
 
 // FIXME: rename to SaxParser?

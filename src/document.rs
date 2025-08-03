@@ -18,10 +18,10 @@ use super::arena::Arena;
 use super::entities::escape;
 use super::entities::escape_fmt;
 use super::entities::escaped_size;
-use super::parser::Parser;
-use super::parser::ParserError;
 use super::parser::SaxElement;
+use super::parser::SaxError;
 use super::parser::SaxHandler;
+use super::parser::SaxParser;
 
 pub struct Document {
     arena: Arena,
@@ -252,7 +252,7 @@ impl DocumentBuilder {
 }
 
 impl SaxHandler for DocumentBuilder {
-    fn handle_element(&mut self, element: &SaxElement) -> Result<(), ParserError> {
+    fn handle_element(&mut self, element: &SaxElement) -> Result<(), SaxError> {
         match &self.doc {
             None => match element {
                 SaxElement::StartTag(name) => {
@@ -260,7 +260,7 @@ impl SaxHandler for DocumentBuilder {
                     self.node = doc.root().get_node_ptr();
                     self.doc = Some(doc);
                 }
-                _ => return Err(ParserError::HandlerError),
+                _ => return Err(SaxError::HandlerError),
             },
             Some(doc) => match element {
                 SaxElement::StartTag(name) => {
@@ -278,7 +278,7 @@ impl SaxHandler for DocumentBuilder {
                 }
                 SaxElement::EndTag(name) => {
                     if name != &Cursor::new(self.node).name() {
-                        return Err(ParserError::BadXml);
+                        return Err(SaxError::BadXml);
                     }
                     self.node = Cursor::new(self.node).parent().get_node_ptr();
                 }
@@ -291,25 +291,25 @@ impl SaxHandler for DocumentBuilder {
 
 pub struct DocumentParser {
     builder: DocumentBuilder,
-    parser: Parser,
+    parser: SaxParser,
 }
 
 impl DocumentParser {
     pub fn new() -> DocumentParser {
         DocumentParser {
             builder: DocumentBuilder::new(),
-            parser: Parser::new(),
+            parser: SaxParser::new(),
         }
     }
 
-    pub fn parse_bytes(&mut self, bytes: &[u8]) -> Result<(), ParserError> {
+    pub fn parse_bytes(&mut self, bytes: &[u8]) -> Result<(), SaxError> {
         self.parser.parse_bytes(&mut self.builder, bytes)
     }
 
-    pub fn into_document(self) -> Result<Document, ParserError> {
+    pub fn into_document(mut self) -> Result<Document, SaxError> {
         self.parser.parse_finish()?;
         match self.builder.doc {
-            None => Err(ParserError::HandlerError),
+            None => Err(SaxError::HandlerError),
             Some(doc) => Ok(doc),
         }
     }
@@ -327,7 +327,7 @@ impl Document {
         }
     }
 
-    pub fn from_str(xml_str: &str) -> Result<Document, ParserError> {
+    pub fn from_str(xml_str: &str) -> Result<Document, SaxError> {
         let mut parser = DocumentParser::new();
         parser.parse_bytes(xml_str.as_bytes())?;
         parser.into_document()
@@ -942,15 +942,15 @@ mod tests {
     fn bad_doc_parser() {
         assert_eq!(
             Document::from_str("<a>lala</b>").err(),
-            Some(ParserError::BadXml)
+            Some(SaxError::BadXml)
         );
         assert_eq!(
             Document::from_str("<a><b><c/></d></a>").err(),
-            Some(ParserError::BadXml)
+            Some(SaxError::BadXml)
         );
         assert_eq!(
             Document::from_str("<a><b><c/></b><d></d><e></e2></a>").err(),
-            Some(ParserError::BadXml)
+            Some(SaxError::BadXml)
         );
     }
 }

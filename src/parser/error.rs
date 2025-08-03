@@ -9,20 +9,42 @@
 */
 
 #[derive(Debug, Eq, PartialEq)]
-pub enum ParserError {
+pub enum SaxError {
     NoMemory,
     BadXml,
+    NotSupported,
     HandlerError,
 }
 
-impl std::fmt::Display for ParserError {
+impl std::fmt::Display for SaxError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            ParserError::NoMemory => write!(f, "not enough memory"),
-            ParserError::BadXml => write!(f, "invalid xml syntax"),
-            ParserError::HandlerError => write!(f, "error from sax handler"),
+            SaxError::NoMemory => write!(f, "not enough memory"),
+            SaxError::BadXml => write!(f, "invalid xml syntax"),
+            SaxError::NotSupported => write!(f, "xml construct not supported"),
+            SaxError::HandlerError => write!(f, "error from sax handler"),
         }
     }
 }
 
-impl std::error::Error for ParserError {}
+impl std::error::Error for SaxError {}
+
+pub(super) enum XmlError {
+    ParserReuseWithoutReset,
+    Utf8InvalidContByte,
+    Utf8OverlongSequence,
+    Utf8InvalidPrefixByte,
+    CharInvalid,
+}
+
+impl XmlError {
+    pub(super) fn description(&self) -> &'static str {
+        match self {
+            XmlError::ParserReuseWithoutReset => "blah",
+            XmlError::Utf8InvalidContByte => "blah",
+            XmlError::Utf8OverlongSequence => "blah",
+            XmlError::Utf8InvalidPrefixByte => "blah",
+            XmlError::CharInvalid => "blah",
+        }
+    }
+}
