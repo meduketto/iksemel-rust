@@ -116,7 +116,7 @@ macro_rules! xml_error {
     };
 }
 
-macro_rules! nosupp_error {
+macro_rules! notsupp_error {
     ($a:ident, $b:ident) => {
         $a.error = Some(XmlError::$b);
         return Err(SaxError::NotSupported);
@@ -187,16 +187,16 @@ impl SaxParser {
 
     pub fn parse_finish(&mut self) -> Result<(), SaxError> {
         if self.error.is_some() {
-            nosupp_error!(self, ParserReuseWithoutReset);
+            notsupp_error!(self, ParserReuseWithoutReset);
         }
         if !self.seen_content {
-            return Err(SaxError::BadXml);
+            xml_error!(self, DocNoContent);
         }
         if self.depth > 0 {
-            return Err(SaxError::BadXml);
+            xml_error!(self, DocOpenTags);
         }
         if self.state != State::Epilog {
-            return Err(SaxError::BadXml);
+            xml_error!(self, DocOpenMarkup);
         }
         Ok(())
     }
@@ -216,7 +216,7 @@ impl SaxParser {
         bytes: &[u8],
     ) -> Result<(), SaxError> {
         if self.error.is_some() {
-            nosupp_error!(self, ParserReuseWithoutReset);
+            notsupp_error!(self, ParserReuseWithoutReset);
         }
 
         let mut pos: usize = 0;
@@ -1202,5 +1202,5 @@ mod tests {
 
 // FIXME: parse references in attrib values
 // FIXME: parser reset
-// FIXME: returned error details
-// not supported error? for entity refs
+// FIXME: not supported error for entity refs
+// FIXME: all error details

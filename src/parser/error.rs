@@ -35,16 +35,22 @@ pub(super) enum XmlError {
     Utf8OverlongSequence,
     Utf8InvalidPrefixByte,
     CharInvalid,
+    DocNoContent,
+    DocOpenTags,
+    DocOpenMarkup,
 }
 
 impl XmlError {
     pub(super) fn description(&self) -> &'static str {
         match self {
-            XmlError::ParserReuseWithoutReset => "blah",
-            XmlError::Utf8InvalidContByte => "blah",
-            XmlError::Utf8OverlongSequence => "blah",
-            XmlError::Utf8InvalidPrefixByte => "blah",
-            XmlError::CharInvalid => "blah",
+            XmlError::ParserReuseWithoutReset => "cannot continue after an error without a reset",
+            XmlError::Utf8InvalidContByte => "Invalid UTF8 continuation byte",
+            XmlError::Utf8OverlongSequence => "Overlong UTF8 sequence",
+            XmlError::Utf8InvalidPrefixByte => "Invalid UTF8 prefix byte",
+            XmlError::CharInvalid => "Invalid XML character",
+            XmlError::DocNoContent => "Document has no root tag",
+            XmlError::DocOpenTags => "Document has unclosed tags",
+            XmlError::DocOpenMarkup => "Document epilog has unclosed PI or comment tag",
         }
     }
 }
