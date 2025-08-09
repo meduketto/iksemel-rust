@@ -319,37 +319,51 @@ impl SaxParser {
 
                 State::DoctypeDO => match c {
                     b'O' => self.state = State::DoctypeDOC,
-                    _ => return Err(SaxError::BadXml),
+                    _ => {
+                        xml_error!(self, MarkupDoctypeBadStart);
+                    },
                 },
 
                 State::DoctypeDOC => match c {
                     b'C' => self.state = State::DoctypeDOCT,
-                    _ => return Err(SaxError::BadXml),
+                    _ => {
+                        xml_error!(self, MarkupDoctypeBadStart);
+                    },
                 },
 
                 State::DoctypeDOCT => match c {
                     b'T' => self.state = State::DoctypeDOCTY,
-                    _ => return Err(SaxError::BadXml),
+                    _ => {
+                        xml_error!(self, MarkupDoctypeBadStart);
+                    },
                 },
 
                 State::DoctypeDOCTY => match c {
                     b'Y' => self.state = State::DoctypeDOCTYP,
-                    _ => return Err(SaxError::BadXml),
+                    _ => {
+                        xml_error!(self, MarkupDoctypeBadStart);
+                    },
                 },
 
                 State::DoctypeDOCTYP => match c {
                     b'P' => self.state = State::DoctypeDOCTYPE,
-                    _ => return Err(SaxError::BadXml),
+                    _ => {
+                        xml_error!(self, MarkupDoctypeBadStart);
+                    },
                 },
 
                 State::DoctypeDOCTYPE => match c {
                     b'E' => self.state = State::DoctypeWhitespace,
-                    _ => return Err(SaxError::BadXml),
+                    _ => {
+                        xml_error!(self, MarkupDoctypeBadStart);
+                    },
                 },
 
                 State::DoctypeWhitespace => match c {
                     whitespace!() => self.state = State::DoctypeSkip,
-                    _ => return Err(SaxError::BadXml),
+                    _ => {
+                        xml_error!(self, MarkupDoctypeBadStart);
+                    },
                 },
 
                 State::DoctypeSkip => match c {
@@ -365,42 +379,42 @@ impl SaxParser {
 
                 State::CDataSectionC => {
                     if c != b'C' {
-                        return Err(SaxError::BadXml);
+                        xml_error!(self, MarkupCdataSectionBadStart);
                     }
                     self.state = State::CDataSectionCD;
                 }
 
                 State::CDataSectionCD => {
                     if c != b'D' {
-                        return Err(SaxError::BadXml);
+                        xml_error!(self, MarkupCdataSectionBadStart);
                     }
                     self.state = State::CDataSectionCDA;
                 }
 
                 State::CDataSectionCDA => {
                     if c != b'A' {
-                        return Err(SaxError::BadXml);
+                        xml_error!(self, MarkupCdataSectionBadStart);
                     }
                     self.state = State::CDataSectionCDAT;
                 }
 
                 State::CDataSectionCDAT => {
                     if c != b'T' {
-                        return Err(SaxError::BadXml);
+                        xml_error!(self, MarkupCdataSectionBadStart);
                     }
                     self.state = State::CDataSectionCDATA;
                 }
 
                 State::CDataSectionCDATA => {
                     if c != b'A' {
-                        return Err(SaxError::BadXml);
+                        xml_error!(self, MarkupCdataSectionBadStart);
                     }
                     self.state = State::CDataSectionCDATAb;
                 }
 
                 State::CDataSectionCDATAb => {
                     if c != b'[' {
-                        return Err(SaxError::BadXml);
+                        xml_error!(self, MarkupCdataSectionBadStart);
                     }
                     back = pos + 1;
                     self.state = State::CDataSectionBody;
@@ -443,7 +457,7 @@ impl SaxParser {
 
                 State::CommentStart => {
                     if c != b'-' {
-                        return Err(SaxError::BadXml);
+                        xml_error!(self, CommentMissingDash);
                     }
                     self.state = State::CommentBody;
                 }
@@ -460,7 +474,7 @@ impl SaxParser {
 
                 State::CommentEnd => {
                     if c != b'>' {
-                        return Err(SaxError::BadXml);
+                        xml_error!(self, CommentMissingEnd);
                     }
                     if self.depth > 0 {
                         back = pos + 1;
@@ -502,12 +516,12 @@ impl SaxParser {
                         }
                         {
                             if self.buffer.len() == 0 {
-                                return Err(SaxError::BadXml);
+                                xml_error!(self, TagEmptyName);
                             }
                             let s = unsafe { std::str::from_utf8_unchecked(&self.buffer) };
                             if self.is_end_tag {
                                 if c == b'/' {
-                                    return Err(SaxError::BadXml);
+                                    xml_error!(self, TagDoubleEnd);
                                 }
                                 handler.handle_element(&SaxElement::EndTag(&s))?;
                             } else {
@@ -699,14 +713,16 @@ impl SaxParser {
                             b"gt" => handler.handle_element(&SaxElement::CData(">"))?,
                             b"quot" => handler.handle_element(&SaxElement::CData("\""))?,
                             b"apos" => handler.handle_element(&SaxElement::CData("'"))?,
-                            _ => return Err(SaxError::BadXml),
+                            _ => {
+                                notsupp_error!(self, ReferenceCustomEntity);
+                            },
                         };
                         back = pos + 1;
                         self.state = State::CData;
                     }
                     _ => {
                         if self.ref_buffer.len() >= REF_BUFFER_SIZE {
-                            return Err(SaxError::BadXml);
+                            notsupp_error!(self, ReferenceCustomEntity);
                         }
                         self.ref_buffer.push(c);
                     }
@@ -731,7 +747,9 @@ impl SaxParser {
                         let digit: u32 = (c - b'0').into();
                         self.char_ref_value = (self.char_ref_value * 10) + digit;
                     }
-                    _ => return Err(SaxError::BadXml),
+                    _ => {
+                        xml_error!(self, ReferenceInvalidDecimal);
+                    },
                 },
 
                 State::HexCharReference => match c {
@@ -752,7 +770,9 @@ impl SaxParser {
                         let digit: u32 = (c - b'A').into();
                         self.char_ref_value = (self.char_ref_value * 16) + digit + 10;
                     }
-                    _ => return Err(SaxError::BadXml),
+                    _ => {
+                        xml_error!(self, ReferenceInvalidHex);
+                    },
                 },
 
                 State::Epilog => match c {
@@ -878,10 +898,14 @@ mod tests {
         }
 
         fn check(&mut self, s: &str) {
+            self.check_with_error(s, SaxError::BadXml)
+        }
+
+        fn check_with_error(&mut self, s: &str, expected_error: SaxError) {
             let mut parser = SaxParser::new();
             assert_eq!(
                 parser.parse_bytes_finish(self, &s.as_bytes()),
-                Err(SaxError::BadXml)
+                Err(expected_error)
             );
             assert_eq!(parser.nr_bytes(), self.bad_byte);
         }
@@ -1157,8 +1181,8 @@ mod tests {
 
     #[test]
     fn bad_entities() {
-        BadTester::new(8).check("<a>&lala;</a>");
-        BadTester::new(12).check("<a>&lala           </a>");
+        BadTester::new(8).check_with_error("<a>&lala;</a>", SaxError::NotSupported);
+        BadTester::new(12).check_with_error("<a>&lala           </a>", SaxError::NotSupported);
         BadTester::new(16).check("<lol>&lt;<&gt;</lol>");
         BadTester::new(6).check("<a>&#1a;</a>");
         BadTester::new(6).check("<a>&#Xaa;</a>");

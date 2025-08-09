@@ -42,6 +42,15 @@ pub(super) enum XmlError {
     TagCloseWithoutOpen,
     TagWhitespaceStart,
     TagOutsideRoot,
+    TagEmptyName,
+    TagDoubleEnd,
+    ReferenceInvalidDecimal,
+    ReferenceInvalidHex,
+    ReferenceCustomEntity,
+    CommentMissingDash,
+    CommentMissingEnd,
+    MarkupCdataSectionBadStart,
+    MarkupDoctypeBadStart,
 }
 
 impl XmlError {
@@ -59,6 +68,15 @@ impl XmlError {
             XmlError::TagCloseWithoutOpen => "Close tag without open",
             XmlError::TagWhitespaceStart => "Tag cannot start with whitespace",
             XmlError::TagOutsideRoot => "Tags cannot be outside of the root tag",
+            XmlError::TagEmptyName => "Tag has no name",
+            XmlError::TagDoubleEnd => "End tag has standalone ending too",
+            XmlError::ReferenceInvalidDecimal => "Non digit in decimal character refence",
+            XmlError::ReferenceInvalidHex => "Non hex digit in hexadecimal character refence",
+            XmlError::ReferenceCustomEntity => "Non-predefined entity references are not supported",
+            XmlError::CommentMissingDash => "Comment tag should start with double dash",
+            XmlError::CommentMissingEnd => "Comment tag should end after double dash",
+            XmlError::MarkupCdataSectionBadStart => "Character data sections must start with '[CDATA['",
+            XmlError::MarkupDoctypeBadStart => "Doctype must start with 'DOCTYPE '",
         }
     }
 }
