@@ -274,7 +274,7 @@ impl SaxParser {
                 State::Prolog => match c {
                     b'<' => self.state = State::TagStart,
                     whitespace!() => (),
-                    _ => return Err(SaxError::BadXml),
+                    _ => { xml_error!(self, PrologCdata); },
                 },
 
                 State::TagStart => match c {
@@ -284,16 +284,18 @@ impl SaxParser {
                     b'?' => self.state = State::PI,
                     b'/' => {
                         if self.depth == 0 {
-                            return Err(SaxError::BadXml);
+                            xml_error!(self, TagCloseWithoutOpen);
                         }
                         back = pos + 1;
                         self.is_end_tag = true;
                         self.state = State::TagName;
                     }
-                    whitespace!() | b'>' => return Err(SaxError::BadXml),
+                    whitespace!() | b'>' => {
+                        xml_error!(self, TagWhitespaceStart);
+                    },
                     _ => {
                         if self.depth == 0 && self.seen_content {
-                            return Err(SaxError::BadXml);
+                            xml_error!(self, TagOutsideRoot);
                         }
                         self.depth += 1;
                         back = pos;

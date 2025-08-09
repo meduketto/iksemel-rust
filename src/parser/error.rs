@@ -38,6 +38,10 @@ pub(super) enum XmlError {
     DocNoContent,
     DocOpenTags,
     DocOpenMarkup,
+    PrologCdata,
+    TagCloseWithoutOpen,
+    TagWhitespaceStart,
+    TagOutsideRoot,
 }
 
 impl XmlError {
@@ -51,6 +55,10 @@ impl XmlError {
             XmlError::DocNoContent => "Document has no root tag",
             XmlError::DocOpenTags => "Document has unclosed tags",
             XmlError::DocOpenMarkup => "Document epilog has unclosed PI or comment tag",
+            XmlError::PrologCdata => "Character data not allowed outside of root tag",
+            XmlError::TagCloseWithoutOpen => "Close tag without open",
+            XmlError::TagWhitespaceStart => "Tag cannot start with whitespace",
+            XmlError::TagOutsideRoot => "Tags cannot be outside of the root tag",
         }
     }
 }
