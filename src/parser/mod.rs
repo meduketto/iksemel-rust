@@ -147,6 +147,26 @@ impl SaxParser {
         }
     }
 
+    pub fn reset(&mut self) -> () {
+        self.state = State::Prolog;
+        self.error = None;
+        self.uni_len = 0;
+        self.uni_left = 0;
+        self.uni_char = 0;
+        self.depth = 0;
+        self.is_end_tag = false;
+        self.is_quot_value = false;
+        self.seen_content = false;
+        self.value_pos = 0;
+        self.buffer.clear();
+        self.ref_buffer.clear();
+        self.char_ref_value = 0;
+        self.is_value_ref = false;
+        self.nr_bytes = 0;
+        self.nr_lines = 0;
+        self.nr_column = 0;
+    }
+
     fn send_u32_cdata(
         &mut self,
         handler: &mut impl SaxHandler,
@@ -879,5 +899,3 @@ impl Default for SaxParser {
 
 #[cfg(test)]
 mod tests;
-
-// FIXME: parser reset
