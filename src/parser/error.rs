@@ -82,18 +82,28 @@ impl XmlError {
             XmlError::TagEndTagAttributes => "End tag cannot have attributes",
             XmlError::TagEmptyTagMissingEnd => "Empty element tags must end after the '/'",
             XmlError::TagAttributeWithoutEqual => "Tag attributes must have '=' before the value",
-            XmlError::TagAttributeWithoutQuote => "Tag attribute value must be double or single quotes",
+            XmlError::TagAttributeWithoutQuote => {
+                "Tag attribute value must be double or single quotes"
+            }
             XmlError::TagAttributeBadName => "Tag attribute names cannot have '/', '<' or '>'",
-            XmlError::TagAttributeBadValue => "Tag value cannot have '<' character without a reference",
+            XmlError::TagAttributeBadValue => {
+                "Tag value cannot have '<' character without a reference"
+            }
             XmlError::ReferenceInvalidDecimal => "Non digit in decimal character refence",
             XmlError::ReferenceInvalidHex => "Non hex digit in hexadecimal character refence",
             XmlError::ReferenceCustomEntity => "Non-predefined entity references are not supported",
             XmlError::CommentMissingDash => "Comment tag should start with double dash",
             XmlError::CommentMissingEnd => "Comment tag should end after double dash",
-            XmlError::MarkupCdataSectionBadStart => "Character data sections must start with '[CDATA['",
+            XmlError::MarkupCdataSectionBadStart => {
+                "Character data sections must start with '[CDATA['"
+            }
             XmlError::MarkupDoctypeBadStart => "Doctype must start with 'DOCTYPE '",
-            XmlError::MarkupCdataSectionOutsideRoot => "Character data sections cannot be outside of the root tag",
-            XmlError::MarkupUnrecognized => "Markup is not a comment, character data section, or document type declaration",
+            XmlError::MarkupCdataSectionOutsideRoot => {
+                "Character data sections cannot be outside of the root tag"
+            }
+            XmlError::MarkupUnrecognized => {
+                "Markup is not a comment, character data section, or document type declaration"
+            }
             XmlError::PiMissingEnd => "Processing instruction must end after closing the '?'",
         }
     }
