@@ -8,6 +8,12 @@
 ** the License, or (at your option) any later version.
 */
 
+//! SAX (Simple API for XML) based XML parser.
+//!
+//! This module implements a SAX parser which processes the incoming
+//! bytes and invokes a handler function for each encountered
+//! XML element.
+
 mod error;
 
 pub use error::SaxError;

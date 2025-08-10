@@ -8,11 +8,26 @@
 ** the License, or (at your option) any later version.
 */
 
+/// Type of the error which happened during the XML SAX parsing.
 #[derive(Debug, Eq, PartialEq)]
 pub enum SaxError {
+    /// Parser could not allocate the memory needed for parsing buffers.
     NoMemory,
+
+    /// A syntax error is encountered in the XML input.
+    ///
+    /// Typical action is telling error details to the user so they can fix the document.
+    /// Description of the syntax issue can be retrieved via [super::SaxParser::error_description]
+    /// function. Location of the error is available via [super::SaxParser::nr_bytes], [super::SaxParser::nr_lines],
+    /// [super::SaxParser::nr_column] functions.
     BadXml,
+
+    /// A certain XML feature is not supported by the parser.
+    ///
+    /// Only unsupported feature at the moment is custom entities defined in DTDs.
     NotSupported,
+
+    /// Element handler function returned this error.
     HandlerError,
 }
 
@@ -108,3 +123,7 @@ impl XmlError {
         }
     }
 }
+
+// rustdoc
+// no mem error?
+// ci mutant check
