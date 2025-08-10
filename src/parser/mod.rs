@@ -274,7 +274,7 @@ impl SaxParser {
                 State::Prolog => match c {
                     b'<' => self.state = State::TagStart,
                     whitespace!() => (),
-                    _ => { xml_error!(self, PrologCdata); },
+                    _ => { xml_error!(self, DocCdataWithoutParent); },
                 },
 
                 State::TagStart => match c {
@@ -309,12 +309,14 @@ impl SaxParser {
                     b'-' => self.state = State::CommentStart,
                     b'[' => {
                         if self.depth == 0 {
-                            return Err(SaxError::BadXml);
+                            xml_error!(self, MarkupCdataSectionOutsideRoot);
                         }
                         self.state = State::CDataSectionC;
                     }
                     b'D' => self.state = State::DoctypeDO,
-                    _ => return Err(SaxError::BadXml),
+                    _ => {
+                        xml_error!(self, MarkupUnrecognized);
+                    },
                 },
 
                 State::DoctypeDO => match c {
@@ -506,7 +508,9 @@ impl SaxParser {
                             self.state = State::Prolog;
                         }
                     }
-                    _ => return Err(SaxError::BadXml),
+                    _ => {
+                        xml_error!(self, PiMissingEnd);
+                    },
                 },
 
                 State::TagName => match c {
@@ -537,7 +541,7 @@ impl SaxParser {
                             b'>' => {
                                 if self.is_end_tag {
                                     if self.depth == 0 {
-                                        return Err(SaxError::BadXml);
+                                        xml_error!(self, TagCloseWithoutOpen);
                                     }
                                     self.depth -= 1;
                                     if self.depth == 0 {
@@ -567,7 +571,7 @@ impl SaxParser {
                 State::EmptyTagEnd => match c {
                     b'>' => {
                         if self.depth == 0 {
-                            return Err(SaxError::BadXml);
+                            xml_error!(self, TagCloseWithoutOpen);
                         }
                         self.depth -= 1;
                         if self.depth == 0 {
@@ -577,13 +581,15 @@ impl SaxParser {
                             self.state = State::CData;
                         }
                     }
-                    _ => return Err(SaxError::BadXml),
+                    _ => {
+                        xml_error!(self, TagEmptyTagMissingEnd);
+                    },
                 },
 
                 State::EndTagWhitespace => match c {
                     b'>' => {
                         if self.depth == 0 {
-                            return Err(SaxError::BadXml);
+                            xml_error!(self, TagCloseWithoutOpen);
                         }
                         self.depth -= 1;
                         if self.depth == 0 {
@@ -594,14 +600,16 @@ impl SaxParser {
                         }
                     }
                     whitespace!() => (),
-                    _ => return Err(SaxError::BadXml),
+                    _ => {
+                        xml_error!(self, TagEndTagAttributes);
+                    },
                 },
 
                 State::AttributeWhitespace => match c {
                     whitespace!() => (),
                     b'/' => {
                         if self.is_end_tag {
-                            return Err(SaxError::BadXml);
+                            xml_error!(self, TagDoubleEnd);
                         }
                         handler.handle_element(&SaxElement::EmptyElementTag)?;
                         self.state = State::EmptyTagEnd;
@@ -628,14 +636,18 @@ impl SaxParser {
                             self.state = State::AttributeEq;
                         }
                     }
-                    b'/' | b'>' | b'<' => return Err(SaxError::BadXml),
+                    b'/' | b'>' | b'<' => {
+                        xml_error!(self, TagAttributeBadName);
+                    },
                     _ => (),
                 },
 
                 State::AttributeEq => match c {
                     b'=' => self.state = State::AttributeValueStart,
                     whitespace!() => (),
-                    _ => return Err(SaxError::BadXml),
+                    _ => {
+                        xml_error!(self, TagAttributeWithoutEqual);
+                    },
                 },
 
                 State::AttributeValueStart => match c {
@@ -652,7 +664,9 @@ impl SaxParser {
                         self.state = State::AttributeValue;
                     }
                     whitespace!() => (),
-                    _ => return Err(SaxError::BadXml),
+                    _ => {
+                        xml_error!(self, TagAttributeWithoutQuote);
+                    },
                 },
 
                 State::AttributeValue => {
@@ -670,7 +684,7 @@ impl SaxParser {
                         self.buffer.clear();
                         self.state = State::AttributeWhitespace;
                     } else if c == b'<' {
-                        return Err(SaxError::BadXml);
+                        xml_error!(self, TagAttributeBadValue);
                     }
                 }
 
@@ -778,7 +792,9 @@ impl SaxParser {
                 State::Epilog => match c {
                     b'<' => self.state = State::TagStart,
                     whitespace!() => (),
-                    _ => return Err(SaxError::BadXml),
+                    _ => {
+                        xml_error!(self, DocCdataWithoutParent);
+                    },
                 },
             }
 
@@ -1228,5 +1244,3 @@ mod tests {
 
 // FIXME: parse references in attrib values
 // FIXME: parser reset
-// FIXME: not supported error for entity refs
-// FIXME: all error details
