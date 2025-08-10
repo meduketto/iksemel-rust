@@ -182,7 +182,7 @@ impl SaxParser {
         }
 
         let s = unsafe { std::str::from_utf8_unchecked(&buf[0..size]) };
-        handler.handle_element(&SaxElement::CData(&s))
+        handler.handle_element(&SaxElement::CData(s))
     }
 
     pub fn parse_finish(&mut self) -> Result<(), SaxError> {
@@ -246,28 +246,24 @@ impl SaxParser {
                         xml_error!(self, CharInvalid);
                     }
                 }
-            } else {
-                if c & 0x80 == 0x80 {
-                    if c & 0x60 == 0x40 {
-                        self.uni_len = 2;
-                        self.uni_left = 1;
-                        self.uni_char = c as u32 & 0x1f;
-                    } else if c & 0x70 == 0x60 {
-                        self.uni_len = 3;
-                        self.uni_left = 2;
-                        self.uni_char = c as u32 & 0x0f;
-                    } else if c & 0x78 == 0x70 {
-                        self.uni_len = 4;
-                        self.uni_left = 3;
-                        self.uni_char = c as u32 & 0x07;
-                    } else {
-                        xml_error!(self, Utf8InvalidPrefixByte);
-                    }
+            } else if c & 0x80 == 0x80 {
+                if c & 0x60 == 0x40 {
+                    self.uni_len = 2;
+                    self.uni_left = 1;
+                    self.uni_char = c as u32 & 0x1f;
+                } else if c & 0x70 == 0x60 {
+                    self.uni_len = 3;
+                    self.uni_left = 2;
+                    self.uni_char = c as u32 & 0x0f;
+                } else if c & 0x78 == 0x70 {
+                    self.uni_len = 4;
+                    self.uni_left = 3;
+                    self.uni_char = c as u32 & 0x07;
                 } else {
-                    if c < 0x20 && (c != 0x09 && c != 0x0a && c != 0x0d) {
-                        xml_error!(self, CharInvalid);
-                    }
+                    xml_error!(self, Utf8InvalidPrefixByte);
                 }
+            } else if c < 0x20 && (c != 0x09 && c != 0x0a && c != 0x0d) {
+                xml_error!(self, CharInvalid);
             }
 
             match self.state {
@@ -428,7 +424,7 @@ impl SaxParser {
                     b']' => {
                         if back < pos {
                             let s = unsafe { std::str::from_utf8_unchecked(&bytes[back..pos]) };
-                            handler.handle_element(&SaxElement::CData(&s))?;
+                            handler.handle_element(&SaxElement::CData(s))?;
                         }
                         self.state = State::CDataSectionMaybeEnd;
                     }
@@ -483,12 +479,10 @@ impl SaxParser {
                     if self.depth > 0 {
                         back = pos + 1;
                         self.state = State::CData;
+                    } else if self.seen_content {
+                        self.state = State::Epilog;
                     } else {
-                        if self.seen_content {
-                            self.state = State::Epilog;
-                        } else {
-                            self.state = State::Prolog;
-                        }
+                        self.state = State::Prolog;
                     }
                 }
 
@@ -521,7 +515,7 @@ impl SaxParser {
                             self.buffer.extend_from_slice(&bytes[back..pos]);
                         }
                         {
-                            if self.buffer.len() == 0 {
+                            if self.buffer.is_empty() {
                                 xml_error!(self, TagEmptyName);
                             }
                             let s = unsafe { std::str::from_utf8_unchecked(&self.buffer) };
@@ -529,9 +523,9 @@ impl SaxParser {
                                 if c == b'/' {
                                     xml_error!(self, TagDoubleEnd);
                                 }
-                                handler.handle_element(&SaxElement::EndTag(&s))?;
+                                handler.handle_element(&SaxElement::EndTag(s))?;
                             } else {
-                                handler.handle_element(&SaxElement::StartTag(&s))?;
+                                handler.handle_element(&SaxElement::StartTag(s))?;
                             }
                         }
                         self.buffer.clear();
@@ -682,7 +676,7 @@ impl SaxParser {
                         let value = unsafe {
                             std::str::from_utf8_unchecked(&self.buffer[self.value_pos..])
                         };
-                        handler.handle_element(&SaxElement::Attribute(&attr, &value))?;
+                        handler.handle_element(&SaxElement::Attribute(attr, value))?;
                         self.buffer.clear();
                         self.state = State::AttributeWhitespace;
                     } else if c == b'<' {
@@ -694,7 +688,7 @@ impl SaxParser {
                     b'<' => {
                         if back < pos {
                             let s = unsafe { std::str::from_utf8_unchecked(&bytes[back..pos]) };
-                            handler.handle_element(&SaxElement::CData(&s))?;
+                            handler.handle_element(&SaxElement::CData(s))?;
                         }
                         back = pos + 1;
                         self.state = State::TagStart;
@@ -702,7 +696,7 @@ impl SaxParser {
                     b'&' => {
                         if back < pos {
                             let s = unsafe { std::str::from_utf8_unchecked(&bytes[back..pos]) };
-                            handler.handle_element(&SaxElement::CData(&s))?;
+                            handler.handle_element(&SaxElement::CData(s))?;
                         }
                         self.ref_buffer.clear();
                         self.state = State::Reference;
@@ -818,7 +812,7 @@ impl SaxParser {
                 }
                 State::CData | State::CDataSectionBody => {
                     let s = unsafe { std::str::from_utf8_unchecked(&bytes[back..pos]) };
-                    handler.handle_element(&SaxElement::CData(&s))?;
+                    handler.handle_element(&SaxElement::CData(s))?;
                 }
                 _ => (),
             }
@@ -844,6 +838,12 @@ impl SaxParser {
             None => None,
             Some(e) => Some(e.description()),
         }
+    }
+}
+
+impl Default for SaxParser {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
