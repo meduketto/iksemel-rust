@@ -307,6 +307,16 @@ fn entities() {
 }
 
 #[test]
+fn attribute_entities() {
+    Tester::new(&[
+        SaxElement::StartTag("a"),
+        SaxElement::Attribute("b", "a&b BA"),
+        SaxElement::EndTag("a"),
+    ])
+    .check("<a b='a&amp;b &#x42;&#65;'></a>");
+}
+
+#[test]
 fn bad_tags() {
     BadTester::new(4).check("<a>< b/></a>");
     BadTester::new(6).check("<a><b/ ></a>");

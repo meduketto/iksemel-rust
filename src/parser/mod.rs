@@ -41,6 +41,7 @@ pub struct SaxParser {
     buffer: Vec<u8>,
     ref_buffer: Vec<u8>,
     char_ref_value: u32,
+    is_value_ref: bool,
     nr_bytes: usize,
     nr_lines: usize,
     nr_column: usize,
@@ -139,6 +140,7 @@ impl SaxParser {
             buffer: Vec::<u8>::with_capacity(INITIAL_BUFFER_CAPACITY),
             ref_buffer: Vec::<u8>::with_capacity(REF_BUFFER_SIZE),
             char_ref_value: 0,
+            is_value_ref: false,
             nr_bytes: 0,
             nr_lines: 0,
             nr_column: 0,
@@ -181,8 +183,13 @@ impl SaxParser {
             _ => (),
         }
 
-        let s = unsafe { std::str::from_utf8_unchecked(&buf[0..size]) };
-        handler.handle_element(&SaxElement::CData(s))
+        if self.is_value_ref {
+            self.buffer.extend(&buf[0..size]);
+            Ok(())
+        } else {
+            let s = unsafe { std::str::from_utf8_unchecked(&buf[0..size]) };
+            handler.handle_element(&SaxElement::CData(s))
+        }
     }
 
     pub fn parse_finish(&mut self) -> Result<(), SaxError> {
@@ -679,6 +686,13 @@ impl SaxParser {
                         handler.handle_element(&SaxElement::Attribute(attr, value))?;
                         self.buffer.clear();
                         self.state = State::AttributeWhitespace;
+                    } else if c == b'&' {
+                        if back < pos {
+                            self.buffer.extend_from_slice(&bytes[back..pos]);
+                        }
+                        self.ref_buffer.clear();
+                        self.is_value_ref = true;
+                        self.state = State::Reference;
                     } else if c == b'<' {
                         xml_error!(self, TagAttributeBadValue);
                     }
@@ -699,6 +713,7 @@ impl SaxParser {
                             handler.handle_element(&SaxElement::CData(s))?;
                         }
                         self.ref_buffer.clear();
+                        self.is_value_ref = false;
                         self.state = State::Reference;
                     }
                     _ => (),
@@ -717,18 +732,25 @@ impl SaxParser {
 
                 State::Entity => match c {
                     b';' => {
-                        match self.ref_buffer.as_slice() {
-                            b"amp" => handler.handle_element(&SaxElement::CData("&"))?,
-                            b"lt" => handler.handle_element(&SaxElement::CData("<"))?,
-                            b"gt" => handler.handle_element(&SaxElement::CData(">"))?,
-                            b"quot" => handler.handle_element(&SaxElement::CData("\""))?,
-                            b"apos" => handler.handle_element(&SaxElement::CData("'"))?,
+                        let ent = match self.ref_buffer.as_slice() {
+                            b"amp" => "&",
+                            b"lt" => "<",
+                            b"gt" => ">",
+                            b"quot" => "\"",
+                            b"apos" => "'",
                             _ => {
                                 notsupp_error!(self, ReferenceCustomEntity);
                             }
                         };
-                        back = pos + 1;
-                        self.state = State::CData;
+                        if self.is_value_ref {
+                            self.buffer.push(ent.as_bytes()[0]);
+                            back = pos + 1;
+                            self.state = State::AttributeValue;
+                        } else {
+                            back = pos + 1;
+                            self.state = State::CData;
+                            handler.handle_element(&SaxElement::CData(ent))?;
+                        }
                     }
                     _ => {
                         if self.ref_buffer.len() >= REF_BUFFER_SIZE {
@@ -751,7 +773,11 @@ impl SaxParser {
                     b';' => {
                         self.send_u32_cdata(handler, self.char_ref_value)?;
                         back = pos + 1;
-                        self.state = State::CData;
+                        if self.is_value_ref {
+                            self.state = State::AttributeValue;
+                        } else {
+                            self.state = State::CData;
+                        }
                     }
                     b'0'..=b'9' => {
                         let digit: u32 = (c - b'0').into();
@@ -766,7 +792,11 @@ impl SaxParser {
                     b';' => {
                         self.send_u32_cdata(handler, self.char_ref_value)?;
                         back = pos + 1;
-                        self.state = State::CData;
+                        if self.is_value_ref {
+                            self.state = State::AttributeValue;
+                        } else {
+                            self.state = State::CData;
+                        }
                     }
                     b'0'..=b'9' => {
                         let digit: u32 = (c - b'0').into();
@@ -850,5 +880,4 @@ impl Default for SaxParser {
 #[cfg(test)]
 mod tests;
 
-// FIXME: parse references in attrib values
 // FIXME: parser reset
