@@ -57,6 +57,35 @@ pub trait SaxHandler {
 /// This struct implements a SAX parser which processes the incoming
 /// bytes and invokes a handler function for each encountered
 /// XML element.
+///
+/// # Examples
+///
+/// Typical usage:
+/// ```
+/// # use iksemel::SaxElement;
+/// # use iksemel::SaxError;
+/// # use iksemel::SaxHandler;
+/// # use iksemel::SaxParser;
+/// // Example handler which just prints parsed elements
+/// struct Handler { }
+/// impl SaxHandler for Handler {
+///     fn handle_element(&mut self, element: &SaxElement) -> Result<(), SaxError> {
+///         println!("Element parsed: {:?}", element);
+///         Ok(())
+///     }
+/// }
+/// let mut handler = Handler {};
+///
+/// let mut parser = SaxParser::new();
+///
+/// // This can be called multiple times to feed entire document through parser
+/// let result = parser.parse_bytes(&mut handler, b"<doc>example</doc>");
+/// // ...handle the error if result is Err...
+///
+/// // This is to check if there is any incomplete XML construct
+/// let final_result = parser.parse_finish();
+/// // ...handle the error if final_result is Err...
+/// ```
 pub struct SaxParser {
     state: State,
     error: Option<XmlError>,
@@ -156,6 +185,8 @@ macro_rules! notsupp_error {
 
 impl SaxParser {
     /// Creates a new SAX parser instance.
+    ///
+    /// The instance can be reused for multiple document with the [reset()](SaxParser::reset) method.
     pub fn new() -> SaxParser {
         SaxParser {
             state: State::Prolog,
