@@ -78,13 +78,65 @@ pub trait SaxHandler {
 ///
 /// let mut parser = SaxParser::new();
 ///
-/// // This can be called multiple times to feed entire document through parser
-/// let result = parser.parse_bytes(&mut handler, b"<doc>example</doc>");
-/// // ...handle the error if result is Err...
+/// match parser.parse_bytes_finish(&mut handler, b"<doc>example</doc>") {
+///     Ok(()) => (),
+///     Err(SaxError::NoMemory) => {
+///         println!("no memory");
+///         return;
+///     }
+///     Err(SaxError::BadXml) => {
+///         println!("syntax error at line {} column {}: {}",
+///             parser.nr_lines(),
+///             parser.nr_column(),
+///             parser.error_description().unwrap(),
+///         );
+///         return;
+///     }
+///     Err(SaxError::NotSupported) => {
+///         println!("unsupported xml feature at line {} column {}: {}",
+///             parser.nr_lines(),
+///             parser.nr_column(),
+///             parser.error_description().unwrap(),
+///         );
+///         return;
+///     }
+///     Err(SaxError::HandlerError) => {
+///         println!("handler returned error");
+///         return;
+///     }
+/// }
+/// ```
 ///
-/// // This is to check if there is any incomplete XML construct
-/// let final_result = parser.parse_finish();
-/// // ...handle the error if final_result is Err...
+/// Alternatively you can pass the input in multiple blocks:
+/// ```
+/// # use iksemel::SaxElement;
+/// # use iksemel::SaxError;
+/// # use iksemel::SaxHandler;
+/// # fn main() -> Result<(), SaxError> {
+/// # struct Handler { }
+/// # impl SaxHandler for Handler {
+/// #     fn handle_element(&mut self, element: &SaxElement) -> Result<(), SaxError> {
+/// #         Ok(())
+/// #     }
+/// # }
+/// # let mut handler = Handler {};
+/// # use iksemel::SaxParser;
+/// # let mut parser = SaxParser::new();
+/// # use std::io::Read;
+/// # let mut binding = vec!(b'<', b'a', b'/', b'>');
+/// # let mut xml_file = binding.as_slice();
+/// let mut buffer = [0u8; 1024];
+/// loop {
+///     let len = xml_file.read(&mut buffer).expect("io error");
+///     if len == 0 {
+///         break;
+///     }
+///     parser.parse_bytes_finish(&mut handler, &buffer[0..len])?
+/// }
+/// // This is to check if there is any incomplete XML construct at the end
+/// parser.parse_finish()?;
+/// # Ok(())
+/// # }
 /// ```
 pub struct SaxParser {
     state: State,
@@ -287,6 +339,10 @@ impl SaxParser {
         }
     }
 
+    /// Checks if the document is complete.
+    ///
+    /// A completed document should have a root tag and should not have any
+    /// unfinished XML constructs, such as open comments and markup.
     pub fn parse_finish(&mut self) -> Result<(), SaxError> {
         if self.error.is_some() {
             notsupp_error!(self, ParserReuseWithoutReset);
@@ -303,6 +359,10 @@ impl SaxParser {
         Ok(())
     }
 
+    /// Parses given XML bytes and checks if the document is complete.
+    ///
+    /// This is a convenience function which calls [parse_bytes()](SaxParser::parse_bytes)
+    /// and [parse_finish()](SaxParser::parse_finish) methods for you.
     pub fn parse_bytes_finish(
         &mut self,
         handler: &mut impl SaxHandler,
