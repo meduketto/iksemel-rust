@@ -262,7 +262,7 @@ impl SaxParser {
     }
 
     /// Resets the parser into a clean state.
-    pub fn reset(&mut self) -> () {
+    pub fn reset(&mut self) {
         self.state = State::Prolog;
         self.error = None;
         self.uni_len = 0;

@@ -798,7 +798,7 @@ impl<'a> Cursor<'a> {
                             buf.push_str((*attr).name_as_str());
                             buf.push_str("=\"");
                             escape((*attr).value_as_str(), &mut buf);
-                            buf.push_str("\"");
+                            buf.push('"');
                             attr = (*attr).next;
                         }
                     }
