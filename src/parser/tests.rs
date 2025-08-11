@@ -317,6 +317,14 @@ fn attribute_entities() {
 }
 
 #[test]
+fn long_tag() {
+    let name = "abc".repeat(500);
+    let xml = format!("<{}></{}>", name, name);
+
+    Tester::new(&[SaxElement::StartTag(&name), SaxElement::EndTag(&name)]).check(&xml);
+}
+
+#[test]
 fn bad_tags() {
     BadTester::new(4).check("<a>< b/></a>");
     BadTester::new(6).check("<a><b/ ></a>");

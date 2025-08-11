@@ -197,6 +197,17 @@ impl SaxParser {
         self.nr_column = 0;
     }
 
+    fn check_buffer(&mut self, need: usize) -> Result<(), SaxError> {
+        if self.buffer.len() >= self.buffer.capacity() {
+            let diff = std::cmp::max(need, self.buffer.capacity());
+            let result = self.buffer.try_reserve_exact(diff);
+            if result.is_err() {
+                return Err(SaxError::NoMemory);
+            }
+        }
+        Ok(())
+    }
+
     fn send_u32_cdata(
         &mut self,
         handler: &mut impl SaxHandler,
@@ -234,6 +245,7 @@ impl SaxParser {
         }
 
         if self.is_value_ref {
+            self.check_buffer(size)?;
             self.buffer.extend(&buf[0..size]);
             Ok(())
         } else {
@@ -569,6 +581,7 @@ impl SaxParser {
                 State::TagName => match c {
                     b'/' | b'>' | whitespace!() => {
                         if back < pos {
+                            self.check_buffer(pos - back)?;
                             self.buffer.extend_from_slice(&bytes[back..pos]);
                         }
                         {
@@ -681,6 +694,7 @@ impl SaxParser {
                 State::AttributeName => match c {
                     b'=' | whitespace!() => {
                         if back < pos {
+                            self.check_buffer(pos - back)?;
                             self.buffer.extend_from_slice(&bytes[back..pos]);
                         }
                         if c == b'=' {
@@ -725,6 +739,7 @@ impl SaxParser {
                 State::AttributeValue => {
                     if (self.is_quot_value && c == b'\'') || (!self.is_quot_value && c == b'"') {
                         if back < pos {
+                            self.check_buffer(pos - back)?;
                             self.buffer.extend_from_slice(&bytes[back..pos]);
                         }
                         let attr = unsafe {
@@ -738,6 +753,7 @@ impl SaxParser {
                         self.state = State::AttributeWhitespace;
                     } else if c == b'&' {
                         if back < pos {
+                            self.check_buffer(pos - back)?;
                             self.buffer.extend_from_slice(&bytes[back..pos]);
                         }
                         self.ref_buffer.clear();
@@ -793,6 +809,7 @@ impl SaxParser {
                             }
                         };
                         if self.is_value_ref {
+                            self.check_buffer(1)?;
                             self.buffer.push(ent.as_bytes()[0]);
                             back = pos + 1;
                             self.state = State::AttributeValue;
@@ -888,6 +905,7 @@ impl SaxParser {
         if back < pos {
             match self.state {
                 State::TagName | State::AttributeName | State::AttributeValue => {
+                    self.check_buffer(pos - back)?;
                     self.buffer.extend_from_slice(&bytes[back..pos])
                 }
                 State::CData | State::CDataSectionBody => {

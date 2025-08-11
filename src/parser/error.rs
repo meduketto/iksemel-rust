@@ -20,6 +20,18 @@
 #[derive(Debug, Eq, PartialEq)]
 pub enum SaxError {
     /// Parser could not allocate the memory needed for parsing buffers.
+    ///
+    /// A character buffer is used to collect the tag names and the attribute key
+    /// value pairs before passing them to the application as a continous string.
+    /// This is important when the data is coming through a network connection
+    /// or not loaded entirely into the memory. This also helps with the reference
+    /// substitution in the attribute values.
+    ///
+    /// Initial buffer (128 bytes) is more than enough for normal documents.
+    /// Seeing this error is highly unlikely in practice, but since the XML standard
+    /// does not specify a maximum tag length, it is possible to hit this condition
+    /// with either a degenarate document with gigabytes long tag name, or
+    /// while running under severely memory constrained platforms.
     NoMemory,
 
     /// A syntax error is encountered in the XML input.
@@ -138,5 +150,4 @@ impl XmlError {
 }
 
 // rustdoc
-// no mem error?
 // ci mutant check
