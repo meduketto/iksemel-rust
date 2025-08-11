@@ -8,24 +8,43 @@
 ** the License, or (at your option) any later version.
 */
 
-//! SAX (Simple API for XML) based XML parser.
-//!
-//! This module implements a SAX parser which processes the incoming
-//! bytes and invokes a handler function for each encountered
-//! XML element.
-
 mod error;
 
 pub use error::SaxError;
 
 use error::XmlError;
 
+/// An XML element returned from the parser.
 #[derive(Debug, Eq, PartialEq)]
 pub enum SaxElement<'a> {
+    /// A start tag or empty element tag.
+    ///
+    /// The argument is the full name of the tag. This element is sent to the handler as soon as
+    /// the name is parsed.
     StartTag(&'a str),
+
+    /// A tag attribute for the last StartTag.
+    ///
+    /// First argument is the attribute name and the second argument is the attribute value.
+    /// All references in the attribute value are replaced with the actual characters.
+    /// Each attribute is sent as a separate element for efficiency.
     Attribute(&'a str, &'a str),
+
+    /// Indicates that the last StartTag was an empty element tag and will have no content.
     EmptyElementTag,
+
+    /// An end tag element.
+    ///
+    /// The argument is the full name of the end tag.
     EndTag(&'a str),
+
+    /// A character data element.
+    ///
+    /// The argument is the text content. Note that you might get this element several times
+    /// with different parts of the content for a single continous block of text. When you parse
+    /// the document in multiple parse calls, or when the parser encounters a reference to
+    /// substitute, collected content is flushed. The [DocumentParser](crate::DocumentParser)
+    /// of iksemel automatically concatenates these parts to build a seamless document model.
     CData(&'a str),
 }
 
@@ -33,6 +52,11 @@ pub trait SaxHandler {
     fn handle_element(&mut self, element: &SaxElement) -> Result<(), SaxError>;
 }
 
+/// SAX (Simple API for XML) based XML parser.
+///
+/// This struct implements a SAX parser which processes the incoming
+/// bytes and invokes a handler function for each encountered
+/// XML element.
 pub struct SaxParser {
     state: State,
     error: Option<XmlError>,

@@ -9,6 +9,14 @@
 */
 
 /// Type of the error which happened during the XML SAX parsing.
+///
+/// These categories are designed to be as few as possible and correspond to the distinct
+/// actions the caller might take based on the problem. Further details are available via
+/// other [SaxParser](super::SaxParser) methods.
+///
+/// Location of the error is available via [nr_bytes()](super::SaxParser::nr_bytes),
+/// [nr_lines()](super::SaxParser::nr_lines), and
+/// [nr_column()](super::SaxParser::nr_column) functions.
 #[derive(Debug, Eq, PartialEq)]
 pub enum SaxError {
     /// Parser could not allocate the memory needed for parsing buffers.
@@ -17,17 +25,22 @@ pub enum SaxError {
     /// A syntax error is encountered in the XML input.
     ///
     /// Typical action is telling error details to the user so they can fix the document.
-    /// Description of the syntax issue can be retrieved via [super::SaxParser::error_description]
-    /// function. Location of the error is available via [super::SaxParser::nr_bytes], [super::SaxParser::nr_lines],
-    /// [super::SaxParser::nr_column] functions.
+    /// Description of the actual syntax issue can be retrieved via
+    /// [error_description()](super::SaxParser::error_description) function.
     BadXml,
 
     /// A certain XML feature is not supported by the parser.
     ///
-    /// Only unsupported feature at the moment is custom entities defined in DTDs.
+    /// Only unsupported feature at the moment is the custom entities defined in DTDs.
+    ///
+    /// Handling of this would be similar to BadXml except the wording should indicate
+    /// that the issue is not caused by a problem in the document.
     NotSupported,
 
     /// Element handler function returned this error.
+    ///
+    /// This is intended for caller's handler to be able to abort the processing while
+    /// signalling to the caller that the interruption is not caused by iksemel itself.
     HandlerError,
 }
 
