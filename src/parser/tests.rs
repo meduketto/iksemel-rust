@@ -37,14 +37,17 @@ impl<'a> Tester<'a> {
         assert_eq!(parser.nr_bytes(), s.len());
 
         // now try byte by byte
+        parser.reset();
         self.current = 0;
         self.cdata_buf.clear();
-        let mut parser = SaxParser::new();
         for i in 0..s.len() {
             assert!(parser.parse_bytes(self, &s.as_bytes()[i..i + 1]).is_ok());
         }
         assert!(parser.parse_finish().is_ok());
         assert_eq!(self.current, self.expected.len());
+        assert_eq!(parser.nr_lines(), nr_lines);
+        assert_eq!(parser.nr_column(), nr_column);
+        assert_eq!(parser.nr_bytes(), s.len());
     }
 }
 

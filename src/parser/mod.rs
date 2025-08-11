@@ -922,18 +922,22 @@ impl SaxParser {
         Ok(())
     }
 
+    /// Returns how many bytes have been parsed.
     pub fn nr_bytes(&self) -> usize {
         self.nr_bytes
     }
 
+    /// Return how many lines have been parsed.
     pub fn nr_lines(&self) -> usize {
         self.nr_lines
     }
 
+    /// Returns the current column position in the last parsed line.
     pub fn nr_column(&self) -> usize {
         self.nr_column
     }
 
+    /// Returns a detailed description of the parsing error.
     pub fn error_description(&self) -> Option<&'static str> {
         match &self.error {
             None => None,
