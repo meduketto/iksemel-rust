@@ -155,6 +155,7 @@ macro_rules! notsupp_error {
 }
 
 impl SaxParser {
+    /// Creates a new SAX parser instance.
     pub fn new() -> SaxParser {
         SaxParser {
             state: State::Prolog,
@@ -177,6 +178,7 @@ impl SaxParser {
         }
     }
 
+    /// Resets the parser into a clean state.
     pub fn reset(&mut self) -> () {
         self.state = State::Prolog;
         self.error = None;
@@ -279,6 +281,7 @@ impl SaxParser {
         self.parse_finish()
     }
 
+    /// Parses given XML bytes.
     pub fn parse_bytes(
         &mut self,
         handler: &mut impl SaxHandler,

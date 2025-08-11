@@ -26,14 +26,19 @@ impl<'a> Tester<'a> {
     }
 
     fn check(&mut self, s: &str) {
+        let nr_lines = s.matches("\n").count();
+        let nr_column = s.lines().last().unwrap().len();
+
         let mut parser = SaxParser::new();
         assert!(parser.parse_bytes_finish(self, &s.as_bytes()).is_ok());
         assert_eq!(self.current, self.expected.len());
-
-        self.current = 0;
-        self.cdata_buf.clear();
+        assert_eq!(parser.nr_lines(), nr_lines);
+        assert_eq!(parser.nr_column(), nr_column);
+        assert_eq!(parser.nr_bytes(), s.len());
 
         // now try byte by byte
+        self.current = 0;
+        self.cdata_buf.clear();
         let mut parser = SaxParser::new();
         for i in 0..s.len() {
             assert!(parser.parse_bytes(self, &s.as_bytes()[i..i + 1]).is_ok());
@@ -325,6 +330,16 @@ fn long_tag() {
 }
 
 #[test]
+fn location() {
+    Tester::new(&[
+        SaxElement::StartTag("a"),
+        SaxElement::CData("\n\n "),
+        SaxElement::EndTag("a"),
+    ])
+    .check("<a>\n\n </a>");
+}
+
+#[test]
 fn bad_tags() {
     BadTester::new(4).check("<a>< b/></a>");
     BadTester::new(6).check("<a><b/ ></a>");
@@ -333,8 +348,6 @@ fn bad_tags() {
     BadTester::new(1).check("</a>");
     BadTester::new(9).check("<a> </a  b>");
     BadTester::new(8).check("<a></a><b/>");
-    BadTester::new(2).check("  lala <a></a>");
-    BadTester::new(10).check("  <a></a> lala");
     BadTester::new(10).check("<a a='1' b></a>");
     BadTester::new(11).check("<a a='1' b=></a>");
     BadTester::new(12).check("<a a='12' b '2'></a>");
@@ -364,6 +377,9 @@ fn bad_pi() {
 
 #[test]
 fn bad_cdatas() {
+    BadTester::new(2).check("  lala <a></a>");
+    BadTester::new(10).check("  <a></a> lala");
+    BadTester::new(11).check("  <a></a > lala");
     BadTester::new(2).check("<![CDATA[lala]> <a/>");
     BadTester::new(8).check(" <a/> <![CDATA[lala]>");
     BadTester::new(7).check("<a> <![DATA[lala]> </a>");
