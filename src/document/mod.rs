@@ -243,7 +243,7 @@ struct DocumentBuilder {
 }
 
 impl DocumentBuilder {
-    pub fn new() -> DocumentBuilder {
+    fn new() -> DocumentBuilder {
         DocumentBuilder {
             doc: None,
             node: null_mut(),
