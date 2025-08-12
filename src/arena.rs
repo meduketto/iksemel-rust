@@ -8,13 +8,6 @@
 ** the License, or (at your option) any later version.
 */
 
-//! Custom memory allocator for XML data
-//!
-//! This module implements a custom memory allocation system to pack
-//! XML structures and character data efficiently for the purpose of
-//! fast querying and modification.
-//!
-
 use std::alloc::{Layout, alloc, dealloc, handle_alloc_error};
 use std::cell::UnsafeCell;
 use std::cmp;
@@ -25,7 +18,12 @@ const MIN_NODE_WORDS: usize = 32;
 
 const MIN_DATA_BYTES: usize = 256;
 
-/// A memory area group which can store XML structures and character data.
+/// A memory arena for XML structures and character data.
+///
+/// This struct implements a custom memory allocation system to pack
+/// XML structures and character data efficiently for the purpose of
+/// fast querying and modification.
+///
 #[repr(transparent)]
 pub struct Arena {
     info: UnsafeCell<*mut ArenaInfo>,
@@ -519,3 +517,4 @@ mod tests {
 // FIXME: MaybeUninit?
 // FIXME: better min size tuning
 // FIXME: fn to return actual usage
+// FIXME: alloc failures
