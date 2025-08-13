@@ -8,7 +8,13 @@
 ** the License, or (at your option) any later version.
 */
 
+use iksemel::SaxElement;
+use iksemel::SaxError;
+use iksemel::SaxHandler;
+use iksemel::SaxParser;
 use std::env;
+use std::fs::File;
+use std::io::Read;
 use std::process::ExitCode;
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -30,23 +36,64 @@ fn print_usage() {
     ));
 }
 
-struct Linter {
+struct Handler {
     do_state: bool,
     do_histogram: bool,
     nr_tags: u32,
 }
 
+impl SaxHandler for Handler {
+    fn handle_element(&mut self, element: &SaxElement) -> Result<(), SaxError> {
+        println!("Element: {:?}", element);
+        Ok(())
+    }
+}
+
+struct Linter {
+    handler: Handler,
+    parser: SaxParser,
+}
+
 impl Linter {
     fn new(do_state: bool, do_histogram: bool) -> Self {
         Linter {
-            do_state,
-            do_histogram,
-            nr_tags: 0,
+            handler: Handler {
+                do_state,
+                do_histogram,
+                nr_tags: 0,
+            },
+            parser: SaxParser::new(),
         }
     }
 
+    fn parse_file(&mut self, file: &str) -> Result<(), SaxError> {
+        let mut f = match File::open(file) {
+            Ok(f) => f,
+            Err(err) => {
+                println!("Error opening file '{}': {}", file, err);
+                return Err(SaxError::HandlerError);
+            }
+        };
+        let mut buffer = [0u8; 4096];
+        loop {
+            let bytes_read = match f.read(&mut buffer) {
+                Ok(bytes_read) => bytes_read,
+                Err(err) => {
+                    println!("Error reading file '{}': {}", file, err);
+                    return Err(SaxError::HandlerError);
+                }
+            };
+            if bytes_read == 0 {
+                break;
+            }
+            self.parser
+                .parse_bytes(&mut self.handler, &buffer[..bytes_read])?;
+        }
+        self.parser.parse_finish()
+    }
+
     fn lint_file(&mut self, file: &str) -> bool {
-        return true;
+        self.parse_file(file).is_ok()
     }
 }
 
