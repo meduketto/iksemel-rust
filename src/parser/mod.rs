@@ -11,6 +11,7 @@
 mod error;
 
 pub use error::SaxError;
+pub use error::SaxHandlerError;
 
 use error::XmlError;
 
@@ -49,7 +50,7 @@ pub enum SaxElement<'a> {
 }
 
 pub trait SaxHandler {
-    fn handle_element(&mut self, element: &SaxElement) -> Result<(), SaxError>;
+    fn handle_element(&mut self, element: &SaxElement) -> Result<(), SaxHandlerError>;
 }
 
 /// SAX (Simple API for XML) based XML parser.
@@ -62,14 +63,12 @@ pub trait SaxHandler {
 ///
 /// Typical usage:
 /// ```
-/// # use iksemel::SaxElement;
-/// # use iksemel::SaxError;
-/// # use iksemel::SaxHandler;
-/// # use iksemel::SaxParser;
+/// use iksemel::{SaxElement, SaxError, SaxHandler, SaxHandlerError, SaxParser};
+///
 /// // Example handler which just prints parsed elements
 /// struct Handler { }
 /// impl SaxHandler for Handler {
-///     fn handle_element(&mut self, element: &SaxElement) -> Result<(), SaxError> {
+///     fn handle_element(&mut self, element: &SaxElement) -> Result<(), SaxHandlerError> {
 ///         println!("Element parsed: {:?}", element);
 ///         Ok(())
 ///     }
@@ -92,14 +91,6 @@ pub trait SaxHandler {
 ///         );
 ///         return;
 ///     }
-///     Err(SaxError::NotSupported) => {
-///         println!("unsupported xml feature at line {} column {}: {}",
-///             parser.nr_lines(),
-///             parser.nr_column(),
-///             parser.error_description().unwrap(),
-///         );
-///         return;
-///     }
 ///     Err(SaxError::HandlerError) => {
 ///         println!("handler returned error");
 ///         return;
@@ -112,10 +103,11 @@ pub trait SaxHandler {
 /// # use iksemel::SaxElement;
 /// # use iksemel::SaxError;
 /// # use iksemel::SaxHandler;
+/// # use iksemel::SaxHandlerError;
 /// # fn main() -> Result<(), SaxError> {
 /// # struct Handler { }
 /// # impl SaxHandler for Handler {
-/// #     fn handle_element(&mut self, element: &SaxElement) -> Result<(), SaxError> {
+/// #     fn handle_element(&mut self, element: &SaxElement) -> Result<(), SaxHandlerError> {
 /// #         Ok(())
 /// #     }
 /// # }
@@ -228,13 +220,6 @@ macro_rules! xml_error {
     };
 }
 
-macro_rules! notsupp_error {
-    ($a:ident, $b:ident) => {
-        $a.error = Some(XmlError::$b);
-        return Err(SaxError::NotSupported);
-    };
-}
-
 impl SaxParser {
     /// Creates a new SAX parser instance.
     ///
@@ -335,7 +320,7 @@ impl SaxParser {
             Ok(())
         } else {
             let s = unsafe { std::str::from_utf8_unchecked(&buf[0..size]) };
-            handler.handle_element(&SaxElement::CData(s))
+            Ok(handler.handle_element(&SaxElement::CData(s))?)
         }
     }
 
@@ -345,7 +330,7 @@ impl SaxParser {
     /// unfinished XML constructs, such as open comments and markup.
     pub fn parse_finish(&mut self) -> Result<(), SaxError> {
         if self.error.is_some() {
-            notsupp_error!(self, ParserReuseWithoutReset);
+            xml_error!(self, ParserReuseWithoutReset);
         }
         if !self.seen_content {
             xml_error!(self, DocNoContent);
@@ -379,7 +364,7 @@ impl SaxParser {
         bytes: &[u8],
     ) -> Result<(), SaxError> {
         if self.error.is_some() {
-            notsupp_error!(self, ParserReuseWithoutReset);
+            xml_error!(self, ParserReuseWithoutReset);
         }
 
         let mut pos: usize = 0;
@@ -899,7 +884,7 @@ impl SaxParser {
                             b"quot" => "\"",
                             b"apos" => "'",
                             _ => {
-                                notsupp_error!(self, ReferenceCustomEntity);
+                                xml_error!(self, ReferenceCustomEntity);
                             }
                         };
                         if self.is_value_ref {
@@ -915,7 +900,7 @@ impl SaxParser {
                     }
                     _ => {
                         if self.ref_buffer.len() >= REF_BUFFER_SIZE {
-                            notsupp_error!(self, ReferenceCustomEntity);
+                            xml_error!(self, ReferenceCustomEntity);
                         }
                         self.ref_buffer.push(c);
                     }

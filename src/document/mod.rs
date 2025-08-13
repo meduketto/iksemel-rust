@@ -21,6 +21,7 @@ use super::entities::escaped_size;
 use super::parser::SaxElement;
 use super::parser::SaxError;
 use super::parser::SaxHandler;
+use super::parser::SaxHandlerError;
 use super::parser::SaxParser;
 
 pub struct Document {
@@ -252,7 +253,7 @@ impl DocumentBuilder {
 }
 
 impl SaxHandler for DocumentBuilder {
-    fn handle_element(&mut self, element: &SaxElement) -> Result<(), SaxError> {
+    fn handle_element(&mut self, element: &SaxElement) -> Result<(), SaxHandlerError> {
         match &self.doc {
             None => match element {
                 SaxElement::StartTag(name) => {
@@ -260,7 +261,7 @@ impl SaxHandler for DocumentBuilder {
                     self.node = doc.root().get_node_ptr();
                     self.doc = Some(doc);
                 }
-                _ => return Err(SaxError::HandlerError),
+                _ => return Err(SaxHandlerError::Abort),
             },
             Some(doc) => match element {
                 SaxElement::StartTag(name) => {
@@ -278,7 +279,7 @@ impl SaxHandler for DocumentBuilder {
                 }
                 SaxElement::EndTag(name) => {
                     if name != &Cursor::new(self.node).name() {
-                        return Err(SaxError::BadXml);
+                        return Err(SaxHandlerError::Abort);
                     }
                     self.node = Cursor::new(self.node).parent().get_node_ptr();
                 }

@@ -8,11 +8,29 @@
 ** the License, or (at your option) any later version.
 */
 
+use std::error::Error;
+use std::fmt::Display;
+
+#[derive(Debug, Eq, PartialEq)]
+pub enum SaxHandlerError {
+    Abort,
+}
+
+impl Display for SaxHandlerError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "SAX handler error")
+    }
+}
+
+impl Error for SaxHandlerError {}
+
 /// Type of the error which happened during the XML SAX parsing.
 ///
 /// These categories are designed to be as few as possible and correspond to the distinct
-/// actions the caller might take based on the problem. Further details are available via
-/// other [SaxParser](super::SaxParser) methods.
+/// actions you might take based on the nature of theproblem.
+///
+/// A detailed description of the [BadXml] error is available via
+/// [error_description()](super::SaxParser::error_description) method.
 ///
 /// Location of the error is available via [nr_bytes()](super::SaxParser::nr_bytes),
 /// [nr_lines()](super::SaxParser::nr_lines), and
@@ -41,33 +59,32 @@ pub enum SaxError {
     /// [error_description()](super::SaxParser::error_description) function.
     BadXml,
 
-    /// A certain XML feature is not supported by the parser.
+    /// Element handler function returned an error.
     ///
-    /// Only unsupported feature at the moment is the custom entities defined in DTDs.
-    ///
-    /// Handling of this would be similar to BadXml except the wording should indicate
-    /// that the issue is not caused by a problem in the document.
-    NotSupported,
-
-    /// Element handler function returned this error.
-    ///
-    /// This is intended for caller's handler to be able to abort the processing while
-    /// signalling to the caller that the interruption is not caused by iksemel itself.
+    /// This is intended for your handler to be able to abort the processing while
+    /// signalling that the interruption is not caused by iksemel itself.
     HandlerError,
 }
 
-impl std::fmt::Display for SaxError {
+impl From<SaxHandlerError> for SaxError {
+    fn from(err: SaxHandlerError) -> Self {
+        match err {
+            SaxHandlerError::Abort => SaxError::HandlerError,
+        }
+    }
+}
+
+impl Display for SaxError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             SaxError::NoMemory => write!(f, "not enough memory"),
             SaxError::BadXml => write!(f, "invalid xml syntax"),
-            SaxError::NotSupported => write!(f, "xml construct not supported"),
             SaxError::HandlerError => write!(f, "error from sax handler"),
         }
     }
 }
 
-impl std::error::Error for SaxError {}
+impl Error for SaxError {}
 
 pub(super) enum XmlError {
     ParserReuseWithoutReset,

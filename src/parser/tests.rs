@@ -52,7 +52,7 @@ impl<'a> Tester<'a> {
 }
 
 impl<'a> SaxHandler for Tester<'a> {
-    fn handle_element(&mut self, element: &SaxElement) -> Result<(), SaxError> {
+    fn handle_element(&mut self, element: &SaxElement) -> Result<(), SaxHandlerError> {
         assert!(self.current < self.expected.len());
         if let SaxElement::CData(cdata) = element {
             if let SaxElement::CData(cdata2) = self.expected[self.current] {
@@ -106,7 +106,7 @@ impl BadTester {
 }
 
 impl SaxHandler for BadTester {
-    fn handle_element(&mut self, _element: &SaxElement) -> Result<(), SaxError> {
+    fn handle_element(&mut self, _element: &SaxElement) -> Result<(), SaxHandlerError> {
         Ok(())
     }
 }
@@ -392,8 +392,8 @@ fn bad_cdatas() {
 
 #[test]
 fn bad_entities() {
-    BadTester::new(8).check_with_error("<a>&lala;</a>", SaxError::NotSupported);
-    BadTester::new(12).check_with_error("<a>&lala           </a>", SaxError::NotSupported);
+    BadTester::new(8).check("<a>&lala;</a>");
+    BadTester::new(12).check("<a>&lala           </a>");
     BadTester::new(16).check("<lol>&lt;<&gt;</lol>");
     BadTester::new(6).check("<a>&#1a;</a>");
     BadTester::new(6).check("<a>&#Xaa;</a>");

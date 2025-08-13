@@ -22,4 +22,5 @@ pub use document::DocumentParser;
 pub use parser::SaxElement;
 pub use parser::SaxError;
 pub use parser::SaxHandler;
+pub use parser::SaxHandlerError;
 pub use parser::SaxParser;
