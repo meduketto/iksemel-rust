@@ -11,8 +11,14 @@
 use std::error::Error;
 use std::fmt::Display;
 
+/// Error type to be returned by the SAX handler.
 #[derive(Debug, Eq, PartialEq)]
 pub enum SaxHandlerError {
+    /// Handler wants to abort parsing.
+    ///
+    /// [parse_bytes()](super::SaxParser::parse_bytes) will stop
+    /// processing and return [SaxError::HandlerError](super::SaxError::HandlerError)
+    /// to the caller.
     Abort,
 }
 

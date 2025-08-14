@@ -8,11 +8,6 @@
 ** the License, or (at your option) any later version.
 */
 
-use iksemel::SaxElement;
-use iksemel::SaxError;
-use iksemel::SaxHandler;
-use iksemel::SaxHandlerError;
-use iksemel::SaxParser;
 use std::collections::HashMap;
 use std::collections::HashSet;
 use std::env;
@@ -21,6 +16,12 @@ use std::io::Read;
 use std::io::stdin;
 use std::process::ExitCode;
 use std::vec::Vec;
+
+use iksemel::SaxElement;
+use iksemel::SaxError;
+use iksemel::SaxHandler;
+use iksemel::SaxHandlerError;
+use iksemel::SaxParser;
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 
