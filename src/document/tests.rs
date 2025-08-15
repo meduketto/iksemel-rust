@@ -71,14 +71,14 @@ fn doc_parser() {
 fn bad_doc_parser() {
     assert_eq!(
         Document::from_str("<a>lala</b>").err(),
-        Some(SaxError::HandlerError)
+        Some(SaxError::HandlerAbort)
     );
     assert_eq!(
         Document::from_str("<a><b><c/></d></a>").err(),
-        Some(SaxError::HandlerError)
+        Some(SaxError::HandlerAbort)
     );
     assert_eq!(
         Document::from_str("<a><b><c/></b><d></d><e></e2></a>").err(),
-        Some(SaxError::HandlerError)
+        Some(SaxError::HandlerAbort)
     );
 }

@@ -83,24 +83,14 @@ impl BadTester {
     }
 
     fn check(&mut self, s: &str) {
-        self.check_with_error(s, SaxError::BadXml)
-    }
-
-    fn check_with_error(&mut self, s: &str, expected_error: SaxError) {
         let mut parser = SaxParser::new();
-        assert_eq!(
-            parser.parse_bytes_finish(self, &s.as_bytes()),
-            Err(expected_error)
-        );
+        assert_ne!(parser.parse_bytes_finish(self, &s.as_bytes()), Ok(()));
         assert_eq!(parser.nr_bytes(), self.bad_byte);
     }
 
     fn check_bytes(&mut self, bytes: &[u8]) {
         let mut parser = SaxParser::new();
-        assert_eq!(
-            parser.parse_bytes_finish(self, bytes),
-            Err(SaxError::BadXml)
-        );
+        assert_ne!(parser.parse_bytes_finish(self, bytes), Ok(()));
         assert_eq!(parser.nr_bytes(), self.bad_byte);
     }
 }

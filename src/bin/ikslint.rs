@@ -215,17 +215,17 @@ impl Linter {
                 eprintln!("Memory allocation failed while parsing '{}'", file);
                 false
             }
-            Err(LinterError::SaxError(SaxError::BadXml)) => {
+            Err(LinterError::SaxError(SaxError::BadXml(msg))) => {
                 eprintln!(
                     "Syntax error in file '{}' at line {} column {}: {}",
                     file,
                     self.parser.nr_lines(),
                     self.parser.nr_column(),
-                    self.parser.error_description().unwrap()
+                    msg
                 );
                 false
             }
-            Err(LinterError::SaxError(SaxError::HandlerError)) => {
+            Err(LinterError::SaxError(SaxError::HandlerAbort)) => {
                 eprintln!(
                     "Well-formedness error in file '{}' at line {} column {}: {}",
                     file,

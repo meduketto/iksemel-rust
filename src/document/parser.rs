@@ -92,8 +92,21 @@ impl DocumentParser {
     pub fn into_document(mut self) -> Result<Document, SaxError> {
         self.parser.parse_finish()?;
         match self.builder.doc {
-            None => Err(SaxError::HandlerError),
+            None => Err(SaxError::HandlerAbort),
             Some(doc) => Ok(doc),
         }
+    }
+
+    pub fn take_document(&mut self) -> Result<Document, SaxError> {
+        self.parser.parse_finish()?;
+        let doc = self.builder.doc.take();
+        match doc {
+            None => Err(SaxError::HandlerAbort),
+            Some(doc) => Ok(doc),
+        }
+    }
+
+    pub fn reuse_document_memory(&mut self, doc: Document) {
+        let _old_doc = self.builder.doc.replace(doc);
     }
 }

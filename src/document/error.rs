@@ -24,3 +24,18 @@ impl Display for DocumentError {
 }
 
 impl Error for DocumentError {}
+
+#[derive(Debug, Eq, PartialEq)]
+pub enum FileDocumentError {
+    NoMemory,
+    BadXml,
+    IOError,
+}
+
+impl Display for FileDocumentError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "document error")
+    }
+}
+
+impl Error for FileDocumentError {}

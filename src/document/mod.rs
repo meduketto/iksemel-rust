@@ -8,6 +8,7 @@
 ** the License, or (at your option) any later version.
 */
 
+mod error;
 mod parser;
 
 use std::alloc::Layout;
