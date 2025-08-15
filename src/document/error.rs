@@ -11,7 +11,9 @@
 use std::error::Error;
 use std::fmt::Display;
 
-#[derive(Debug, Eq, PartialEq)]
+use crate::SaxError;
+
+#[derive(Debug, Eq, PartialEq, Copy, Clone)]
 pub enum DocumentError {
     NoMemory,
     BadXml(&'static str),
@@ -19,28 +21,28 @@ pub enum DocumentError {
 
 impl Display for DocumentError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "document error")
+        match self {
+            DocumentError::NoMemory => write!(f, "not enough memory"),
+            DocumentError::BadXml(msg) => write!(f, "invalid XML syntax: {}", msg),
+        }
     }
 }
 
 impl Error for DocumentError {}
 
-#[derive(Debug, Eq, PartialEq)]
-pub enum FileDocumentError {
-    NoMemory,
-    BadXml(&'static str),
-    IOError,
-}
-
-impl Display for FileDocumentError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "document error")
+impl From<SaxError> for DocumentError {
+    fn from(err: SaxError) -> Self {
+        match err {
+            SaxError::NoMemory => DocumentError::NoMemory,
+            SaxError::BadXml(msg) => DocumentError::BadXml(msg),
+            SaxError::HandlerAbort => DocumentError::BadXml(description::UNEXPECTED_HANDLER_ABORT),
+        }
     }
 }
 
-impl Error for FileDocumentError {}
-
 pub(super) mod description {
+    pub(super) const UNEXPECTED_HANDLER_ABORT: &str = "Unexpected handler abort";
+    pub(in super::super) const NO_DOCUMENT: &str = "No document parsed yet";
     pub(in super::super) const TAG_MISMATCH: &str = "Start and end tags have different names";
     pub(in super::super) const DUPLICATE_ATTRIBUTE: &str =
         "Attribute name already used in this tag";

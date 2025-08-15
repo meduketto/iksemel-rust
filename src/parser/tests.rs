@@ -357,7 +357,8 @@ fn bad_tags() {
     BadTester::new(17, TAG_EMPTY_TAG_MISSING_END).check("<g><test a='123'/ b='lala'></g>");
     BadTester::new(13, TAG_ATTRIBUTE_BAD_VALUE).check("<a a='1' b='></a>");
     BadTester::new(13, TAG_ATTRIBUTE_BAD_VALUE).check("<a a='1' b=\"></a>");
-    BadTester::new(5, TAG_WHITESPACE_START).check("<a> <> </a>");
+    BadTester::new(4, TAG_WHITESPACE_START).check("<a>< abc/></a>");
+    BadTester::new(5, TAG_EMPTY_NAME).check("<a> <> </a>");
     BadTester::new(6, TAG_EMPTY_NAME).check("<a> </> </a>");
 }
 

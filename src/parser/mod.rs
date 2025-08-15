@@ -424,8 +424,11 @@ impl SaxParser {
                         self.is_end_tag = true;
                         self.state = State::TagName;
                     }
-                    whitespace!() | b'>' => {
+                    whitespace!() => {
                         xml_error!(TAG_WHITESPACE_START);
+                    }
+                    b'>' => {
+                        xml_error!(TAG_EMPTY_NAME);
                     }
                     _ => {
                         if self.depth == 0 && self.seen_content {

@@ -11,7 +11,6 @@
 use std::ptr::null_mut;
 
 use crate::SaxElement;
-use crate::SaxError;
 use crate::SaxHandler;
 use crate::SaxHandlerError;
 use crate::SaxParser;
@@ -19,7 +18,7 @@ use crate::SaxParser;
 use super::Cursor;
 use super::Document;
 use super::Node;
-
+use super::error::DocumentError;
 use super::error::description;
 
 struct DocumentBuilder {
@@ -87,23 +86,23 @@ impl DocumentParser {
         }
     }
 
-    pub fn parse_bytes(&mut self, bytes: &[u8]) -> Result<(), SaxError> {
-        self.parser.parse_bytes(&mut self.builder, bytes)
+    pub fn parse_bytes(&mut self, bytes: &[u8]) -> Result<(), DocumentError> {
+        Ok(self.parser.parse_bytes(&mut self.builder, bytes)?)
     }
 
-    pub fn into_document(mut self) -> Result<Document, SaxError> {
+    pub fn into_document(mut self) -> Result<Document, DocumentError> {
         self.parser.parse_finish()?;
         match self.builder.doc {
-            None => Err(SaxError::HandlerAbort),
+            None => Err(DocumentError::BadXml(description::NO_DOCUMENT)),
             Some(doc) => Ok(doc),
         }
     }
 
-    pub fn take_document(&mut self) -> Result<Document, SaxError> {
+    pub fn take_document(&mut self) -> Result<Document, DocumentError> {
         self.parser.parse_finish()?;
         let doc = self.builder.doc.take();
         match doc {
-            None => Err(SaxError::HandlerAbort),
+            None => Err(DocumentError::BadXml(description::NO_DOCUMENT)),
             Some(doc) => Ok(doc),
         }
     }

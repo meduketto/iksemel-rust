@@ -21,7 +21,7 @@ use super::arena::Arena;
 use super::entities::escape;
 use super::entities::escape_fmt;
 use super::entities::escaped_size;
-use crate::SaxError;
+use error::DocumentError;
 pub use parser::DocumentParser;
 
 pub struct Document {
@@ -250,7 +250,7 @@ impl Document {
         }
     }
 
-    pub fn from_str(xml_str: &str) -> Result<Document, SaxError> {
+    pub fn from_str(xml_str: &str) -> Result<Document, DocumentError> {
         let mut parser = DocumentParser::new();
         parser.parse_bytes(xml_str.as_bytes())?;
         parser.into_document()
