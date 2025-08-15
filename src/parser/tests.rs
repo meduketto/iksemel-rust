@@ -8,6 +8,7 @@
 ** the License, or (at your option) any later version.
 */
 
+use super::error::description::*;
 use super::*;
 
 struct Tester<'a> {
@@ -75,22 +76,29 @@ impl<'a> SaxHandler for Tester<'a> {
 
 struct BadTester {
     bad_byte: usize,
+    err: SaxError,
 }
 
 impl BadTester {
-    fn new(bad_byte: usize) -> BadTester {
-        BadTester { bad_byte }
+    fn new(bad_byte: usize, msg: &'static str) -> BadTester {
+        BadTester {
+            bad_byte,
+            err: SaxError::BadXml(msg),
+        }
     }
 
     fn check(&mut self, s: &str) {
         let mut parser = SaxParser::new();
-        assert_ne!(parser.parse_bytes_finish(self, &s.as_bytes()), Ok(()));
+        assert_eq!(
+            parser.parse_bytes_finish(self, &s.as_bytes()),
+            Err(self.err)
+        );
         assert_eq!(parser.nr_bytes(), self.bad_byte);
     }
 
     fn check_bytes(&mut self, bytes: &[u8]) {
         let mut parser = SaxParser::new();
-        assert_ne!(parser.parse_bytes_finish(self, bytes), Ok(()));
+        assert_eq!(parser.parse_bytes_finish(self, bytes), Err(self.err));
         assert_eq!(parser.nr_bytes(), self.bad_byte);
     }
 }
@@ -334,94 +342,95 @@ fn location() {
 
 #[test]
 fn bad_tags() {
-    BadTester::new(4).check("<a>< b/></a>");
-    BadTester::new(6).check("<a><b/ ></a>");
-    BadTester::new(8).check("<a></ccc/></a>");
-    BadTester::new(13).check("<a><b/><c></c/></a>");
-    BadTester::new(1).check("</a>");
-    BadTester::new(9).check("<a> </a  b>");
-    BadTester::new(8).check("<a></a><b/>");
-    BadTester::new(10).check("<a a='1' b></a>");
-    BadTester::new(11).check("<a a='1' b=></a>");
-    BadTester::new(12).check("<a a='12' b '2'></a>");
-    BadTester::new(13).check("<a a='123' b c='5'></a>");
-    BadTester::new(14).check("<a a='12'></a b='1'>");
-    BadTester::new(17).check("<g><test a='123'/ b='lala'></g>");
-    BadTester::new(13).check("<a a='1' b='></a>");
-    BadTester::new(13).check("<a a='1' b=\"></a>");
-    BadTester::new(5).check("<a> <> </a>");
-    BadTester::new(6).check("<a> </> </a>");
+    BadTester::new(4, TAG_WHITESPACE_START).check("<a>< b/></a>");
+    BadTester::new(6, TAG_EMPTY_TAG_MISSING_END).check("<a><b/ ></a>");
+    BadTester::new(8, TAG_DOUBLE_END).check("<a></ccc/></a>");
+    BadTester::new(13, TAG_DOUBLE_END).check("<a><b/><c></c/></a>");
+    BadTester::new(1, TAG_CLOSE_WITHOUT_OPEN).check("</a>");
+    BadTester::new(9, TAG_END_TAG_ATTRIBUTES).check("<a> </a  b>");
+    BadTester::new(8, TAG_OUTSIDE_ROOT).check("<a></a><b/>");
+    BadTester::new(10, TAG_ATTRIBUTE_BAD_NAME).check("<a a='1' b></a>");
+    BadTester::new(11, TAG_ATTRIBUTE_WITHOUT_QUOTE).check("<a a='1' b=></a>");
+    BadTester::new(12, TAG_ATTRIBUTE_WITHOUT_EQUAL).check("<a a='12' b '2'></a>");
+    BadTester::new(13, TAG_ATTRIBUTE_WITHOUT_EQUAL).check("<a a='123' b c='5'></a>");
+    BadTester::new(14, TAG_END_TAG_ATTRIBUTES).check("<a a='12'></a b='1'>");
+    BadTester::new(17, TAG_EMPTY_TAG_MISSING_END).check("<g><test a='123'/ b='lala'></g>");
+    BadTester::new(13, TAG_ATTRIBUTE_BAD_VALUE).check("<a a='1' b='></a>");
+    BadTester::new(13, TAG_ATTRIBUTE_BAD_VALUE).check("<a a='1' b=\"></a>");
+    BadTester::new(5, TAG_WHITESPACE_START).check("<a> <> </a>");
+    BadTester::new(6, TAG_EMPTY_NAME).check("<a> </> </a>");
 }
 
 #[test]
 fn bad_comments() {
-    BadTester::new(10).check("<e><!-- -- --></e>");
-    BadTester::new(22).check("<ha><!-- <lala> --><!- comment -></ha>");
-    BadTester::new(12).check("<!-- c1 --> lala <ha/>");
-    BadTester::new(31).check("<!-- c1 --> <ha/> <!-- pika -->c");
-    BadTester::new(9).check("<!-- c ---> <ha/>");
+    BadTester::new(10, COMMENT_MISSING_END).check("<e><!-- -- --></e>");
+    BadTester::new(22, COMMENT_MISSING_DASH).check("<ha><!-- <lala> --><!- comment -></ha>");
+    BadTester::new(12, DOC_CDATA_WITHOUT_PARENT).check("<!-- c1 --> lala <ha/>");
+    BadTester::new(31, DOC_CDATA_WITHOUT_PARENT).check("<!-- c1 --> <ha/> <!-- pika -->c");
+    BadTester::new(9, COMMENT_MISSING_END).check("<!-- c ---> <ha/>");
 }
 
 #[test]
 fn bad_pi() {
-    BadTester::new(12).check("<e/> <?xml >");
-    BadTester::new(13).check("<e/> <?xml ?>lala");
+    BadTester::new(12, PI_MISSING_END).check("<e/> <?xml ? >");
+    BadTester::new(12, DOC_OPEN_MARKUP).check("<e/> <?xml >");
+    BadTester::new(13, DOC_CDATA_WITHOUT_PARENT).check("<e/> <?xml ?>lala");
 }
 
 #[test]
 fn bad_cdatas() {
-    BadTester::new(2).check("  lala <a></a>");
-    BadTester::new(10).check("  <a></a> lala");
-    BadTester::new(11).check("  <a></a > lala");
-    BadTester::new(2).check("<![CDATA[lala]> <a/>");
-    BadTester::new(8).check(" <a/> <![CDATA[lala]>");
-    BadTester::new(7).check("<a> <![DATA[lala]> </a>");
-    BadTester::new(9).check("<a> <![CDaTA[lala]> </a>");
-    BadTester::new(12).check("<a> <![CDATAlala]> </a>");
+    BadTester::new(2, DOC_CDATA_WITHOUT_PARENT).check("  lala <a></a>");
+    BadTester::new(10, DOC_CDATA_WITHOUT_PARENT).check("  <a></a> lala");
+    BadTester::new(11, DOC_CDATA_WITHOUT_PARENT).check("  <a></a > lala");
+    BadTester::new(2, MARKUP_CDATA_SECTION_OUTSIDE_ROOT).check("<![CDATA[lala]> <a/>");
+    BadTester::new(8, MARKUP_CDATA_SECTION_OUTSIDE_ROOT).check(" <a/> <![CDATA[lala]>");
+    BadTester::new(7, MARKUP_CDATA_SECTION_BAD_START).check("<a> <![DATA[lala]> </a>");
+    BadTester::new(9, MARKUP_CDATA_SECTION_BAD_START).check("<a> <![CDaTA[lala]> </a>");
+    BadTester::new(12, MARKUP_CDATA_SECTION_BAD_START).check("<a> <![CDATAlala]> </a>");
 }
 
 #[test]
 fn bad_entities() {
-    BadTester::new(8).check("<a>&lala;</a>");
-    BadTester::new(12).check("<a>&lala           </a>");
-    BadTester::new(16).check("<lol>&lt;<&gt;</lol>");
-    BadTester::new(6).check("<a>&#1a;</a>");
-    BadTester::new(6).check("<a>&#Xaa;</a>");
-    BadTester::new(8).check("<a>&#xa5g;</a>");
-    BadTester::new(6).check("<a>&#8;</a>");
-    BadTester::new(7).check("<a>&#11;</a>");
-    BadTester::new(7).check("<a>&#15;</a>");
-    BadTester::new(10).check("<a>&#xD800;</a>");
-    BadTester::new(10).check("<a>&#xDfFf;</a>");
-    BadTester::new(10).check("<a>&#xfFfE;</a>");
-    BadTester::new(10).check("<a>&#xFFff;</a>");
-    BadTester::new(12).check("<a>&#x110000;</a>");
+    BadTester::new(8, REFERENCE_CUSTOM_ENTITY).check("<a>&lala;</a>");
+    BadTester::new(12, REFERENCE_CUSTOM_ENTITY).check("<a>&lala           </a>");
+    BadTester::new(16, TAG_EMPTY_TAG_MISSING_END).check("<lol>&lt;<&gt;</lol>");
+    BadTester::new(6, REFERENCE_INVALID_DECIMAL).check("<a>&#1a;</a>");
+    BadTester::new(6, REFERENCE_INVALID_DECIMAL).check("<a>&#Xaa;</a>");
+    BadTester::new(8, REFERENCE_INVALID_HEX).check("<a>&#xa5g;</a>");
+    BadTester::new(6, CHAR_INVALID).check("<a>&#8;</a>");
+    BadTester::new(7, CHAR_INVALID).check("<a>&#11;</a>");
+    BadTester::new(7, CHAR_INVALID).check("<a>&#15;</a>");
+    BadTester::new(10, CHAR_INVALID).check("<a>&#xD800;</a>");
+    BadTester::new(10, CHAR_INVALID).check("<a>&#xDfFf;</a>");
+    BadTester::new(10, CHAR_INVALID).check("<a>&#xfFfE;</a>");
+    BadTester::new(10, CHAR_INVALID).check("<a>&#xFFff;</a>");
+    BadTester::new(12, CHAR_INVALID).check("<a>&#x110000;</a>");
 }
 
 #[test]
 fn bad_chars() {
-    BadTester::new(6).check_bytes(b"<test>\xFF</test>");
-    BadTester::new(6).check_bytes(b"<test>\xFE</test>");
-    BadTester::new(2).check_bytes(b"<t\x00></t>");
-    BadTester::new(2).check_bytes(b"<t\x19></t>");
-    BadTester::new(8).check_bytes(b"<test>\xe3\x8fa</test>");
-    BadTester::new(7).check_bytes(b"<test>\xC0\x80</test>");
-    BadTester::new(7).check_bytes(b"<test>\xC0\xaf</test>");
-    BadTester::new(8).check_bytes(b"<test>\xe0\x80\xaf</test>");
-    BadTester::new(9).check_bytes(b"<test>\xf0\x80\x80\xaf</test>");
-    BadTester::new(7).check_bytes(b"<test>\xc1\xbf</test>");
-    BadTester::new(8).check_bytes(b"<test>\xe0\x9f\xbf</test>");
-    BadTester::new(9).check_bytes(b"<test>\xf0\x8f\xbf\xbf</test>");
-    BadTester::new(1).check_bytes(b"<\x8f\x85></\x8f\x85>");
-    BadTester::new(7).check_bytes(
+    BadTester::new(6, UTF8_INVALID_PREFIX_BYTE).check_bytes(b"<test>\xFF</test>");
+    BadTester::new(6, UTF8_INVALID_PREFIX_BYTE).check_bytes(b"<test>\xFE</test>");
+    BadTester::new(2, CHAR_INVALID).check_bytes(b"<t\x00></t>");
+    BadTester::new(2, CHAR_INVALID).check_bytes(b"<t\x19></t>");
+    BadTester::new(8, UTF8_INVALID_CONT_BYTE).check_bytes(b"<test>\xe3\x8fa</test>");
+    BadTester::new(7, UTF8_OVERLONG_SEQUENCE).check_bytes(b"<test>\xC0\x80</test>");
+    BadTester::new(7, UTF8_OVERLONG_SEQUENCE).check_bytes(b"<test>\xC0\xaf</test>");
+    BadTester::new(8, UTF8_OVERLONG_SEQUENCE).check_bytes(b"<test>\xe0\x80\xaf</test>");
+    BadTester::new(9, UTF8_OVERLONG_SEQUENCE).check_bytes(b"<test>\xf0\x80\x80\xaf</test>");
+    BadTester::new(7, UTF8_OVERLONG_SEQUENCE).check_bytes(b"<test>\xc1\xbf</test>");
+    BadTester::new(8, UTF8_OVERLONG_SEQUENCE).check_bytes(b"<test>\xe0\x9f\xbf</test>");
+    BadTester::new(9, UTF8_OVERLONG_SEQUENCE).check_bytes(b"<test>\xf0\x8f\xbf\xbf</test>");
+    BadTester::new(1, UTF8_INVALID_PREFIX_BYTE).check_bytes(b"<\x8f\x85></\x8f\x85>");
+    BadTester::new(7, UTF8_OVERLONG_SEQUENCE).check_bytes(
         b"<utf8>\xC1\x80<br/>\xED\x95\x9C\xEA\xB5\xAD\xEC\x96\xB4<err>\xC1\x65</err></utf8>",
     );
 }
 
 #[test]
 fn bad_unfinished() {
-    BadTester::new(5).check(" <a> ");
-    BadTester::new(20).check("  <!-- lala -->     ");
-    BadTester::new(27).check(" <a></a> <!-- open comment ");
-    BadTester::new(23).check(" <a></a> <?app open pi ");
+    BadTester::new(5, DOC_OPEN_TAGS).check(" <a> ");
+    BadTester::new(20, DOC_NO_CONTENT).check("  <!-- lala -->     ");
+    BadTester::new(27, DOC_OPEN_MARKUP).check(" <a></a> <!-- open comment ");
+    BadTester::new(23, DOC_OPEN_MARKUP).check(" <a></a> <?app open pi ");
 }

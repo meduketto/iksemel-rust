@@ -8,6 +8,8 @@
 ** the License, or (at your option) any later version.
 */
 
+use std::ptr::null_mut;
+
 use crate::SaxElement;
 use crate::SaxError;
 use crate::SaxHandler;
@@ -18,7 +20,7 @@ use super::Cursor;
 use super::Document;
 use super::Node;
 
-use std::ptr::null_mut;
+use super::error::description;
 
 struct DocumentBuilder {
     doc: Option<Document>,
@@ -61,7 +63,7 @@ impl SaxHandler for DocumentBuilder {
                 }
                 SaxElement::EndTag(name) => {
                     if name != &Cursor::new(self.node).name() {
-                        return Err(SaxHandlerError::Abort);
+                        return Err(SaxHandlerError::BadXml(description::TAG_MISMATCH));
                     }
                     self.node = Cursor::new(self.node).parent().get_node_ptr();
                 }

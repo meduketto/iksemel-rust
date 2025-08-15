@@ -14,7 +14,7 @@ use std::fmt::Display;
 #[derive(Debug, Eq, PartialEq)]
 pub enum DocumentError {
     NoMemory,
-    BadXml,
+    BadXml(&'static str),
 }
 
 impl Display for DocumentError {
@@ -28,7 +28,7 @@ impl Error for DocumentError {}
 #[derive(Debug, Eq, PartialEq)]
 pub enum FileDocumentError {
     NoMemory,
-    BadXml,
+    BadXml(&'static str),
     IOError,
 }
 
@@ -39,3 +39,9 @@ impl Display for FileDocumentError {
 }
 
 impl Error for FileDocumentError {}
+
+pub(super) mod description {
+    pub(in super::super) const TAG_MISMATCH: &str = "Start and end tags have different names";
+    pub(in super::super) const DUPLICATE_ATTRIBUTE: &str =
+        "Attribute name already used in this tag";
+}

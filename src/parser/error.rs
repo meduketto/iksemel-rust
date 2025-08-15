@@ -12,7 +12,7 @@ use std::error::Error;
 use std::fmt::Display;
 
 /// The error type for the SAX handler.
-#[derive(Debug, Eq, PartialEq)]
+#[derive(Debug, Eq, PartialEq, Copy, Clone)]
 pub enum SaxHandlerError {
     /// Handler wants to abort parsing.
     ///
@@ -59,12 +59,12 @@ impl Error for SaxHandlerError {}
 /// The error type for the SAX parsing operations.
 ///
 /// These categories are designed to be as few as possible and correspond to the distinct
-/// actions you might take based on the nature of theproblem.
+/// actions you might take based on the nature of the problem.
 ///
 /// Location of the error is available via [nr_bytes()](super::SaxParser::nr_bytes),
 /// [nr_lines()](super::SaxParser::nr_lines), and
 /// [nr_column()](super::SaxParser::nr_column) functions.
-#[derive(Debug, Eq, PartialEq)]
+#[derive(Debug, Eq, PartialEq, Copy, Clone)]
 pub enum SaxError {
     /// Parser could not allocate the memory needed for parsing buffers.
     ///
@@ -113,3 +113,52 @@ impl Display for SaxError {
 }
 
 impl Error for SaxError {}
+
+pub(super) mod description {
+    pub(in super::super) const UTF8_INVALID_CONT_BYTE: &str = "Invalid UTF8 continuation byte";
+    pub(in super::super) const UTF8_OVERLONG_SEQUENCE: &str = "Overlong UTF8 sequence";
+    pub(in super::super) const UTF8_INVALID_PREFIX_BYTE: &str = "Invalid UTF8 prefix byte";
+    pub(in super::super) const CHAR_INVALID: &str = "Invalid XML character";
+    pub(in super::super) const DOC_NO_CONTENT: &str = "Document has no root tag";
+    pub(in super::super) const DOC_OPEN_TAGS: &str = "Document has unclosed tags";
+    pub(in super::super) const DOC_OPEN_MARKUP: &str =
+        "Document epilog has unclosed PI or comment tag";
+    pub(in super::super) const DOC_CDATA_WITHOUT_PARENT: &str =
+        "Character data not allowed outside of the root tag";
+    pub(in super::super) const TAG_CLOSE_WITHOUT_OPEN: &str = "Close tag without open";
+    pub(in super::super) const TAG_WHITESPACE_START: &str = "Tag cannot start with whitespace";
+    pub(in super::super) const TAG_OUTSIDE_ROOT: &str = "Tag cannot be outside of the root tag";
+    pub(in super::super) const TAG_EMPTY_NAME: &str = "Tag has no name";
+    pub(in super::super) const TAG_DOUBLE_END: &str = "End tag has standalone ending too";
+    pub(in super::super) const TAG_END_TAG_ATTRIBUTES: &str = "End tag cannot have attributes";
+    pub(in super::super) const TAG_EMPTY_TAG_MISSING_END: &str =
+        "Empty element tags must end after the '/'";
+    pub(in super::super) const TAG_ATTRIBUTE_WITHOUT_EQUAL: &str =
+        "Tag attributes must have '=' before the value";
+    pub(in super::super) const TAG_ATTRIBUTE_WITHOUT_QUOTE: &str =
+        "Tag attribute value must be double or single quotes";
+    pub(in super::super) const TAG_ATTRIBUTE_BAD_NAME: &str =
+        "Tag attribute names cannot have '/', '<' or '>'";
+    pub(in super::super) const TAG_ATTRIBUTE_BAD_VALUE: &str =
+        "Tag attribute value cannot have '<' character without a reference";
+    pub(in super::super) const REFERENCE_INVALID_DECIMAL: &str =
+        "Non digit in decimal character reference";
+    pub(in super::super) const REFERENCE_INVALID_HEX: &str =
+        "Non hex digit in hexadecimal character reference";
+    pub(in super::super) const REFERENCE_CUSTOM_ENTITY: &str =
+        "Non-predefined entity references are not supported";
+    pub(in super::super) const COMMENT_MISSING_DASH: &str =
+        "Comment tag should start with double dash";
+    pub(in super::super) const COMMENT_MISSING_END: &str =
+        "Comment tag should end after double dash";
+    pub(in super::super) const MARKUP_CDATA_SECTION_BAD_START: &str =
+        "Character data sections must start with '[CDATA['";
+    pub(in super::super) const MARKUP_DOCTYPE_BAD_START: &str =
+        "Doctype must start with 'DOCTYPE '";
+    pub(in super::super) const MARKUP_CDATA_SECTION_OUTSIDE_ROOT: &str =
+        "Character data sections cannot be outside of the root tag";
+    pub(in super::super) const MARKUP_UNRECOGNIZED: &str =
+        "Markup is not a comment, character data section, or document type declaration";
+    pub(in super::super) const PI_MISSING_END: &str =
+        "Processing instruction must end after closing the '?'";
+}

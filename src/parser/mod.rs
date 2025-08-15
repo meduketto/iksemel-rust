@@ -12,39 +12,7 @@ mod error;
 
 pub use error::SaxError;
 pub use error::SaxHandlerError;
-
-const UTF8_INVALID_CONT_BYTE: &str = "Invalid UTF8 continuation byte";
-const UTF8_OVERLONG_SEQUENCE: &str = "Overlong UTF8 sequence";
-const UTF8_INVALID_PREFIX_BYTE: &str = "Invalid UTF8 prefix byte";
-const CHAR_INVALID: &str = "Invalid XML character";
-const DOC_NO_CONTENT: &str = "Document has no root tag";
-const DOC_OPEN_TAGS: &str = "Document has unclosed tags";
-const DOC_OPEN_MARKUP: &str = "Document epilog has unclosed PI or comment tag";
-const DOC_CDATA_WITHOUT_PARENT: &str = "Character data not allowed outside of the root tag";
-const TAG_CLOSE_WITHOUT_OPEN: &str = "Close tag without open";
-const TAG_WHITESPACE_START: &str = "Tag cannot start with whitespace";
-const TAG_OUTSIDE_ROOT: &str = "Tag cannot be outside of the root tag";
-const TAG_EMPTY_NAME: &str = "Tag has no name";
-const TAG_DOUBLE_END: &str = "End tag has standalone ending too";
-const TAG_END_TAG_ATTRIBUTES: &str = "End tag cannot have attributes";
-const TAG_EMPTY_TAG_MISSING_END: &str = "Empty element tags must end after the '/'";
-const TAG_ATTRIBUTE_WITHOUT_EQUAL: &str = "Tag attributes must have '=' before the value";
-const TAG_ATTRIBUTE_WITHOUT_QUOTE: &str = "Tag attribute value must be double or single quotes";
-const TAG_ATTRIBUTE_BAD_NAME: &str = "Tag attribute names cannot have '/', '<' or '>'";
-const TAG_ATTRIBUTE_BAD_VALUE: &str =
-    "Tag attribute value cannot have '<' character without a reference";
-const REFERENCE_INVALID_DECIMAL: &str = "Non digit in decimal character reference";
-const REFERENCE_INVALID_HEX: &str = "Non hex digit in hexadecimal character reference";
-const REFERENCE_CUSTOM_ENTITY: &str = "Non-predefined entity references are not supported";
-const COMMENT_MISSING_DASH: &str = "Comment tag should start with double dash";
-const COMMENT_MISSING_END: &str = "Comment tag should end after double dash";
-const MARKUP_CDATA_SECTION_BAD_START: &str = "Character data sections must start with '[CDATA['";
-const MARKUP_DOCTYPE_BAD_START: &str = "Doctype must start with 'DOCTYPE '";
-const MARKUP_CDATA_SECTION_OUTSIDE_ROOT: &str =
-    "Character data sections cannot be outside of the root tag";
-const MARKUP_UNRECOGNIZED: &str =
-    "Markup is not a comment, character data section, or document type declaration";
-const PI_MISSING_END: &str = "Processing instruction must end after closing the '?'";
+use error::description;
 
 /// An XML element returned from the parser.
 #[derive(Debug, Eq, PartialEq)]
@@ -245,7 +213,7 @@ fn is_valid_xml_char(c: u32) -> bool {
 
 macro_rules! xml_error {
     ($a:ident) => {
-        return Err(SaxError::BadXml($a));
+        return Err(SaxError::BadXml(description::$a));
     };
 }
 

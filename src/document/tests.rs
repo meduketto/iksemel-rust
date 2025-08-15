@@ -8,6 +8,7 @@
 ** the License, or (at your option) any later version.
 */
 
+use super::error::description::*;
 use super::*;
 
 fn check_doc_xml(doc: &Document, expected: &str) {
@@ -71,14 +72,14 @@ fn doc_parser() {
 fn bad_doc_parser() {
     assert_eq!(
         Document::from_str("<a>lala</b>").err(),
-        Some(SaxError::HandlerAbort)
+        Some(SaxError::BadXml(TAG_MISMATCH))
     );
     assert_eq!(
         Document::from_str("<a><b><c/></d></a>").err(),
-        Some(SaxError::HandlerAbort)
+        Some(SaxError::BadXml(TAG_MISMATCH))
     );
     assert_eq!(
         Document::from_str("<a><b><c/></b><d></d><e></e2></a>").err(),
-        Some(SaxError::HandlerAbort)
+        Some(SaxError::BadXml(TAG_MISMATCH))
     );
 }
