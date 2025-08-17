@@ -48,9 +48,9 @@ impl From<NoMemory> for DocumentError {
 }
 
 pub(super) mod description {
-    pub(super) const UNEXPECTED_HANDLER_ABORT: &str = "Unexpected handler abort";
-    pub(in super::super) const NO_DOCUMENT: &str = "No document parsed yet";
-    pub(in super::super) const TAG_MISMATCH: &str = "Start and end tags have different names";
+    pub(super) const UNEXPECTED_HANDLER_ABORT: &str = "unexpected handler abort";
+    pub(in super::super) const NO_DOCUMENT: &str = "no document parsed yet";
+    pub(in super::super) const TAG_MISMATCH: &str = "start and end tags have different names";
     pub(in super::super) const DUPLICATE_ATTRIBUTE: &str =
-        "Attribute name already used in this tag";
+        "attribute name already used in this tag";
 }
