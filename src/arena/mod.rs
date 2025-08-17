@@ -352,8 +352,24 @@ impl Drop for Arena {
 #[cfg(test)]
 mod tests;
 
-// FIXME: test for str bad lifetime shouldnt compile (rustdoc compile_fail)
+/// # Must not compile tests
+///
+/// Returned &str cannot outlive the arena:
+/// ```compile_fail
+/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+/// use iksemel::Arena;
+/// let mut s : &str = "";
+/// {
+///     let arena = Arena::new()?;
+///     s = arena.push_str("will dangle")
+/// }
+/// println!("{}", s);
+/// # Ok(())
+/// # }
+/// ```
+#[cfg(doctest)]
+struct MustNotCompileTests;
+
 // FIXME: docs
-// FIXME: MaybeUninit?
 // FIXME: better min size tuning
 // FIXME: alloc failures
