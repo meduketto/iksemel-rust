@@ -12,13 +12,11 @@ use std::error::Error;
 use std::fmt::Display;
 
 #[derive(Debug, Eq, PartialEq, Copy, Clone)]
-pub struct NoMemory {
-    nr_bytes: usize,
-}
+pub struct NoMemory;
 
 impl Display for NoMemory {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "failed to allocate {} bytes", self.nr_bytes)
+        write!(f, "not enough memory")
     }
 }
 

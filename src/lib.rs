@@ -14,6 +14,7 @@ mod entities;
 mod parser;
 
 pub use arena::Arena;
+pub use arena::NoMemory;
 
 pub use document::Cursor;
 pub use document::Document;

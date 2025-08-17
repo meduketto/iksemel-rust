@@ -11,6 +11,7 @@
 use std::error::Error;
 use std::fmt::Display;
 
+use crate::NoMemory;
 use crate::SaxError;
 
 #[derive(Debug, Eq, PartialEq, Copy, Clone)]
@@ -37,6 +38,12 @@ impl From<SaxError> for DocumentError {
             SaxError::BadXml(msg) => DocumentError::BadXml(msg),
             SaxError::HandlerAbort => DocumentError::BadXml(description::UNEXPECTED_HANDLER_ABORT),
         }
+    }
+}
+
+impl From<NoMemory> for DocumentError {
+    fn from(_: NoMemory) -> Self {
+        DocumentError::NoMemory
     }
 }
 

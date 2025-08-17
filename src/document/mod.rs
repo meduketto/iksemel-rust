@@ -240,7 +240,7 @@ impl Visitor {
 
 impl Document {
     pub fn new(root_tag_name: &str) -> Document {
-        let arena = Arena::new();
+        let arena = Arena::new().unwrap();
         let tag = arena.alloc_tag(root_tag_name);
         let node = arena.alloc_node(NodePayload::Tag(tag));
 

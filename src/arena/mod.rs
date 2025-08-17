@@ -16,13 +16,13 @@ use std::cmp;
 use std::marker::PhantomPinned;
 use std::ptr::null_mut;
 
-use error::NoMemory;
+pub use error::NoMemory;
 
 const MIN_NODE_WORDS: usize = 32;
 
 const MIN_DATA_BYTES: usize = 256;
 
-/// A memory arena for XML structures and character data.
+/// A memory arena for the XML structures and character data.
 ///
 /// This struct implements a custom memory allocation system to pack
 /// XML structures and character data efficiently for the purpose of
@@ -171,12 +171,12 @@ impl ArenaChunk {
 
 impl Arena {
     /// Creates a new 'Arena' with the default initial chunk sizes.
-    pub fn new() -> Arena {
+    pub fn new() -> Result<Arena, NoMemory> {
         // Minimums are defaults
         Self::with_chunk_sizes(0, 0)
     }
 
-    pub fn with_chunk_sizes(node_nr_words: usize, data_nr_bytes: usize) -> Arena {
+    pub fn with_chunk_sizes(node_nr_words: usize, data_nr_bytes: usize) -> Result<Arena, NoMemory> {
         // First node chunk should have capacity for this many pointer words.
         let node_nr_words = cmp::max(node_nr_words, MIN_NODE_WORDS);
         let node_buf_layout = Layout::array::<*const usize>(node_nr_words).unwrap();
@@ -197,7 +197,7 @@ impl Arena {
         unsafe {
             let ptr = alloc(info_layout);
             if ptr.is_null() {
-                handle_alloc_error(info_layout);
+                return Err(NoMemory);
             }
             info = ptr as *mut ArenaInfo;
             (*info).alloc_layout = info_layout;
@@ -217,7 +217,7 @@ impl Arena {
             (*data).raw_init(data_buf_ptr, data_buf_layout.size(), info_layout);
         }
 
-        Arena { info: info.into() }
+        Ok(Arena { info: info.into() })
     }
 
     pub fn alloc(&self, layout: Layout) -> *mut u8 {
@@ -346,12 +346,6 @@ impl Drop for Arena {
             }
             dealloc(*self.info.get_mut() as *mut u8, info.alloc_layout);
         }
-    }
-}
-
-impl Default for Arena {
-    fn default() -> Self {
-        Self::new()
     }
 }
 

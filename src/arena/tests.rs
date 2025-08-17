@@ -14,7 +14,7 @@ const CHARS: &str = "1234567890abcdefghijklmnopqrstuv";
 
 #[test]
 fn it_works() {
-    let arena = Arena::new();
+    let arena = Arena::new().unwrap();
     assert_eq!(arena.nr_allocations(), 1);
     assert!(arena.nr_allocated_bytes() > 0);
 
@@ -29,7 +29,7 @@ fn it_works() {
 
 #[test]
 fn many_pushes() {
-    let arena = Arena::new();
+    let arena = Arena::new().unwrap();
     let old_bytes = arena.nr_allocated_bytes();
 
     for _ in 0..1000 {
@@ -43,7 +43,7 @@ fn many_pushes() {
 
 #[test]
 fn many_1char_pushes() {
-    let arena = Arena::new();
+    let arena = Arena::new().unwrap();
 
     for _ in 0..10000 {
         arena.push_str("+");
@@ -52,7 +52,7 @@ fn many_1char_pushes() {
 
 #[test]
 fn concat_saves_space() {
-    let arena = Arena::new();
+    let arena = Arena::new().unwrap();
     assert_eq!(arena.nr_allocations(), 1);
 
     let s1 = arena.push_str(&"x".repeat(MIN_DATA_BYTES - 4));
@@ -67,7 +67,7 @@ fn concat_saves_space() {
 
 #[test]
 fn concat_copy_allocates_right() {
-    let arena = Arena::new();
+    let arena = Arena::new().unwrap();
     assert_eq!(arena.nr_allocations(), 1);
 
     let _s1 = arena.push_str(&"x".repeat(MIN_DATA_BYTES - 8));
@@ -79,7 +79,7 @@ fn concat_copy_allocates_right() {
 
 #[test]
 fn concats_from_same_base() {
-    let arena = Arena::new();
+    let arena = Arena::new().unwrap();
     let s = arena.push_str("lala");
 
     let s2 = arena.concat_str(s, "bibi");
@@ -99,7 +99,7 @@ fn concats_from_same_base() {
 
 #[test]
 fn concats_from_non_arena() {
-    let arena = Arena::new();
+    let arena = Arena::new().unwrap();
 
     let s1 = arena.concat_str("lala", "bibi");
     let s2 = arena.concat_str(s1, "foo");
@@ -123,7 +123,7 @@ fn concats_from_non_arena() {
 
 #[test]
 fn many_1char_concats() {
-    let arena = Arena::new();
+    let arena = Arena::new().unwrap();
     let mut s = arena.push_str("");
 
     for i in 0..1000 {
@@ -136,7 +136,7 @@ fn many_1char_concats() {
 
 #[test]
 fn alloc_alignments() {
-    let arena = Arena::new();
+    let arena = Arena::new().unwrap();
 
     let lay1 = Layout::from_size_align(2, 2).unwrap();
     let lay2 = Layout::from_size_align(8, 8).unwrap();
@@ -153,7 +153,7 @@ fn alloc_alignments() {
 
 #[test]
 fn alloc_weird_alignments() {
-    let arena = Arena::new();
+    let arena = Arena::new().unwrap();
 
     // Rust types don't have sizes like these but they can be created
     // manually or via #[packed] so let's test them too.
@@ -173,7 +173,7 @@ fn alloc_weird_alignments() {
 
 #[test]
 fn alloc_chunk_border() {
-    let arena = Arena::new();
+    let arena = Arena::new().unwrap();
     assert_eq!(arena.nr_allocations(), 1);
 
     let lay1 = Layout::array::<*const usize>(MIN_NODE_WORDS - 2).unwrap();
@@ -188,10 +188,9 @@ fn alloc_chunk_border() {
 }
 
 fn old_iksemel_test_step(size: usize) {
-    let arena = Arena::with_chunk_sizes(size, size);
+    let arena = Arena::with_chunk_sizes(size, size).unwrap();
 
     let mut s = "";
-
     for i in 0..CHARS.len() {
         arena.push_str(&CHARS[..i]);
         let ptr = arena.alloc(Layout::from_size_align(i, 8).unwrap());
