@@ -13,6 +13,7 @@ mod error;
 use std::alloc::{Layout, alloc, dealloc, handle_alloc_error};
 use std::cell::UnsafeCell;
 use std::cmp;
+use std::fmt::Debug;
 use std::marker::PhantomPinned;
 use std::ptr::null_mut;
 
@@ -27,6 +28,30 @@ const MIN_DATA_BYTES: usize = 256;
 /// This struct implements a custom memory allocation system to pack
 /// XML structures and character data efficiently for the purpose of
 /// fast querying and modification.
+///
+/// Assumption is that the XML data is coming as a stream or series
+/// of chunks, therefore the [Document](crate::Document) structure
+/// needs to copy and store the character data. This is also helpful
+/// for unescaping the entities and combining the CDATA sections.
+/// You can access the character data as a continuous block.
+///
+/// Since new character data is often appended together, and structs
+/// have higher alignment requirements, allocation is done in separate
+/// character data and struct chunks. Each chunk is managed by a simple
+/// bump allocator. Resulting compact packing is good for performance,
+/// and since the document is generally freed as a whole after the
+/// processing, individual object freeing is not necessary.
+///
+/// Initial chunks and meta data are allocated together. When there is
+/// a need for more memory, a double sized chunk is allocated. This
+/// strategy reduces the number of allocations to O(log2 N) while
+/// limiting the memory waste to less than half of the allocated space.
+/// The [with_chunk_sizes()](Arena::with_chunk_sizes) constructor
+/// can be used to fine tune the initial chunk sizes for even
+/// better performance. The defaults are optimized for the typical
+/// [XMMP stanzas](https://xmpp.org/rfcs/rfc6120.html#streams-fundamentals).
+///
+/// # Examples
 ///
 #[repr(transparent)]
 pub struct Arena {
@@ -346,6 +371,18 @@ impl Drop for Arena {
             }
             dealloc(*self.info.get_mut() as *mut u8, info.alloc_layout);
         }
+    }
+}
+
+impl Debug for Arena {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "Arena ({} chunks, {} bytes allocated, {} bytes used)",
+            self.nr_allocations(),
+            self.nr_allocated_bytes(),
+            self.nr_used_bytes()
+        )
     }
 }
 
