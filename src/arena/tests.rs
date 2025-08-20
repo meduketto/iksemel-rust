@@ -15,8 +15,8 @@ const CHARS: &str = "1234567890abcdefghijklmnopqrstuv";
 #[test]
 fn it_works() {
     let arena = Arena::new().unwrap();
-    assert_eq!(arena.nr_allocations(), 1);
-    assert!(arena.nr_allocated_bytes() > 0);
+    assert_eq!(arena.stats().chunks, 1);
+    assert!(arena.stats().allocated_bytes > 0);
 
     let s = arena.push_str("test");
     assert_eq!(s, "test");
@@ -30,15 +30,15 @@ fn it_works() {
 #[test]
 fn many_pushes() {
     let arena = Arena::new().unwrap();
-    let old_bytes = arena.nr_allocated_bytes();
+    let old_bytes = arena.stats().allocated_bytes;
 
     for _ in 0..1000 {
         for j in 0..CHARS.len() {
             arena.push_str(&CHARS[..j]);
         }
     }
-    assert!(arena.nr_allocations() > 1);
-    assert!(arena.nr_allocated_bytes() > old_bytes);
+    assert!(arena.stats().chunks > 1);
+    assert!(arena.stats().allocated_bytes > old_bytes);
 }
 
 #[test]
@@ -53,28 +53,28 @@ fn many_1char_pushes() {
 #[test]
 fn concat_saves_space() {
     let arena = Arena::new().unwrap();
-    assert_eq!(arena.nr_allocations(), 1);
+    assert_eq!(arena.stats().chunks, 1);
 
     let s1 = arena.push_str(&"x".repeat(MIN_DATA_BYTES - 4));
-    assert_eq!(arena.nr_allocations(), 1);
+    assert_eq!(arena.stats().chunks, 1);
 
     let s2 = arena.concat_str(s1, "abcd");
-    assert_eq!(arena.nr_allocations(), 1);
+    assert_eq!(arena.stats().chunks, 1);
 
     let _s3 = arena.concat_str(s2, "x");
-    assert_eq!(arena.nr_allocations(), 2);
+    assert_eq!(arena.stats().chunks, 2);
 }
 
 #[test]
 fn concat_copy_allocates_right() {
     let arena = Arena::new().unwrap();
-    assert_eq!(arena.nr_allocations(), 1);
+    assert_eq!(arena.stats().chunks, 1);
 
     let _s1 = arena.push_str(&"x".repeat(MIN_DATA_BYTES - 8));
-    assert_eq!(arena.nr_allocations(), 1);
+    assert_eq!(arena.stats().chunks, 1);
     let s2 = "abcd";
     let _s3 = arena.concat_str(s2, s2);
-    assert_eq!(arena.nr_allocations(), 1);
+    assert_eq!(arena.stats().chunks, 1);
 }
 
 #[test]
@@ -174,17 +174,17 @@ fn alloc_weird_alignments() {
 #[test]
 fn alloc_chunk_border() {
     let arena = Arena::new().unwrap();
-    assert_eq!(arena.nr_allocations(), 1);
+    assert_eq!(arena.stats().chunks, 1);
 
     let lay1 = Layout::array::<*const usize>(MIN_NODE_WORDS - 2).unwrap();
     let lay2 = Layout::array::<*const usize>(2).unwrap();
 
     let _p1 = arena.alloc(lay1);
-    assert_eq!(arena.nr_allocations(), 1);
+    assert_eq!(arena.stats().chunks, 1);
     let _p2 = arena.alloc(lay2);
-    assert_eq!(arena.nr_allocations(), 1);
+    assert_eq!(arena.stats().chunks, 1);
     let _p3 = arena.alloc(lay2);
-    assert_eq!(arena.nr_allocations(), 2);
+    assert_eq!(arena.stats().chunks, 2);
 }
 
 fn old_iksemel_test_step(size: usize) {

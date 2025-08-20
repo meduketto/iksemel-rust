@@ -431,13 +431,7 @@ impl Drop for Arena {
 
 impl Debug for Arena {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "Arena ({} chunks, {} bytes allocated, {} bytes used)",
-            self.nr_allocations(),
-            self.nr_allocated_bytes(),
-            self.nr_used_bytes()
-        )
+        write!(f, "Arena ({})", self.stats())
     }
 }
 
