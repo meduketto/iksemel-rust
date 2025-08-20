@@ -51,7 +51,19 @@ const MIN_DATA_BYTES: usize = 256;
 /// better performance. The defaults are optimized for the typical
 /// [XMMP stanzas](https://xmpp.org/rfcs/rfc6120.html#streams-fundamentals).
 ///
-/// # Examples
+/// # Safety
+///
+/// The arena struct encapsulates the unsafe sections and provides a safe API
+/// to the rest of the crate. The [alloc()](Arena::alloc) method requires a bit
+/// more care since it has to return a raw pointer. Read its safety section for
+/// the safe usage guidelines.
+///
+/// Iksemel has been tested under
+/// [Miri](https://github.com/rust-lang/miri) for any
+/// [Unsound Behavior](https://doc.rust-lang.org/reference/behavior-considered-undefined.html).
+/// The unit tests are tested with [Cargo Mutants](https://mutants.rs) to
+/// ensure that they cover all possible mutations and edge cases, and allow
+/// Miri to fully see the runtime behavior of the crate.
 ///
 #[repr(transparent)]
 pub struct Arena {
@@ -196,11 +208,40 @@ impl ArenaChunk {
 
 impl Arena {
     /// Creates a new 'Arena' with the default initial chunk sizes.
+    ///
+    /// If there is not enough memory for the initial chunk,
+    /// [NoMemory] error is returned.
+    ///
+    /// # Examples
+    /// ```
+    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+    /// use iksemel::Arena;
+    ///
+    /// let arena : Arena = Arena::new()?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    ///
     pub fn new() -> Result<Arena, NoMemory> {
         // Minimums are defaults
         Self::with_chunk_sizes(0, 0)
     }
 
+    /// Creates a new 'Arena' with the given chunk sizes.
+    ///
+    /// If there is not enough memory for the initial chunk,
+    /// [NoMemory] error is returned.
+    ///
+    /// # Examples
+    /// ```
+    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+    /// use iksemel::Arena;
+    ///
+    /// let arena : Arena = Arena::with_chunk_sizes(64, 4096)?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    ///
     pub fn with_chunk_sizes(node_nr_words: usize, data_nr_bytes: usize) -> Result<Arena, NoMemory> {
         // First node chunk should have capacity for this many pointer words.
         let node_nr_words = cmp::max(node_nr_words, MIN_NODE_WORDS);
@@ -406,7 +447,3 @@ mod tests;
 /// ```
 #[cfg(doctest)]
 struct MustNotCompileTests;
-
-// FIXME: docs
-// FIXME: better min size tuning
-// FIXME: alloc failures

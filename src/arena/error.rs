@@ -11,6 +11,20 @@
 use std::error::Error;
 use std::fmt::Display;
 
+/// Error type for memory allocation failures.
+///
+/// Arena methods return this error when the underlying global
+/// allocator fails to allocate a memory chunk. Best action is
+/// to abort the current operation and release any other
+/// allocated resources.
+///
+/// Details about the failed allocation are not included to make
+/// this error as lightweight as possible. Usually there isn't
+/// any fragmentation with the bump allocator, and the allocation
+/// size is in relation to the size of the bytes given to the
+/// parser. Including more exact information would harm the
+/// successful hot path for very little extra value.
+///
 #[derive(Debug, Eq, PartialEq, Copy, Clone)]
 pub struct NoMemory;
 
