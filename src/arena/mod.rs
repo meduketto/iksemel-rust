@@ -71,7 +71,7 @@ pub struct Arena {
 }
 
 struct ArenaInfo {
-    node_chunk: *mut ArenaChunk,
+    struct_chunk: *mut ArenaChunk,
     cdata_chunk: *mut ArenaChunk,
     alloc_layout: Layout,
 
@@ -242,20 +242,20 @@ impl Arena {
     /// # }
     /// ```
     ///
-    pub fn with_chunk_sizes(node_nr_words: usize, data_nr_bytes: usize) -> Result<Arena, NoMemory> {
+    pub fn with_chunk_sizes(struct_words: usize, cdata_bytes: usize) -> Result<Arena, NoMemory> {
         // First node chunk should have capacity for this many pointer words.
-        let node_nr_words = cmp::max(node_nr_words, MIN_NODE_WORDS);
-        let node_buf_layout = Layout::array::<*const usize>(node_nr_words).unwrap();
+        let struct_words = cmp::max(struct_words, MIN_NODE_WORDS);
+        let struct_buf_layout = Layout::array::<*const usize>(struct_words).unwrap();
 
         // First data chunk should have capacity for this many bytes.
-        let data_nr_bytes = cmp::max(data_nr_bytes, MIN_DATA_BYTES);
-        let data_buf_layout = Layout::array::<u8>(data_nr_bytes).unwrap();
+        let cdata_bytes = cmp::max(cdata_bytes, MIN_DATA_BYTES);
+        let cdata_buf_layout = Layout::array::<u8>(cdata_bytes).unwrap();
 
         let info_layout = Layout::new::<ArenaInfo>();
-        let (info_layout, node_offset) = info_layout.extend(Layout::new::<ArenaChunk>()).unwrap();
-        let (info_layout, data_offset) = info_layout.extend(Layout::new::<ArenaChunk>()).unwrap();
-        let (info_layout, node_buf_offset) = info_layout.extend(node_buf_layout).unwrap();
-        let (info_layout, data_buf_offset) = info_layout.extend(data_buf_layout).unwrap();
+        let (info_layout, struct_offset) = info_layout.extend(Layout::new::<ArenaChunk>()).unwrap();
+        let (info_layout, cdata_offset) = info_layout.extend(Layout::new::<ArenaChunk>()).unwrap();
+        let (info_layout, struct_buf_offset) = info_layout.extend(struct_buf_layout).unwrap();
+        let (info_layout, cdata_buf_offset) = info_layout.extend(cdata_buf_layout).unwrap();
         // Necessary to align the whole block to pointer/usize alignment
         let info_layout = info_layout.pad_to_align();
 
@@ -268,19 +268,19 @@ impl Arena {
             info = ptr as *mut ArenaInfo;
             (*info).alloc_layout = info_layout;
 
-            let node_ptr = ptr.byte_add(node_offset);
-            let node = node_ptr as *mut ArenaChunk;
-            (*info).node_chunk = node;
+            let struct_ptr = ptr.byte_add(struct_offset);
+            let struct_chunk = struct_ptr as *mut ArenaChunk;
+            (*info).struct_chunk = struct_chunk;
 
-            let data_ptr = ptr.byte_add(data_offset);
-            let data = data_ptr as *mut ArenaChunk;
-            (*info).cdata_chunk = data;
+            let cdata_ptr = ptr.byte_add(cdata_offset);
+            let cdata_chunk = cdata_ptr as *mut ArenaChunk;
+            (*info).cdata_chunk = cdata_chunk;
 
-            let node_buf_ptr = ptr.byte_add(node_buf_offset);
-            (*node).raw_init(node_buf_ptr, node_buf_layout.size(), info_layout);
+            let struct_buf_ptr = ptr.byte_add(struct_buf_offset);
+            (*struct_chunk).raw_init(struct_buf_ptr, struct_buf_layout.size(), info_layout);
 
-            let data_buf_ptr = ptr.byte_add(data_buf_offset);
-            (*data).raw_init(data_buf_ptr, data_buf_layout.size(), info_layout);
+            let cdata_buf_ptr = ptr.byte_add(cdata_buf_offset);
+            (*cdata_chunk).raw_init(cdata_buf_ptr, cdata_buf_layout.size(), info_layout);
         }
 
         Ok(Arena { info: info.into() })
@@ -289,7 +289,7 @@ impl Arena {
     pub fn alloc(&self, layout: Layout) -> *mut u8 {
         unsafe {
             let info = &mut **self.info.get();
-            (*info.node_chunk).make_aligned_space(layout)
+            (*info.struct_chunk).make_aligned_space(layout)
         }
     }
 
@@ -334,7 +334,7 @@ impl Arena {
         let mut count = 1;
         unsafe {
             let info = &mut **self.info.get();
-            let mut chunk = (*info.node_chunk).next;
+            let mut chunk = (*info.struct_chunk).next;
             while !chunk.is_null() {
                 let next = (*chunk).next;
                 count += 1;
@@ -355,7 +355,7 @@ impl Arena {
         unsafe {
             let info = &mut **self.info.get();
             allocated += (*info).alloc_layout.size();
-            let mut chunk = (*info.node_chunk).next;
+            let mut chunk = (*info.struct_chunk).next;
             while !chunk.is_null() {
                 let next = (*chunk).next;
                 allocated += (*chunk).alloc_layout.size();
@@ -375,8 +375,8 @@ impl Arena {
         let mut used = 0;
         unsafe {
             let info = &mut **self.info.get();
-            used += (*info.node_chunk).used;
-            let mut chunk = (*info.node_chunk).next;
+            used += (*info.struct_chunk).used;
+            let mut chunk = (*info.struct_chunk).next;
             while !chunk.is_null() {
                 let next = (*chunk).next;
                 used += (*chunk).used;
@@ -398,7 +398,7 @@ impl Drop for Arena {
     fn drop(&mut self) {
         unsafe {
             let info = &mut **self.info.get_mut();
-            let mut chunk = (*info.node_chunk).next;
+            let mut chunk = (*info.struct_chunk).next;
             while !chunk.is_null() {
                 let next = (*chunk).next;
                 dealloc(chunk as *mut u8, (*chunk).alloc_layout);
