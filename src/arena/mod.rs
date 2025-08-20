@@ -98,7 +98,7 @@ impl Display for ArenaStats {
 ///
 #[repr(transparent)]
 pub struct Arena {
-    head: UnsafeCell<*mut Head>,
+    head_ptr: UnsafeCell<*mut Head>,
 }
 
 struct Head {
@@ -364,7 +364,9 @@ impl Arena {
             (*cdata_chunk).raw_init(cdata_buf_ptr, cdata_buf_layout.size(), head_layout);
         }
 
-        Ok(Arena { head: head.into() })
+        Ok(Arena {
+            head_ptr: head.into(),
+        })
     }
 
     /// Allocate memory for a struct in the arena.
@@ -390,7 +392,7 @@ impl Arena {
     ///
     pub fn alloc(&self, layout: Layout) -> *mut u8 {
         unsafe {
-            let head = &mut **self.head.get();
+            let head = &mut **self.head_ptr.get();
             (*head.struct_chunk).make_aligned_space(layout)
         }
     }
@@ -398,7 +400,7 @@ impl Arena {
     pub fn push_str<'a>(&'a self, s: &str) -> &'a str {
         let size = s.len();
         unsafe {
-            let head = &mut **self.head.get();
+            let head = &mut **self.head_ptr.get();
             let ptr = (*head.cdata_chunk).make_space(size);
             std::ptr::copy_nonoverlapping(s.as_ptr(), ptr, size);
             let slice = std::slice::from_raw_parts(ptr, size);
@@ -409,7 +411,7 @@ impl Arena {
 
     pub fn concat_str<'a>(&'a self, old_s: &str, s: &str) -> &'a str {
         unsafe {
-            let head = &mut **self.head.get();
+            let head = &mut **self.head_ptr.get();
             let data_chunk = head.cdata_chunk;
             let slice;
             if let Some(chunk) =
@@ -439,25 +441,19 @@ impl Arena {
             used_bytes: 0,
         };
         unsafe {
-            let head = &mut **self.head.get();
-            stats.allocated_bytes += (*head).alloc_layout.size();
+            let head = &mut **self.head_ptr.get();
+            stats.allocated_bytes += head.alloc_layout.size();
             stats.used_bytes += (*head.struct_chunk).used;
-            let mut chunk = (*head.struct_chunk).next;
-            while !chunk.is_null() {
-                let next = (*chunk).next;
-                stats.chunks += 1;
-                stats.allocated_bytes += (*chunk).alloc_layout.size();
-                stats.used_bytes += (*chunk).used;
-                chunk = next;
-            }
             stats.used_bytes += (*head.cdata_chunk).used;
-            let mut chunk = (*head.cdata_chunk).next;
-            while !chunk.is_null() {
-                let next = (*chunk).next;
+            for chunk in head.extra_struct_chunks() {
                 stats.chunks += 1;
                 stats.allocated_bytes += (*chunk).alloc_layout.size();
                 stats.used_bytes += (*chunk).used;
-                chunk = next;
+            }
+            for chunk in head.extra_cdata_chunks() {
+                stats.chunks += 1;
+                stats.allocated_bytes += (*chunk).alloc_layout.size();
+                stats.used_bytes += (*chunk).used;
             }
         }
         stats
@@ -467,14 +463,14 @@ impl Arena {
 impl Drop for Arena {
     fn drop(&mut self) {
         unsafe {
-            let head = &mut **self.head.get_mut();
+            let head = &mut **self.head_ptr.get_mut();
             for chunk in (*head).extra_struct_chunks() {
                 dealloc(chunk as *mut u8, (*chunk).alloc_layout);
             }
             for chunk in (*head).extra_cdata_chunks() {
                 dealloc(chunk as *mut u8, (*chunk).alloc_layout);
             }
-            dealloc(*self.head.get_mut() as *mut u8, head.alloc_layout);
+            dealloc(*self.head_ptr.get_mut() as *mut u8, head.alloc_layout);
         }
     }
 }
@@ -487,13 +483,14 @@ impl Display for Arena {
 
 impl Debug for Arena {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "Arena (")?;
         unsafe {
-            let head = &mut **self.head.get();
+            let head = &mut **self.head_ptr.get();
+            write!(f, "Arena (head[alloc: {}]", (*head).alloc_layout.size())?;
             for chunk in (*head).struct_chunks() {
                 write!(
                     f,
-                    ", struct[used: {}, size: {}]",
+                    ", struct[alloc: {}, used: {}, size: {}]",
+                    (*chunk).alloc_layout.size(),
                     (*chunk).used,
                     (*chunk).size
                 )?;
@@ -501,7 +498,8 @@ impl Debug for Arena {
             for chunk in (*head).cdata_chunks() {
                 write!(
                     f,
-                    ", cdata[used: {}, size: {}]",
+                    ", cdata[alloc: {}, used: {}, size: {}]",
+                    (*chunk).alloc_layout.size(),
                     (*chunk).used,
                     (*chunk).size
                 )?;

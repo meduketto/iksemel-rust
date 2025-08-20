@@ -295,6 +295,7 @@ fn main() -> ExitCode {
         //    return ExitCode::FAILURE;
         //}
         let arena = Arena::new().unwrap();
+        arena.push_str(&"a".repeat(1079));
         println!("{:?}", arena);
     } else {
         for file in files {
