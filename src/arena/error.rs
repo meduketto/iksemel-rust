@@ -25,7 +25,7 @@ use std::fmt::Display;
 /// parser. Including more exact information would harm the
 /// successful hot path for very little extra value.
 ///
-#[derive(Debug, Eq, PartialEq, Copy, Clone)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct NoMemory;
 
 impl Display for NoMemory {

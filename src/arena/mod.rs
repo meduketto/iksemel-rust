@@ -14,6 +14,7 @@ use std::alloc::{Layout, alloc, dealloc, handle_alloc_error};
 use std::cell::UnsafeCell;
 use std::cmp;
 use std::fmt::Debug;
+use std::fmt::Display;
 use std::marker::PhantomPinned;
 use std::ptr::null_mut;
 
@@ -22,6 +23,24 @@ pub use error::NoMemory;
 const MIN_NODE_WORDS: usize = 32;
 
 const MIN_DATA_BYTES: usize = 256;
+
+/// Statistics about the memory usage of the arena.
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+pub struct ArenaStats {
+    pub chunks: u32,
+    pub allocated_bytes: usize,
+    pub used_bytes: usize,
+}
+
+impl Display for ArenaStats {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{} chunks, {} bytes allocated, {} bytes used",
+            self.chunks, self.allocated_bytes, self.used_bytes
+        )
+    }
+}
 
 /// A memory arena for the XML structures and character data.
 ///
@@ -67,10 +86,10 @@ const MIN_DATA_BYTES: usize = 256;
 ///
 #[repr(transparent)]
 pub struct Arena {
-    info: UnsafeCell<*mut ArenaInfo>,
+    head: UnsafeCell<*mut ArenaHead>,
 }
 
-struct ArenaInfo {
+struct ArenaHead {
     struct_chunk: *mut ArenaChunk,
     cdata_chunk: *mut ArenaChunk,
     alloc_layout: Layout,
@@ -87,7 +106,7 @@ struct ArenaChunk {
     mem: *mut u8,
     alloc_layout: Layout,
 
-    // ArenaInfo and ArenaChunk has raw pointers to this struct
+    // ArenaHead and previous ArenaChunk have raw pointers to this struct
     _pin: PhantomPinned,
 }
 
@@ -232,12 +251,18 @@ impl Arena {
     /// If there is not enough memory for the initial chunk,
     /// [NoMemory] error is returned.
     ///
+    /// Structs often need to be aligned on word boundaries, so
+    /// the chunk size for structs is given in machine words, i.e.
+    /// 10 words on an 64bit system would be equal to 80 bytes.
+    /// Character data chunk size is given in bytes. If the numbers
+    /// are smaller than the default sizes, the defaults are used
+    /// instead.
+    ///
     /// # Examples
     /// ```
     /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
-    /// use iksemel::Arena;
-    ///
-    /// let arena : Arena = Arena::with_chunk_sizes(64, 4096)?;
+    /// # use iksemel::Arena;
+    /// let arena : Arena = Arena::with_chunk_sizes(128, 4096)?;
     /// # Ok(())
     /// # }
     /// ```
@@ -251,53 +276,74 @@ impl Arena {
         let cdata_bytes = cmp::max(cdata_bytes, MIN_DATA_BYTES);
         let cdata_buf_layout = Layout::array::<u8>(cdata_bytes).unwrap();
 
-        let info_layout = Layout::new::<ArenaInfo>();
-        let (info_layout, struct_offset) = info_layout.extend(Layout::new::<ArenaChunk>()).unwrap();
-        let (info_layout, cdata_offset) = info_layout.extend(Layout::new::<ArenaChunk>()).unwrap();
-        let (info_layout, struct_buf_offset) = info_layout.extend(struct_buf_layout).unwrap();
-        let (info_layout, cdata_buf_offset) = info_layout.extend(cdata_buf_layout).unwrap();
+        let head_layout = Layout::new::<ArenaHead>();
+        let (head_layout, struct_offset) = head_layout.extend(Layout::new::<ArenaChunk>()).unwrap();
+        let (head_layout, cdata_offset) = head_layout.extend(Layout::new::<ArenaChunk>()).unwrap();
+        let (head_layout, struct_buf_offset) = head_layout.extend(struct_buf_layout).unwrap();
+        let (head_layout, cdata_buf_offset) = head_layout.extend(cdata_buf_layout).unwrap();
         // Necessary to align the whole block to pointer/usize alignment
-        let info_layout = info_layout.pad_to_align();
+        let head_layout = head_layout.pad_to_align();
 
-        let info;
+        let head;
         unsafe {
-            let ptr = alloc(info_layout);
+            let ptr = alloc(head_layout);
             if ptr.is_null() {
                 return Err(NoMemory);
             }
-            info = ptr as *mut ArenaInfo;
-            (*info).alloc_layout = info_layout;
+            head = ptr as *mut ArenaHead;
+            (*head).alloc_layout = head_layout;
 
             let struct_ptr = ptr.byte_add(struct_offset);
             let struct_chunk = struct_ptr as *mut ArenaChunk;
-            (*info).struct_chunk = struct_chunk;
+            (*head).struct_chunk = struct_chunk;
 
             let cdata_ptr = ptr.byte_add(cdata_offset);
             let cdata_chunk = cdata_ptr as *mut ArenaChunk;
-            (*info).cdata_chunk = cdata_chunk;
+            (*head).cdata_chunk = cdata_chunk;
 
             let struct_buf_ptr = ptr.byte_add(struct_buf_offset);
-            (*struct_chunk).raw_init(struct_buf_ptr, struct_buf_layout.size(), info_layout);
+            (*struct_chunk).raw_init(struct_buf_ptr, struct_buf_layout.size(), head_layout);
 
             let cdata_buf_ptr = ptr.byte_add(cdata_buf_offset);
-            (*cdata_chunk).raw_init(cdata_buf_ptr, cdata_buf_layout.size(), info_layout);
+            (*cdata_chunk).raw_init(cdata_buf_ptr, cdata_buf_layout.size(), head_layout);
         }
 
-        Ok(Arena { info: info.into() })
+        Ok(Arena { head: head.into() })
     }
 
+    /// Allocate memory for a struct in the arena.
+    ///
+    /// # Safety
+    ///
+    /// # Examples
+    /// ```
+    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+    /// # use iksemel::Arena;
+    /// # let arena : Arena = Arena::new()?;
+    /// use std::alloc::Layout;
+    ///
+    /// struct MyStruct {
+    ///     a: i32,
+    ///     b: String,
+    /// }
+    ///
+    /// let my_struct_ptr = arena.alloc(Layout::new::<MyStruct>());
+    /// # Ok(())
+    /// # }
+    /// ```
+    ///
     pub fn alloc(&self, layout: Layout) -> *mut u8 {
         unsafe {
-            let info = &mut **self.info.get();
-            (*info.struct_chunk).make_aligned_space(layout)
+            let head = &mut **self.head.get();
+            (*head.struct_chunk).make_aligned_space(layout)
         }
     }
 
     pub fn push_str<'a>(&'a self, s: &str) -> &'a str {
         let size = s.len();
         unsafe {
-            let info = &mut **self.info.get();
-            let ptr = (*info.cdata_chunk).make_space(size);
+            let head = &mut **self.head.get();
+            let ptr = (*head.cdata_chunk).make_space(size);
             std::ptr::copy_nonoverlapping(s.as_ptr(), ptr, size);
             let slice = std::slice::from_raw_parts(ptr, size);
 
@@ -307,8 +353,8 @@ impl Arena {
 
     pub fn concat_str<'a>(&'a self, old_s: &str, s: &str) -> &'a str {
         unsafe {
-            let info = &mut **self.info.get();
-            let data_chunk = info.cdata_chunk;
+            let head = &mut **self.head.get();
+            let data_chunk = head.cdata_chunk;
             let slice;
             if let Some(chunk) =
                 (*data_chunk).find_adjacent_space(old_s.as_ptr(), old_s.len(), s.len())
@@ -330,87 +376,55 @@ impl Arena {
         }
     }
 
-    pub fn nr_allocations(&self) -> u32 {
-        let mut count = 1;
+    pub fn stats(&self) -> ArenaStats {
+        let mut stats = ArenaStats {
+            chunks: 1,
+            allocated_bytes: 0,
+            used_bytes: 0,
+        };
         unsafe {
-            let info = &mut **self.info.get();
-            let mut chunk = (*info.struct_chunk).next;
+            let head = &mut **self.head.get();
+            stats.allocated_bytes += (*head).alloc_layout.size();
+            stats.used_bytes += (*head.struct_chunk).used;
+            let mut chunk = (*head.struct_chunk).next;
             while !chunk.is_null() {
                 let next = (*chunk).next;
-                count += 1;
+                stats.chunks += 1;
+                stats.allocated_bytes += (*chunk).alloc_layout.size();
+                stats.used_bytes += (*chunk).used;
                 chunk = next;
             }
-            let mut chunk = (*info.cdata_chunk).next;
+            stats.used_bytes += (*head.cdata_chunk).used;
+            let mut chunk = (*head.cdata_chunk).next;
             while !chunk.is_null() {
                 let next = (*chunk).next;
-                count += 1;
+                stats.chunks += 1;
+                stats.allocated_bytes += (*chunk).alloc_layout.size();
+                stats.used_bytes += (*chunk).used;
                 chunk = next;
             }
         }
-        count
-    }
-
-    pub fn nr_allocated_bytes(&self) -> usize {
-        let mut allocated = 0;
-        unsafe {
-            let info = &mut **self.info.get();
-            allocated += (*info).alloc_layout.size();
-            let mut chunk = (*info.struct_chunk).next;
-            while !chunk.is_null() {
-                let next = (*chunk).next;
-                allocated += (*chunk).alloc_layout.size();
-                chunk = next;
-            }
-            let mut chunk = (*info.cdata_chunk).next;
-            while !chunk.is_null() {
-                let next = (*chunk).next;
-                allocated += (*chunk).alloc_layout.size();
-                chunk = next;
-            }
-        }
-        allocated
-    }
-
-    pub fn nr_used_bytes(&self) -> usize {
-        let mut used = 0;
-        unsafe {
-            let info = &mut **self.info.get();
-            used += (*info.struct_chunk).used;
-            let mut chunk = (*info.struct_chunk).next;
-            while !chunk.is_null() {
-                let next = (*chunk).next;
-                used += (*chunk).used;
-                chunk = next;
-            }
-            used += (*info.cdata_chunk).used;
-            let mut chunk = (*info.cdata_chunk).next;
-            while !chunk.is_null() {
-                let next = (*chunk).next;
-                used += (*chunk).used;
-                chunk = next;
-            }
-        }
-        used
+        stats
     }
 }
 
 impl Drop for Arena {
     fn drop(&mut self) {
         unsafe {
-            let info = &mut **self.info.get_mut();
-            let mut chunk = (*info.struct_chunk).next;
+            let head = &mut **self.head.get_mut();
+            let mut chunk = (*head.struct_chunk).next;
             while !chunk.is_null() {
                 let next = (*chunk).next;
                 dealloc(chunk as *mut u8, (*chunk).alloc_layout);
                 chunk = next;
             }
-            let mut chunk = (*info.cdata_chunk).next;
+            let mut chunk = (*head.cdata_chunk).next;
             while !chunk.is_null() {
                 let next = (*chunk).next;
                 dealloc(chunk as *mut u8, (*chunk).alloc_layout);
                 chunk = next;
             }
-            dealloc(*self.info.get_mut() as *mut u8, info.alloc_layout);
+            dealloc(*self.head.get_mut() as *mut u8, head.alloc_layout);
         }
     }
 }
