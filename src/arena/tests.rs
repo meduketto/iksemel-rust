@@ -15,14 +15,18 @@ const CHARS: &str = "1234567890abcdefghijklmnopqrstuv";
 #[test]
 fn it_works() {
     let arena = Arena::new().unwrap();
-    assert_eq!(arena.stats().chunks, 1);
-    assert!(arena.stats().allocated_bytes > 0);
+    let stats = arena.stats();
+    assert_eq!(stats.chunks, 1);
+    assert!(stats.allocated_bytes > 0);
+    assert_eq!(stats.used_bytes, 0);
 
     let s = arena.push_str("test");
     assert_eq!(s, "test");
+    assert_eq!(arena.stats().used_bytes, 4);
 
     let s2 = arena.concat_str(s, "moretest");
     assert_eq!(s2, "testmoretest");
+    assert_eq!(arena.stats().used_bytes, 12);
 
     let _p = arena.alloc(Layout::new::<Layout>());
 }
@@ -37,8 +41,10 @@ fn many_pushes() {
             arena.push_str(&CHARS[..j]);
         }
     }
-    assert!(arena.stats().chunks > 1);
-    assert!(arena.stats().allocated_bytes > old_bytes);
+    let stats = arena.stats();
+    assert!(stats.chunks > 1);
+    assert!(stats.allocated_bytes > old_bytes);
+    assert_eq!(stats.used_bytes, 1000 * CHARS.len() * (CHARS.len() - 1) / 2);
 }
 
 #[test]
@@ -75,6 +81,25 @@ fn concat_copy_allocates_right() {
     let s2 = "abcd";
     let _s3 = arena.concat_str(s2, s2);
     assert_eq!(arena.stats().chunks, 1);
+}
+
+#[test]
+fn concat_copy_with_large_str() {
+    let arena = Arena::new().unwrap();
+    assert_eq!(arena.stats().chunks, 1);
+
+    let s1 = arena.push_str(&"x".repeat(MIN_DATA_BYTES - 8));
+    assert_eq!(arena.stats().chunks, 1);
+    let s2 = &"a".repeat(MIN_DATA_BYTES * 10);
+    let _s3 = arena.concat_str(s1, s2);
+    let stats = arena.stats();
+    assert_eq!(stats.chunks, 2);
+    assert_eq!(
+        stats.used_bytes,
+        (MIN_DATA_BYTES * 10) + ((MIN_DATA_BYTES - 8) * 2)
+    );
+    let _s4 = arena.push_str("abcd");
+    assert_eq!(stats.chunks, 2);
 }
 
 #[test]

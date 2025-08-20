@@ -17,6 +17,7 @@ use std::io::stdin;
 use std::process::ExitCode;
 use std::vec::Vec;
 
+use iksemel::Arena;
 use iksemel::SaxElement;
 use iksemel::SaxError;
 use iksemel::SaxHandler;
@@ -290,9 +291,11 @@ fn main() -> ExitCode {
 
     let mut linter = Linter::new(do_stats, do_tag_count, buffer_size);
     if files.is_empty() {
-        if !linter.lint_file("stdin", true) {
-            return ExitCode::FAILURE;
-        }
+        //if !linter.lint_file("stdin", true) {
+        //    return ExitCode::FAILURE;
+        //}
+        let arena = Arena::new().unwrap();
+        println!("{:?}", arena);
     } else {
         for file in files {
             if !linter.lint_file(&file, false) {

@@ -23,7 +23,7 @@ use std::fmt::Display;
 /// any fragmentation with the bump allocator, and the allocation
 /// size is in relation to the size of the bytes given to the
 /// parser. Including more exact information would harm the
-/// successful hot path for very little extra value.
+/// successful hot path for very little extra help in debugging.
 ///
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct NoMemory;
