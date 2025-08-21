@@ -373,27 +373,54 @@ impl Arena {
     ///
     /// # Safety
     ///
+    /// This method returns a raw pointer to the allocated but
+    /// uninitialized memory. The care must be taken to ensure
+    /// that the memory is properly initialized before the
+    /// pointer is shared with the rest of the program.
+    ///
+    /// The best way to do that is to extend the Arena with your
+    /// own trait and implement individual alloc functions for your
+    /// own types. Rest of your program can use these abstractions
+    /// safely. The example below illustrates this method which was
+    /// also used in the [Document](crate::Document) implementation.
+    ///
     /// # Examples
     /// ```
     /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
     /// # use iksemel::Arena;
     /// # let arena : Arena = Arena::new()?;
-    /// use std::alloc::Layout;
     ///
-    /// struct MyStruct {
+    /// struct MyStruct<'a> {
     ///     a: i32,
-    ///     b: String,
+    ///     b: &'a str,
     /// }
     ///
-    /// let my_struct_ptr = arena.alloc(Layout::new::<MyStruct>());
+    /// trait ArenaExt {
+    ///     fn alloc_my_struct(&self, a: i32, b: &str) -> &mut MyStruct;
+    /// }
+    ///
+    /// impl ArenaExt for Arena {
+    ///     fn alloc_my_struct(&self, a: i32, b: &str) -> &mut MyStruct {
+    ///         let ptr = self.alloc_struct::<MyStruct>();
+    ///         unsafe {
+    ///             (*ptr).a = a;
+    ///             (*ptr).b = self.push_str(b);
+    ///             &mut *ptr
+    ///         }
+    ///     }
+    /// }
+    ///
+    /// let mut my_struct = arena.alloc_my_struct(42, "Hello");
     /// # Ok(())
     /// # }
     /// ```
     ///
-    pub fn alloc(&self, layout: Layout) -> *mut u8 {
+    pub fn alloc_struct<T>(&self) -> *mut T {
         unsafe {
             let head = &mut **self.head_ptr.get();
-            (*head.struct_chunk).make_aligned_space(layout)
+            let layout = Layout::new::<T>();
+            let ptr = (*head.struct_chunk).make_aligned_space(layout);
+            ptr as *mut T
         }
     }
 

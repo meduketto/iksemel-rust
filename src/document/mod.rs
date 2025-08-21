@@ -11,7 +11,6 @@
 mod error;
 mod parser;
 
-use std::alloc::Layout;
 use std::cell::UnsafeCell;
 use std::marker::PhantomData;
 use std::marker::PhantomPinned;
@@ -121,7 +120,7 @@ trait ArenaExt {
 
 impl ArenaExt for Arena {
     fn alloc_node(&self, payload: NodePayload) -> *mut Node {
-        let node = self.alloc(Layout::new::<Node>()) as *mut Node;
+        let node = self.alloc_struct::<Node>();
         unsafe {
             (*node).next = null_mut();
             (*node).previous = null_mut();
@@ -134,7 +133,7 @@ impl ArenaExt for Arena {
 
     fn alloc_tag(&self, tag_name: &str) -> *mut Tag {
         let name = self.push_str(tag_name);
-        let tag = self.alloc(Layout::new::<Tag>()) as *mut Tag;
+        let tag = self.alloc_struct::<Tag>();
         unsafe {
             (*tag).children = null_mut();
             (*tag).last_child = null_mut();
@@ -149,7 +148,7 @@ impl ArenaExt for Arena {
 
     fn alloc_cdata(&self, cdata_value: &str) -> *mut CData {
         let value = self.push_str(cdata_value);
-        let cdata = self.alloc(Layout::new::<CData>()) as *mut CData;
+        let cdata = self.alloc_struct::<CData>();
         unsafe {
             (*cdata).value = value.as_ptr();
             (*cdata).value_size = value.len();
@@ -161,7 +160,7 @@ impl ArenaExt for Arena {
     fn alloc_attribute(&self, name: &str, value: &str) -> *mut Attribute {
         let name = self.push_str(name);
         let value = self.push_str(value);
-        let attribute = self.alloc(Layout::new::<Attribute>()) as *mut Attribute;
+        let attribute = self.alloc_struct::<Attribute>();
         unsafe {
             (*attribute).next = null_mut();
             (*attribute).previous = null_mut();

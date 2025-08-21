@@ -28,7 +28,7 @@ fn it_works() {
     assert_eq!(s2, "testmoretest");
     assert_eq!(arena.stats().used_bytes, 12);
 
-    let _p = arena.alloc(Layout::new::<Layout>());
+    let _p = arena.alloc_struct::<Layout>();
 }
 
 #[test]
@@ -163,37 +163,26 @@ fn many_1char_concats() {
 fn alloc_alignments() {
     let arena = Arena::new().unwrap();
 
-    let lay1 = Layout::from_size_align(2, 2).unwrap();
-    let lay2 = Layout::from_size_align(8, 8).unwrap();
+    #[repr(C, align(2))]
+    struct Lay1([u8; 2]);
 
-    let p1 = arena.alloc(lay1);
+    #[repr(C, align(8))]
+    struct Lay2([u8; 8]);
+
+    #[repr(C)]
+    struct Lay3([u8; 3]);
+
+    let p1 = arena.alloc_struct::<Lay1>();
     assert_eq!(p1.align_offset(2), 0);
-    let p2 = arena.alloc(lay2);
+    let p2 = arena.alloc_struct::<Lay2>();
     assert_eq!(p2.align_offset(8), 0);
-    let p3 = arena.alloc(lay1);
+    let p3 = arena.alloc_struct::<Lay1>();
     assert_eq!(p3.align_offset(2), 0);
-    let p4 = arena.alloc(lay1);
-    assert_eq!(p4.align_offset(2), 0);
-}
-
-#[test]
-fn alloc_weird_alignments() {
-    let arena = Arena::new().unwrap();
-
-    // Rust types don't have sizes like these but they can be created
-    // manually or via #[packed] so let's test them too.
-    let lay1 = Layout::from_size_align(3, 2).unwrap();
-    let lay2 = Layout::from_size_align(5, 8).unwrap();
-    let lay3 = Layout::from_size_align(13, 8).unwrap();
-
-    let p1 = arena.alloc(lay1);
-    assert_eq!(p1.align_offset(2), 0);
-    let p2 = arena.alloc(lay2);
-    assert_eq!(p2.align_offset(8), 0);
-    let p3 = arena.alloc(lay1);
-    assert_eq!(p3.align_offset(2), 0);
-    let p4 = arena.alloc(lay3);
+    let p4 = arena.alloc_struct::<Lay2>();
     assert_eq!(p4.align_offset(8), 0);
+    let _p5 = arena.alloc_struct::<Lay3>();
+    let p6 = arena.alloc_struct::<Lay2>();
+    assert_eq!(p6.align_offset(8), 0);
 }
 
 #[test]
@@ -201,24 +190,30 @@ fn alloc_chunk_border() {
     let arena = Arena::new().unwrap();
     assert_eq!(arena.stats().chunks, 1);
 
-    let lay1 = Layout::array::<*const usize>(MIN_NODE_WORDS - 2).unwrap();
-    let lay2 = Layout::array::<*const usize>(2).unwrap();
+    #[repr(C)]
+    struct Lay1([usize; MIN_NODE_WORDS - 2]);
 
-    let _p1 = arena.alloc(lay1);
+    #[repr(C)]
+    struct Lay2([usize; 2]);
+
+    let _p1 = arena.alloc_struct::<Lay1>();
     assert_eq!(arena.stats().chunks, 1);
-    let _p2 = arena.alloc(lay2);
+    let _p2 = arena.alloc_struct::<Lay2>();
     assert_eq!(arena.stats().chunks, 1);
-    let _p3 = arena.alloc(lay2);
+    let _p3 = arena.alloc_struct::<Lay2>();
     assert_eq!(arena.stats().chunks, 2);
 }
 
 fn old_iksemel_test_step(size: usize) {
     let arena = Arena::with_chunk_sizes(size, size).unwrap();
 
+    #[repr(C, align(8))]
+    struct Lay([u8; 1]);
+
     let mut s = "";
     for i in 0..CHARS.len() {
         arena.push_str(&CHARS[..i]);
-        let ptr = arena.alloc(Layout::from_size_align(i, 8).unwrap());
+        let ptr = arena.alloc_struct::<Lay>();
         assert_eq!(ptr.align_offset(8), 0);
         s = arena.concat_str(s, &CHARS.chars().nth(i).unwrap().to_string())
     }
