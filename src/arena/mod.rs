@@ -30,7 +30,7 @@ const MIN_DATA_BYTES: usize = 256;
 /// These numbers are limited to the most useful metrics for
 /// programmatic access to avoid introducing an API dependency
 /// into the implementation details of the arena. Debug trait
-/// of the Arena prints more detailed information about the
+/// of the [Arena] prints more detailed information about the
 /// internal state but not guaranteed to be stable across
 /// different versions of the library.
 ///
@@ -520,6 +520,13 @@ impl Arena {
         }
     }
 
+    /// Returns statistics about the arena.
+    ///
+    /// See [ArenaStats](ArenaStats) for the details of the
+    /// returned information.
+    ///
+    /// Note that this method iterates over the chunks to calculate
+    /// the numbers, so best not to be called from a hot path.
     pub fn stats(&self) -> ArenaStats {
         let mut stats = ArenaStats {
             chunks: 1,
