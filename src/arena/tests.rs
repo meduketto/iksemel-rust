@@ -172,16 +172,16 @@ fn alloc_alignments() {
     #[repr(C)]
     struct Lay3([u8; 3]);
 
-    let p1 = arena.alloc_struct::<Lay1>();
+    let p1 = arena.alloc_struct::<Lay1>().unwrap();
     assert_eq!(p1.align_offset(2), 0);
-    let p2 = arena.alloc_struct::<Lay2>();
+    let p2 = arena.alloc_struct::<Lay2>().unwrap();
     assert_eq!(p2.align_offset(8), 0);
-    let p3 = arena.alloc_struct::<Lay1>();
+    let p3 = arena.alloc_struct::<Lay1>().unwrap();
     assert_eq!(p3.align_offset(2), 0);
-    let p4 = arena.alloc_struct::<Lay2>();
+    let p4 = arena.alloc_struct::<Lay2>().unwrap();
     assert_eq!(p4.align_offset(8), 0);
     let _p5 = arena.alloc_struct::<Lay3>();
-    let p6 = arena.alloc_struct::<Lay2>();
+    let p6 = arena.alloc_struct::<Lay2>().unwrap();
     assert_eq!(p6.align_offset(8), 0);
 }
 
@@ -213,7 +213,7 @@ fn old_iksemel_test_step(size: usize) {
     let mut s = "";
     for i in 0..CHARS.len() {
         arena.push_str(&CHARS[..i]);
-        let ptr = arena.alloc_struct::<Lay>();
+        let ptr = arena.alloc_struct::<Lay>().unwrap();
         assert_eq!(ptr.align_offset(8), 0);
         s = arena.concat_str(s, &CHARS.chars().nth(i).unwrap().to_string())
     }

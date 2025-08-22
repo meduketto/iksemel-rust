@@ -120,7 +120,7 @@ trait ArenaExt {
 
 impl ArenaExt for Arena {
     fn alloc_node(&self, payload: NodePayload) -> *mut Node {
-        let node = self.alloc_struct::<Node>();
+        let node = self.alloc_struct::<Node>().unwrap().as_ptr();
         unsafe {
             (*node).next = null_mut();
             (*node).previous = null_mut();
@@ -133,7 +133,7 @@ impl ArenaExt for Arena {
 
     fn alloc_tag(&self, tag_name: &str) -> *mut Tag {
         let name = self.push_str(tag_name);
-        let tag = self.alloc_struct::<Tag>();
+        let tag = self.alloc_struct::<Tag>().unwrap().as_ptr();
         unsafe {
             (*tag).children = null_mut();
             (*tag).last_child = null_mut();
@@ -148,7 +148,7 @@ impl ArenaExt for Arena {
 
     fn alloc_cdata(&self, cdata_value: &str) -> *mut CData {
         let value = self.push_str(cdata_value);
-        let cdata = self.alloc_struct::<CData>();
+        let cdata = self.alloc_struct::<CData>().unwrap().as_ptr();
         unsafe {
             (*cdata).value = value.as_ptr();
             (*cdata).value_size = value.len();
@@ -160,7 +160,7 @@ impl ArenaExt for Arena {
     fn alloc_attribute(&self, name: &str, value: &str) -> *mut Attribute {
         let name = self.push_str(name);
         let value = self.push_str(value);
-        let attribute = self.alloc_struct::<Attribute>();
+        let attribute = self.alloc_struct::<Attribute>().unwrap().as_ptr();
         unsafe {
             (*attribute).next = null_mut();
             (*attribute).previous = null_mut();

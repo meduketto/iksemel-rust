@@ -10,12 +10,13 @@
 
 mod error;
 
-use std::alloc::{Layout, alloc, dealloc, handle_alloc_error};
+use std::alloc::{Layout, alloc, dealloc};
 use std::cell::UnsafeCell;
 use std::cmp;
 use std::fmt::Debug;
 use std::fmt::Display;
 use std::marker::PhantomPinned;
+use std::ptr::NonNull;
 use std::ptr::null_mut;
 
 pub use error::NoMemory;
@@ -85,9 +86,9 @@ impl Display for ArenaStats {
 /// # Safety
 ///
 /// The arena struct encapsulates the unsafe sections and provides a safe API
-/// to the rest of the crate. The [alloc()](Arena::alloc) method requires a bit
-/// more care since it has to return a raw pointer. Read its safety section for
-/// the safe usage guidelines.
+/// to the rest of the crate. The [alloc_struct()](Arena::alloc_struct) method
+/// requires a bit more care since it has to return a raw pointer. Read its
+/// safety section for the safe usage guidelines.
 ///
 /// Iksemel has been tested under
 /// [Miri](https://github.com/rust-lang/miri) for any
@@ -176,7 +177,7 @@ impl Chunk {
         self.alloc_layout = alloc_layout;
     }
 
-    fn add_chunk(self: &mut Chunk, size: usize) -> *mut Chunk {
+    fn add_chunk(self: &mut Chunk, size: usize) -> Result<NonNull<Chunk>, NoMemory> {
         let data_layout = Layout::array::<u8>(size).unwrap();
 
         let chunk_layout = Layout::new::<Chunk>();
@@ -186,13 +187,13 @@ impl Chunk {
         unsafe {
             let ptr = alloc(chunk_layout);
             if ptr.is_null() {
-                handle_alloc_error(chunk_layout);
+                return Err(NoMemory);
             }
             let chunk = ptr as *mut Chunk;
             (*chunk).raw_init(ptr.byte_add(data_offset), size, chunk_layout);
             self.next = chunk;
 
-            chunk
+            Ok(NonNull::new_unchecked(chunk))
         }
     }
 
@@ -208,7 +209,7 @@ impl Chunk {
         size <= self.size && used_layout.size() + size <= self.size
     }
 
-    fn make_aligned_space(self: &mut Chunk, layout: Layout) -> *mut u8 {
+    fn make_aligned_space(self: &mut Chunk, layout: Layout) -> Result<NonNull<u8>, NoMemory> {
         let mut expected_next_size = self.size;
         let mut current: *mut Chunk = self;
         unsafe {
@@ -217,7 +218,7 @@ impl Chunk {
                 let mut next = (*current).next;
                 if next.is_null() {
                     let data_size = cmp::max(expected_next_size, layout.size());
-                    next = (*current).add_chunk(data_size);
+                    next = (*current).add_chunk(data_size)?.as_ptr();
                 }
                 current = next;
             }
@@ -229,11 +230,11 @@ impl Chunk {
             (*current).last = ptr;
             (*current).used += layout.size() + offset;
 
-            ptr
+            Ok(NonNull::new_unchecked(ptr))
         }
     }
 
-    fn make_space(self: &mut Chunk, size: usize) -> *mut u8 {
+    fn make_space(self: &mut Chunk, size: usize) -> Result<NonNull<u8>, NoMemory> {
         let mut expected_next_size = self.size;
         let mut current: *mut Chunk = self;
         unsafe {
@@ -242,7 +243,7 @@ impl Chunk {
                 let mut next = (*current).next;
                 if next.is_null() {
                     let data_size = cmp::max(expected_next_size, size);
-                    next = (*current).add_chunk(data_size);
+                    next = (*current).add_chunk(data_size)?.as_ptr();
                 }
                 current = next;
             }
@@ -251,7 +252,7 @@ impl Chunk {
             (*current).last = ptr;
             (*current).used += size;
 
-            ptr
+            Ok(NonNull::new_unchecked(ptr))
         }
     }
 
@@ -371,6 +372,10 @@ impl Arena {
 
     /// Allocate memory for a struct in the arena.
     ///
+    /// If there is not enough memory for the struct in the arena,
+    /// and a new chunk could not be allocated, a [NoMemory] error
+    /// is returned.
+    ///
     /// # Safety
     ///
     /// This method returns a raw pointer to the allocated but
@@ -384,11 +389,26 @@ impl Arena {
     /// safely. The example below illustrates this method which was
     /// also used in the [Document](crate::Document) implementation.
     ///
+    /// Note that your struct will be allocated within the arena,
+    /// and dropped together with other structs in one dealloc call.
+    /// No Drop method will be called on your struct or fields
+    /// individually. If you have a field with non-trivial Drop
+    /// implementation, you must use addr_of_mut!(ptr.field).write()
+    /// to initialize it to avoid a Drop call on the unitialized
+    /// field, and manually drop the field to avoid any leaks.
+    /// It is better to construct such complex structs normally,
+    /// rather than allocating inside the arena, since the
+    /// workarounds are error-prone and reduce the performance
+    /// benefits. See the second example below in case you must
+    /// have them.
+    ///
     /// # Examples
+    /// Best practice:
     /// ```
     /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
     /// # use iksemel::Arena;
     /// # let arena : Arena = Arena::new()?;
+    /// use iksemel::NoMemory;
     ///
     /// struct MyStruct<'a> {
     ///     a: i32,
@@ -396,16 +416,16 @@ impl Arena {
     /// }
     ///
     /// trait ArenaExt {
-    ///     fn alloc_my_struct(&self, a: i32, b: &str) -> &mut MyStruct;
+    ///     fn alloc_my_struct(&self, a: i32, b: &str) -> Result<&mut MyStruct, NoMemory>;
     /// }
     ///
     /// impl ArenaExt for Arena {
-    ///     fn alloc_my_struct(&self, a: i32, b: &str) -> &mut MyStruct {
-    ///         let ptr = self.alloc_struct::<MyStruct>();
+    ///     fn alloc_my_struct(&self, a: i32, b: &str) -> Result<&mut MyStruct, NoMemory> {
+    ///         let ptr = self.alloc_struct::<MyStruct>()?.as_ptr();
     ///         unsafe {
     ///             (*ptr).a = a;
     ///             (*ptr).b = self.push_str(b);
-    ///             &mut *ptr
+    ///             Ok(&mut *ptr)
     ///         }
     ///     }
     /// }
@@ -415,12 +435,48 @@ impl Arena {
     /// # }
     /// ```
     ///
-    pub fn alloc_struct<T>(&self) -> *mut T {
+    /// Struct with Drop fields:
+    /// ```
+    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+    /// # use iksemel::Arena;
+    /// # let arena : Arena = Arena::new()?;
+    /// use std::ptr::addr_of_mut;
+    /// use iksemel::NoMemory;
+    ///
+    /// struct MyStruct {
+    ///     a: i32,
+    ///     b: Option<String>,
+    /// }
+    ///
+    /// trait ArenaExt {
+    ///     fn alloc_my_struct(&self, a: i32, b: &str) -> Result<&mut MyStruct, NoMemory>;
+    /// }
+    ///
+    /// impl ArenaExt for Arena {
+    ///     fn alloc_my_struct(&self, a: i32, b: &str) -> Result<&mut MyStruct, NoMemory> {
+    ///         let ptr = self.alloc_struct::<MyStruct>()?.as_ptr();
+    ///         unsafe {
+    ///             (*ptr).a = a;
+    ///             // (*ptr).b = b.to_string() would first try to Drop the old value
+    ///             // which could crash with the uninitialized memory.
+    ///             addr_of_mut!((*ptr).b).write(Some(b.to_string()));
+    ///             Ok(&mut *ptr)
+    ///         }
+    ///     }
+    /// }
+    ///
+    /// let mut my_struct = arena.alloc_my_struct(42, "Hello")?;
+    /// // Manually drop the String to avoid memory leaks before exit
+    /// my_struct.b = None;
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn alloc_struct<T>(&self) -> Result<NonNull<T>, NoMemory> {
         unsafe {
             let head = &mut **self.head_ptr.get();
             let layout = Layout::new::<T>();
-            let ptr = (*head.struct_chunk).make_aligned_space(layout);
-            ptr as *mut T
+            let ptr = (*head.struct_chunk).make_aligned_space(layout)?;
+            Ok(NonNull::new_unchecked(ptr.as_ptr() as *mut T))
         }
     }
 
@@ -428,7 +484,7 @@ impl Arena {
         let size = s.len();
         unsafe {
             let head = &mut **self.head_ptr.get();
-            let ptr = (*head.cdata_chunk).make_space(size);
+            let ptr = (*head.cdata_chunk).make_space(size).unwrap().as_ptr();
             std::ptr::copy_nonoverlapping(s.as_ptr(), ptr, size);
             let slice = std::slice::from_raw_parts(ptr, size);
 
@@ -450,7 +506,10 @@ impl Arena {
                 std::ptr::copy_nonoverlapping(s.as_ptr(), p, s.len());
                 slice = std::slice::from_raw_parts(p.byte_sub(old_s.len()), old_s.len() + s.len());
             } else {
-                let ptr = (*data_chunk).make_space(old_s.len() + s.len());
+                let ptr = (*data_chunk)
+                    .make_space(old_s.len() + s.len())
+                    .unwrap()
+                    .as_ptr();
                 std::ptr::copy_nonoverlapping(old_s.as_ptr(), ptr, old_s.len());
                 let ptr2 = ptr.byte_add(old_s.len());
                 std::ptr::copy_nonoverlapping(s.as_ptr(), ptr2, s.len());
