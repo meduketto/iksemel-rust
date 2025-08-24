@@ -8,6 +8,8 @@
 ** the License, or (at your option) any later version.
 */
 
+use std::mem::size_of;
+
 use super::*;
 
 const CHARS: &str = "1234567890abcdefghijklmnopqrstuv";
@@ -29,6 +31,26 @@ fn it_works() {
     assert_eq!(arena.stats().used_bytes, 12);
 
     let _p = arena.alloc_struct::<Layout>();
+}
+
+#[test]
+fn prints() {
+    let s1 = format!("{:?}", NoMemory);
+    assert!(s1.len() > 0);
+    let s2 = format!("{}", NoMemory);
+    assert!(s2.len() > 0);
+
+    let arena = Arena::new().unwrap();
+    let s3 = format!("{:?}", arena);
+    assert!(s3.len() > 0);
+    let s4 = format!("{}", arena);
+    assert!(s4.len() > 0);
+
+    let stats = arena.stats();
+    let s5 = format!("{:?}", stats);
+    assert!(s5.len() > 0);
+    let s6 = format!("{}", stats);
+    assert!(s6.len() > 0);
 }
 
 #[test]
@@ -73,7 +95,8 @@ fn chunk_doubles() {
     assert_eq!(arena.stats().chunks, 2);
 
     let _s4 = arena.push_str(&"x".repeat(MIN_DATA_BYTES)).unwrap();
-    assert_eq!(arena.stats().used_bytes, (MIN_DATA_BYTES * 3) + 4);
+    let cdata_use = (MIN_DATA_BYTES * 3) + 4;
+    assert_eq!(arena.stats().used_bytes, cdata_use);
     assert_eq!(arena.stats().chunks, 3);
 
     #[repr(C)]
@@ -82,15 +105,28 @@ fn chunk_doubles() {
     struct Lay2(usize);
 
     let _p1 = arena.alloc_struct::<Lay1>();
+    assert_eq!(arena.stats().used_bytes, cdata_use + size_of::<Lay1>());
     assert_eq!(arena.stats().chunks, 3);
 
     let _p2 = arena.alloc_struct::<Lay2>();
+    assert_eq!(
+        arena.stats().used_bytes,
+        cdata_use + size_of::<Lay1>() + size_of::<Lay2>()
+    );
     assert_eq!(arena.stats().chunks, 4);
 
     let _p3 = arena.alloc_struct::<Lay1>();
+    assert_eq!(
+        arena.stats().used_bytes,
+        cdata_use + (size_of::<Lay1>() * 2) + size_of::<Lay2>()
+    );
     assert_eq!(arena.stats().chunks, 4);
 
     let _p3 = arena.alloc_struct::<Lay1>();
+    assert_eq!(
+        arena.stats().used_bytes,
+        cdata_use + (size_of::<Lay1>() * 3) + size_of::<Lay2>()
+    );
     assert_eq!(arena.stats().chunks, 5);
 }
 
