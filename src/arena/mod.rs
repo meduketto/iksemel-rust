@@ -21,9 +21,9 @@ use std::ptr::null_mut;
 
 pub use error::NoMemory;
 
-const MIN_NODE_WORDS: usize = 32;
+const MIN_STRUCT_WORDS: usize = 32;
 
-const MIN_DATA_BYTES: usize = 256;
+const MIN_CDATA_BYTES: usize = 256;
 
 /// Statistics about the memory usage of the arena.
 ///
@@ -331,11 +331,11 @@ impl Arena {
     ///
     pub fn with_chunk_sizes(struct_words: usize, cdata_bytes: usize) -> Result<Arena, NoMemory> {
         // First node chunk should have capacity for this many pointer words.
-        let struct_words = cmp::max(struct_words, MIN_NODE_WORDS);
+        let struct_words = cmp::max(struct_words, MIN_STRUCT_WORDS);
         let struct_buf_layout = Layout::array::<*const usize>(struct_words).unwrap();
 
         // First data chunk should have capacity for this many bytes.
-        let cdata_bytes = cmp::max(cdata_bytes, MIN_DATA_BYTES);
+        let cdata_bytes = cmp::max(cdata_bytes, MIN_CDATA_BYTES);
         let cdata_buf_layout = Layout::array::<u8>(cdata_bytes).unwrap();
 
         let head_layout = Layout::new::<Head>();

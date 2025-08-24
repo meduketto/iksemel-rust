@@ -82,25 +82,25 @@ fn many_1char_pushes() {
 fn chunk_doubles() {
     let arena = Arena::new().unwrap();
 
-    let _s1 = arena.push_str(&"x".repeat(MIN_DATA_BYTES)).unwrap();
-    assert_eq!(arena.stats().used_bytes, MIN_DATA_BYTES);
+    let _s1 = arena.push_str(&"x".repeat(MIN_CDATA_BYTES)).unwrap();
+    assert_eq!(arena.stats().used_bytes, MIN_CDATA_BYTES);
     assert_eq!(arena.stats().chunks, 1);
 
     let _s2 = arena.push_str("lala").unwrap();
-    assert_eq!(arena.stats().used_bytes, MIN_DATA_BYTES + 4);
+    assert_eq!(arena.stats().used_bytes, MIN_CDATA_BYTES + 4);
     assert_eq!(arena.stats().chunks, 2);
 
-    let _s3 = arena.push_str(&"x".repeat(MIN_DATA_BYTES)).unwrap();
-    assert_eq!(arena.stats().used_bytes, (MIN_DATA_BYTES * 2) + 4);
+    let _s3 = arena.push_str(&"x".repeat(MIN_CDATA_BYTES)).unwrap();
+    assert_eq!(arena.stats().used_bytes, (MIN_CDATA_BYTES * 2) + 4);
     assert_eq!(arena.stats().chunks, 2);
 
-    let _s4 = arena.push_str(&"x".repeat(MIN_DATA_BYTES)).unwrap();
-    let cdata_use = (MIN_DATA_BYTES * 3) + 4;
+    let _s4 = arena.push_str(&"x".repeat(MIN_CDATA_BYTES)).unwrap();
+    let cdata_use = (MIN_CDATA_BYTES * 3) + 4;
     assert_eq!(arena.stats().used_bytes, cdata_use);
     assert_eq!(arena.stats().chunks, 3);
 
     #[repr(C)]
-    struct Lay1([usize; MIN_NODE_WORDS]);
+    struct Lay1([usize; MIN_STRUCT_WORDS]);
     #[repr(C)]
     struct Lay2(usize);
 
@@ -135,7 +135,7 @@ fn concat_saves_space() {
     let arena = Arena::new().unwrap();
     assert_eq!(arena.stats().chunks, 1);
 
-    let s1 = arena.push_str(&"x".repeat(MIN_DATA_BYTES - 4)).unwrap();
+    let s1 = arena.push_str(&"x".repeat(MIN_CDATA_BYTES - 4)).unwrap();
     assert_eq!(arena.stats().chunks, 1);
 
     let s2 = arena.concat_str(s1, "abcd").unwrap();
@@ -150,7 +150,7 @@ fn concat_copy_allocates_right() {
     let arena = Arena::new().unwrap();
     assert_eq!(arena.stats().chunks, 1);
 
-    let _s1 = arena.push_str(&"x".repeat(MIN_DATA_BYTES - 8));
+    let _s1 = arena.push_str(&"x".repeat(MIN_CDATA_BYTES - 8));
     assert_eq!(arena.stats().chunks, 1);
     let s2 = "abcd";
     let _s3 = arena.concat_str(s2, s2);
@@ -162,15 +162,15 @@ fn concat_copy_with_large_str() {
     let arena = Arena::new().unwrap();
     assert_eq!(arena.stats().chunks, 1);
 
-    let s1 = arena.push_str(&"x".repeat(MIN_DATA_BYTES - 8)).unwrap();
+    let s1 = arena.push_str(&"x".repeat(MIN_CDATA_BYTES - 8)).unwrap();
     assert_eq!(arena.stats().chunks, 1);
-    let s2 = &"a".repeat(MIN_DATA_BYTES * 10);
+    let s2 = &"a".repeat(MIN_CDATA_BYTES * 10);
     let _s3 = arena.concat_str(s1, s2);
     let stats = arena.stats();
     assert_eq!(stats.chunks, 2);
     assert_eq!(
         stats.used_bytes,
-        (MIN_DATA_BYTES * 10) + ((MIN_DATA_BYTES - 8) * 2)
+        (MIN_CDATA_BYTES * 10) + ((MIN_CDATA_BYTES - 8) * 2)
     );
     let _s4 = arena.push_str("abcd");
     assert_eq!(stats.chunks, 2);
@@ -272,7 +272,7 @@ fn alloc_chunk_border() {
     let a1 = arena.stats().allocated_bytes;
 
     #[repr(C)]
-    struct Lay1([usize; MIN_NODE_WORDS - 2]);
+    struct Lay1([usize; MIN_STRUCT_WORDS - 2]);
 
     #[repr(C)]
     struct Lay2([usize; 2]);
@@ -291,17 +291,17 @@ fn alloc_chunk_border() {
 fn reuse() {
     let arena = Arena::new().unwrap();
     {
-        let _s1 = arena.push_str(&"x".repeat(MIN_DATA_BYTES)).unwrap();
+        let _s1 = arena.push_str(&"x".repeat(MIN_CDATA_BYTES)).unwrap();
         let _s2 = arena.push_str("lala").unwrap();
-        assert_eq!(arena.stats().used_bytes, MIN_DATA_BYTES + 4);
+        assert_eq!(arena.stats().used_bytes, MIN_CDATA_BYTES + 4);
         assert_eq!(arena.stats().chunks, 2);
     }
     let arena = arena.into_empty_arena();
     assert_eq!(arena.stats().used_bytes, 0);
     assert_eq!(arena.stats().chunks, 2);
     let _s1 = arena.push_str("lala").unwrap();
-    let _s2 = arena.push_str(&"x".repeat(MIN_DATA_BYTES)).unwrap();
-    assert_eq!(arena.stats().used_bytes, MIN_DATA_BYTES + 4);
+    let _s2 = arena.push_str(&"x".repeat(MIN_CDATA_BYTES)).unwrap();
+    assert_eq!(arena.stats().used_bytes, MIN_CDATA_BYTES + 4);
     assert_eq!(arena.stats().chunks, 2);
 }
 
