@@ -12,7 +12,7 @@ use std::error::Error;
 use std::fmt::Display;
 
 /// The error type for the SAX handler.
-#[derive(Debug, Eq, PartialEq, Copy, Clone)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum SaxHandlerError {
     /// Handler wants to abort parsing.
     ///
@@ -64,7 +64,7 @@ impl Error for SaxHandlerError {}
 /// Location of the error is available via [nr_bytes()](super::SaxParser::nr_bytes),
 /// [nr_lines()](super::SaxParser::nr_lines), and
 /// [nr_column()](super::SaxParser::nr_column) functions.
-#[derive(Debug, Eq, PartialEq, Copy, Clone)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum SaxError {
     /// Parser could not allocate the memory needed for parsing buffers.
     ///

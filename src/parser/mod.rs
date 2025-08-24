@@ -9,10 +9,12 @@
 */
 
 mod error;
+mod location;
 
 pub use error::SaxError;
 pub use error::SaxHandlerError;
 use error::description;
+pub use location::Location;
 
 /// An XML element returned from the parser.
 #[derive(Debug, Eq, PartialEq)]
@@ -143,9 +145,7 @@ pub struct SaxParser {
     ref_buffer: Vec<u8>,
     char_ref_value: u32,
     is_value_ref: bool,
-    nr_bytes: usize,
-    nr_lines: usize,
-    nr_column: usize,
+    location: Location,
 }
 
 #[derive(Eq, PartialEq)]
@@ -236,9 +236,7 @@ impl SaxParser {
             ref_buffer: Vec::<u8>::with_capacity(REF_BUFFER_SIZE),
             char_ref_value: 0,
             is_value_ref: false,
-            nr_bytes: 0,
-            nr_lines: 0,
-            nr_column: 0,
+            location: Location::new(),
         }
     }
 
@@ -257,9 +255,7 @@ impl SaxParser {
         self.ref_buffer.clear();
         self.char_ref_value = 0;
         self.is_value_ref = false;
-        self.nr_bytes = 0;
-        self.nr_lines = 0;
-        self.nr_column = 0;
+        self.location = Location::new();
     }
 
     fn check_buffer(&mut self, need: usize) -> Result<(), SaxError> {
@@ -963,12 +959,7 @@ impl SaxParser {
 
             if !redo {
                 pos += 1;
-                self.nr_bytes += 1;
-                self.nr_column += 1;
-                if c == b'\n' {
-                    self.nr_lines += 1;
-                    self.nr_column = 0;
-                }
+                self.location.advance(c);
             }
         }
 
@@ -989,19 +980,8 @@ impl SaxParser {
         Ok(())
     }
 
-    /// Returns how many bytes have been parsed.
-    pub fn nr_bytes(&self) -> usize {
-        self.nr_bytes
-    }
-
-    /// Return how many lines have been parsed.
-    pub fn nr_lines(&self) -> usize {
-        self.nr_lines
-    }
-
-    /// Returns the current column position in the last parsed line.
-    pub fn nr_column(&self) -> usize {
-        self.nr_column
+    pub fn location(&self) -> Location {
+        self.location.clone()
     }
 }
 

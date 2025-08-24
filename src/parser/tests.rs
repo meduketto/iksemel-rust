@@ -33,9 +33,10 @@ impl<'a> Tester<'a> {
         let mut parser = SaxParser::new();
         assert!(parser.parse_bytes_finish(self, &s.as_bytes()).is_ok());
         assert_eq!(self.current, self.expected.len());
-        assert_eq!(parser.nr_lines(), nr_lines);
-        assert_eq!(parser.nr_column(), nr_column);
-        assert_eq!(parser.nr_bytes(), s.len());
+        let location = parser.location();
+        assert_eq!(location.lines, nr_lines);
+        assert_eq!(location.column, nr_column);
+        assert_eq!(location.bytes, s.len());
 
         // now try byte by byte
         parser.reset();
@@ -46,9 +47,10 @@ impl<'a> Tester<'a> {
         }
         assert!(parser.parse_finish().is_ok());
         assert_eq!(self.current, self.expected.len());
-        assert_eq!(parser.nr_lines(), nr_lines);
-        assert_eq!(parser.nr_column(), nr_column);
-        assert_eq!(parser.nr_bytes(), s.len());
+        let location = parser.location();
+        assert_eq!(location.lines, nr_lines);
+        assert_eq!(location.column, nr_column);
+        assert_eq!(location.bytes, s.len());
     }
 }
 
@@ -93,13 +95,13 @@ impl BadTester {
             parser.parse_bytes_finish(self, &s.as_bytes()),
             Err(self.err)
         );
-        assert_eq!(parser.nr_bytes(), self.bad_byte);
+        assert_eq!(parser.location().bytes, self.bad_byte);
     }
 
     fn check_bytes(&mut self, bytes: &[u8]) {
         let mut parser = SaxParser::new();
         assert_eq!(parser.parse_bytes_finish(self, bytes), Err(self.err));
-        assert_eq!(parser.nr_bytes(), self.bad_byte);
+        assert_eq!(parser.location().bytes, self.bad_byte);
     }
 }
 

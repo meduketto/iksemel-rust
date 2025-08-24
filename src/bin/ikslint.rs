@@ -217,20 +217,18 @@ impl Linter {
             }
             Err(LinterError::SaxError(SaxError::BadXml(msg))) => {
                 eprintln!(
-                    "Syntax error in file '{}' at line {} column {}: {}",
+                    "Syntax error in file '{}' at {}: {}",
                     file,
-                    self.parser.nr_lines(),
-                    self.parser.nr_column(),
+                    self.parser.location(),
                     msg
                 );
                 false
             }
             Err(LinterError::SaxError(SaxError::HandlerAbort)) => {
                 eprintln!(
-                    "Well-formedness error in file '{}' at line {} column {}: {}",
+                    "Well-formedness error in file '{}' at {}: {}",
                     file,
-                    self.parser.nr_lines(),
-                    self.parser.nr_column(),
+                    self.parser.location(),
                     self.handler.error.as_ref().unwrap()
                 );
                 false
