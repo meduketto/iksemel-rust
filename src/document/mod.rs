@@ -132,7 +132,7 @@ impl ArenaExt for Arena {
     }
 
     fn alloc_tag(&self, tag_name: &str) -> *mut Tag {
-        let name = self.push_str(tag_name);
+        let name = self.push_str(tag_name).unwrap();
         let tag = self.alloc_struct::<Tag>().unwrap().as_ptr();
         unsafe {
             (*tag).children = null_mut();
@@ -147,7 +147,7 @@ impl ArenaExt for Arena {
     }
 
     fn alloc_cdata(&self, cdata_value: &str) -> *mut CData {
-        let value = self.push_str(cdata_value);
+        let value = self.push_str(cdata_value).unwrap();
         let cdata = self.alloc_struct::<CData>().unwrap().as_ptr();
         unsafe {
             (*cdata).value = value.as_ptr();
@@ -158,8 +158,8 @@ impl ArenaExt for Arena {
     }
 
     fn alloc_attribute(&self, name: &str, value: &str) -> *mut Attribute {
-        let name = self.push_str(name);
-        let value = self.push_str(value);
+        let name = self.push_str(name).unwrap();
+        let value = self.push_str(value).unwrap();
         let attribute = self.alloc_struct::<Attribute>().unwrap().as_ptr();
         unsafe {
             (*attribute).next = null_mut();
@@ -439,7 +439,7 @@ impl<'a> Cursor<'a> {
     ) -> Cursor<'b> {
         null_cursor_guard!(self);
 
-        let value = document.arena.push_str(value);
+        let value = document.arena.push_str(value).unwrap();
         unsafe {
             let node = *self.node.get();
             match (*node).payload {

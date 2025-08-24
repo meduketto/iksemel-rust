@@ -177,6 +177,11 @@ impl Chunk {
         self.alloc_layout = alloc_layout;
     }
 
+    fn clear(&mut self) {
+        self.used = 0;
+        self.last = self.mem;
+    }
+
     fn add_chunk(self: &mut Chunk, size: usize) -> Result<NonNull<Chunk>, NoMemory> {
         let data_layout = Layout::array::<u8>(size).unwrap();
 
@@ -372,7 +377,7 @@ impl Arena {
 
     /// Allocate memory for a struct in the arena.
     ///
-    /// If there is not enough memory for the struct in the arena,
+    /// If there is not enough space for the struct in the arena,
     /// and a new chunk could not be allocated, a [NoMemory] error
     /// is returned.
     ///
@@ -382,6 +387,13 @@ impl Arena {
     /// uninitialized memory. The care must be taken to ensure
     /// that the memory is properly initialized before the
     /// pointer is shared with the rest of the program.
+    ///
+    /// If you are going to use the
+    /// [into_empty_arena()](Arena::into_empty_arena)
+    /// method, you must be careful to add proper lifetimes to
+    /// your structures and keep track of their scopes to avoid
+    /// reusing the memory pointed by them. See the method's
+    /// safety section for more details.
     ///
     /// The best way to do that is to extend the Arena with your
     /// own trait and implement individual alloc functions for your
@@ -424,7 +436,7 @@ impl Arena {
     ///         let ptr = self.alloc_struct::<MyStruct>()?.as_ptr();
     ///         unsafe {
     ///             (*ptr).a = a;
-    ///             (*ptr).b = self.push_str(b);
+    ///             (*ptr).b = self.push_str(b)?;
     ///             Ok(&mut *ptr)
     ///         }
     ///     }
@@ -480,19 +492,61 @@ impl Arena {
         }
     }
 
-    pub fn push_str<'a>(&'a self, s: &str) -> &'a str {
+    /// Copies given string slice into the arena and returns a reference.
+    ///
+    /// If there is not enough space for the struct in the arena,
+    /// and a new chunk could not be allocated, a [NoMemory] error
+    /// is returned.
+    ///
+    /// # Examples
+    /// ```
+    /// # use iksemel::Arena;
+    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+    /// # let arena = Arena::new()?;
+    /// let s = arena.push_str("Hello")?;
+    /// assert_eq!(s, "Hello");
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn push_str<'a>(&'a self, s: &str) -> Result<&'a str, NoMemory> {
         let size = s.len();
         unsafe {
             let head = &mut **self.head_ptr.get();
-            let ptr = (*head.cdata_chunk).make_space(size).unwrap().as_ptr();
+            let ptr = (*head.cdata_chunk).make_space(size)?.as_ptr();
             std::ptr::copy_nonoverlapping(s.as_ptr(), ptr, size);
             let slice = std::slice::from_raw_parts(ptr, size);
 
-            std::str::from_utf8_unchecked(slice)
+            Ok(std::str::from_utf8_unchecked(slice))
         }
     }
 
-    pub fn concat_str<'a>(&'a self, old_s: &str, s: &str) -> &'a str {
+    /// Concatenates two strings into a new string in the arena.
+    ///
+    /// If there is not enough space for the struct in the arena,
+    /// and a new chunk could not be allocated, a [NoMemory] error
+    /// is returned.
+    ///
+    /// If the first string is already in the arena and there is enough
+    /// space after it, only the second string is copied to extend the
+    /// first string. If there is not enough space, or both strings are
+    /// not in the arena, they are copied into a suitable space.
+    ///
+    /// [Document](crate::Document) uses this when inserting character
+    /// data to efficiently concatenate the [CData](crate::SaxElement::CData)
+    /// elements coming from the [SaxParser](crate::SaxParser).
+    ///
+    /// # Examples
+    /// ```
+    /// # use iksemel::Arena;
+    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+    /// # let arena = Arena::new()?;
+    /// let s1 = arena.push_str("Hello, ")?;
+    /// let s2 = arena.concat_str(s1, "world!")?;
+    /// assert_eq!(s2, "Hello, world!");
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn concat_str<'a>(&'a self, old_s: &str, s: &str) -> Result<&'a str, NoMemory> {
         unsafe {
             let head = &mut **self.head_ptr.get();
             let data_chunk = head.cdata_chunk;
@@ -506,17 +560,14 @@ impl Arena {
                 std::ptr::copy_nonoverlapping(s.as_ptr(), p, s.len());
                 slice = std::slice::from_raw_parts(p.byte_sub(old_s.len()), old_s.len() + s.len());
             } else {
-                let ptr = (*data_chunk)
-                    .make_space(old_s.len() + s.len())
-                    .unwrap()
-                    .as_ptr();
+                let ptr = (*data_chunk).make_space(old_s.len() + s.len())?.as_ptr();
                 std::ptr::copy_nonoverlapping(old_s.as_ptr(), ptr, old_s.len());
                 let ptr2 = ptr.byte_add(old_s.len());
                 std::ptr::copy_nonoverlapping(s.as_ptr(), ptr2, s.len());
                 slice = std::slice::from_raw_parts(ptr, old_s.len() + s.len());
             }
 
-            std::str::from_utf8_unchecked(slice)
+            Ok(std::str::from_utf8_unchecked(slice))
         }
     }
 
@@ -550,6 +601,55 @@ impl Arena {
             }
         }
         stats
+    }
+
+    /// Marks all chunks as empty without deallocating memory.
+    ///
+    /// If you are parsing a series of documents, or XML stanzas
+    /// coming through a stream, you can use the same arena to
+    /// build them as documents which would avoid constant
+    /// memory allocations.
+    ///
+    /// # Safety
+    ///
+    /// Accessing any previously returned pointer or reference
+    /// into the arena after the arena is reused, would result in
+    /// undefined behavior.
+    ///
+    /// Since [push_str()](Arena::push_str) and
+    /// [concat_str()](Arena::concat_str) returns references with
+    /// lifetimes tied into the arena, the compiler will stop you
+    /// from making this error. The
+    /// [alloc_struct()](Arena::alloc_struct()), on the other
+    /// hand, requires you to setup proper lifetimes and track this
+    /// by your own means.
+    ///
+    /// # Examples
+    /// ```
+    /// # use iksemel::Arena;
+    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+    /// let arena = Arena::new()?;
+    /// // use the arena
+    /// arena.push_str("foo")?;
+    /// // clear it
+    /// let arena2 = arena.into_empty_arena();
+    /// // can be reused now
+    /// arena2.push_str("bar");
+    /// # Ok(())
+    /// # }
+    /// ```
+    ///
+    pub fn into_empty_arena(mut self) -> Arena {
+        unsafe {
+            let head = &mut **self.head_ptr.get_mut();
+            for chunk in (*head).struct_chunks() {
+                (*chunk).clear();
+            }
+            for chunk in (*head).cdata_chunks() {
+                (*chunk).clear();
+            }
+        }
+        self
     }
 }
 
@@ -620,5 +720,18 @@ mod tests;
 /// # Ok(())
 /// # }
 /// ```
+///
+/// into_empty_arena cannot be called with existing references
+/// ```compile_fail
+/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+/// use iksemel::Arena;
+/// let arena = Arena::new()?;
+/// let s = arena.push_str("dangling")?;
+/// let arena2 = arena.into_empty_arena();
+/// println!("{}", s);
+/// # Ok(())
+/// # }
+/// ```
+///
 #[cfg(doctest)]
 struct MustNotCompileTests;

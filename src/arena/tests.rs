@@ -20,11 +20,11 @@ fn it_works() {
     assert!(stats.allocated_bytes > 0);
     assert_eq!(stats.used_bytes, 0);
 
-    let s = arena.push_str("test");
+    let s = arena.push_str("test").unwrap();
     assert_eq!(s, "test");
     assert_eq!(arena.stats().used_bytes, 4);
 
-    let s2 = arena.concat_str(s, "moretest");
+    let s2 = arena.concat_str(s, "moretest").unwrap();
     assert_eq!(s2, "testmoretest");
     assert_eq!(arena.stats().used_bytes, 12);
 
@@ -38,7 +38,7 @@ fn many_pushes() {
 
     for _ in 0..1000 {
         for j in 0..CHARS.len() {
-            arena.push_str(&CHARS[..j]);
+            arena.push_str(&CHARS[..j]).unwrap();
         }
     }
     let stats = arena.stats();
@@ -52,7 +52,7 @@ fn many_1char_pushes() {
     let arena = Arena::new().unwrap();
 
     for _ in 0..10000 {
-        arena.push_str("+");
+        arena.push_str("+").unwrap();
     }
 }
 
@@ -61,13 +61,13 @@ fn concat_saves_space() {
     let arena = Arena::new().unwrap();
     assert_eq!(arena.stats().chunks, 1);
 
-    let s1 = arena.push_str(&"x".repeat(MIN_DATA_BYTES - 4));
+    let s1 = arena.push_str(&"x".repeat(MIN_DATA_BYTES - 4)).unwrap();
     assert_eq!(arena.stats().chunks, 1);
 
-    let s2 = arena.concat_str(s1, "abcd");
+    let s2 = arena.concat_str(s1, "abcd").unwrap();
     assert_eq!(arena.stats().chunks, 1);
 
-    let _s3 = arena.concat_str(s2, "x");
+    let _s3 = arena.concat_str(s2, "x").unwrap();
     assert_eq!(arena.stats().chunks, 2);
 }
 
@@ -88,7 +88,7 @@ fn concat_copy_with_large_str() {
     let arena = Arena::new().unwrap();
     assert_eq!(arena.stats().chunks, 1);
 
-    let s1 = arena.push_str(&"x".repeat(MIN_DATA_BYTES - 8));
+    let s1 = arena.push_str(&"x".repeat(MIN_DATA_BYTES - 8)).unwrap();
     assert_eq!(arena.stats().chunks, 1);
     let s2 = &"a".repeat(MIN_DATA_BYTES * 10);
     let _s3 = arena.concat_str(s1, s2);
@@ -105,14 +105,14 @@ fn concat_copy_with_large_str() {
 #[test]
 fn concats_from_same_base() {
     let arena = Arena::new().unwrap();
-    let s = arena.push_str("lala");
+    let s = arena.push_str("lala").unwrap();
 
-    let s2 = arena.concat_str(s, "bibi");
-    let s3 = arena.concat_str(s, "foo");
+    let s2 = arena.concat_str(s, "bibi").unwrap();
+    let s3 = arena.concat_str(s, "foo").unwrap();
 
-    let s4 = arena.concat_str(s3, "123");
-    let s5 = arena.concat_str(s4, "abc");
-    let s6 = arena.concat_str(s2, "123");
+    let s4 = arena.concat_str(s3, "123").unwrap();
+    let s5 = arena.concat_str(s4, "abc").unwrap();
+    let s6 = arena.concat_str(s2, "123").unwrap();
 
     assert_eq!(s, "lala");
     assert_eq!(s2, "lalabibi");
@@ -126,20 +126,20 @@ fn concats_from_same_base() {
 fn concats_from_non_arena() {
     let arena = Arena::new().unwrap();
 
-    let s1 = arena.concat_str("lala", "bibi");
-    let s2 = arena.concat_str(s1, "foo");
+    let s1 = arena.concat_str("lala", "bibi").unwrap();
+    let s2 = arena.concat_str(s1, "foo").unwrap();
     assert_eq!(s2, "lalabibifoo");
 
-    let s3 = arena.concat_str("pika", s1);
+    let s3 = arena.concat_str("pika", s1).unwrap();
     assert_eq!(s2, "lalabibifoo");
     assert_eq!(s3, "pikalalabibi");
 
-    let s4 = arena.concat_str(s3, "123");
+    let s4 = arena.concat_str(s3, "123").unwrap();
     assert_eq!(s2, "lalabibifoo");
     assert_eq!(s3, "pikalalabibi");
     assert_eq!(s4, "pikalalabibi123");
 
-    let s5 = arena.concat_str(s4, s1);
+    let s5 = arena.concat_str(s4, s1).unwrap();
     assert_eq!(s2, "lalabibifoo");
     assert_eq!(s3, "pikalalabibi");
     assert_eq!(s4, "pikalalabibi123");
@@ -149,11 +149,13 @@ fn concats_from_non_arena() {
 #[test]
 fn many_1char_concats() {
     let arena = Arena::new().unwrap();
-    let mut s = arena.push_str("");
+    let mut s = arena.push_str("").unwrap();
 
     for i in 0..1000 {
         for n in 0..CHARS.len() {
-            s = arena.concat_str(s, &CHARS.chars().nth(n).unwrap().to_string());
+            s = arena
+                .concat_str(s, &CHARS.chars().nth(n).unwrap().to_string())
+                .unwrap();
         }
         assert_eq!(s, CHARS.repeat(i + 1));
     }
@@ -204,6 +206,24 @@ fn alloc_chunk_border() {
     assert_eq!(arena.stats().chunks, 2);
 }
 
+#[test]
+fn reuse() {
+    let arena = Arena::new().unwrap();
+    {
+        let _s1 = arena.push_str(&"x".repeat(MIN_DATA_BYTES)).unwrap();
+        let _s2 = arena.push_str("lala").unwrap();
+        assert_eq!(arena.stats().used_bytes, MIN_DATA_BYTES + 4);
+        assert_eq!(arena.stats().chunks, 2);
+    }
+    let arena = arena.into_empty_arena();
+    assert_eq!(arena.stats().used_bytes, 0);
+    assert_eq!(arena.stats().chunks, 2);
+    let _s1 = arena.push_str("lala").unwrap();
+    let _s2 = arena.push_str(&"x".repeat(MIN_DATA_BYTES)).unwrap();
+    assert_eq!(arena.stats().used_bytes, MIN_DATA_BYTES + 4);
+    assert_eq!(arena.stats().chunks, 2);
+}
+
 fn old_iksemel_test_step(size: usize) {
     let arena = Arena::with_chunk_sizes(size, size).unwrap();
 
@@ -212,10 +232,12 @@ fn old_iksemel_test_step(size: usize) {
 
     let mut s = "";
     for i in 0..CHARS.len() {
-        arena.push_str(&CHARS[..i]);
+        arena.push_str(&CHARS[..i]).unwrap();
         let ptr = arena.alloc_struct::<Lay>().unwrap();
         assert_eq!(ptr.align_offset(8), 0);
-        s = arena.concat_str(s, &CHARS.chars().nth(i).unwrap().to_string())
+        s = arena
+            .concat_str(s, &CHARS.chars().nth(i).unwrap().to_string())
+            .unwrap()
     }
     assert_eq!(s, CHARS);
 }
