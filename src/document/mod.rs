@@ -17,10 +17,11 @@ use std::marker::PhantomPinned;
 use std::ptr::null_mut;
 
 use super::arena::Arena;
+use super::arena::ArenaStats;
 use super::entities::escape;
 use super::entities::escape_fmt;
 use super::entities::escaped_size;
-use error::DocumentError;
+pub use error::DocumentError;
 pub use parser::DocumentParser;
 
 pub struct Document {
@@ -282,6 +283,10 @@ impl Document {
     pub fn to_string(&self) -> String {
         self.root().to_string()
     }
+
+    pub fn arena_stats(&self) -> ArenaStats {
+        self.arena.stats()
+    }
 }
 
 impl<'a> std::fmt::Display for Document {
@@ -486,6 +491,18 @@ impl<'a> Cursor<'a> {
                     null_cursor!()
                 }
                 NodePayload::Tag(tag) => {
+                    let last = (*tag).last_child;
+                    if !last.is_null() {
+                        if let NodePayload::CData(cdata_node) = (*last).payload {
+                            let old_s = (*cdata_node).as_str();
+                            let s = document.arena.concat_str(old_s, cdata).unwrap();
+                            (*cdata_node).value = s.as_ptr();
+                            (*cdata_node).value_size = s.len();
+
+                            return Cursor::new(last);
+                        }
+                    }
+
                     let new_cdata = document.arena.alloc_cdata(cdata);
                     let new_node = document.arena.alloc_node(NodePayload::CData(new_cdata));
 
@@ -493,9 +510,9 @@ impl<'a> Cursor<'a> {
                     if (*tag).children.is_null() {
                         (*tag).children = new_node;
                     }
-                    if !(*tag).last_child.is_null() {
-                        (*(*tag).last_child).next = new_node;
-                        (*new_node).previous = (*tag).last_child;
+                    if !last.is_null() {
+                        (*last).next = new_node;
+                        (*new_node).previous = last;
                     }
                     (*tag).last_child = new_node;
 

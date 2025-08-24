@@ -19,6 +19,7 @@ pub use arena::NoMemory;
 
 pub use document::Cursor;
 pub use document::Document;
+pub use document::DocumentError;
 pub use document::DocumentParser;
 
 pub use parser::SaxElement;
