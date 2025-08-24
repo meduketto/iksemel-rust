@@ -57,6 +57,44 @@ fn many_1char_pushes() {
 }
 
 #[test]
+fn chunk_doubles() {
+    let arena = Arena::new().unwrap();
+
+    let _s1 = arena.push_str(&"x".repeat(MIN_DATA_BYTES)).unwrap();
+    assert_eq!(arena.stats().used_bytes, MIN_DATA_BYTES);
+    assert_eq!(arena.stats().chunks, 1);
+
+    let _s2 = arena.push_str("lala").unwrap();
+    assert_eq!(arena.stats().used_bytes, MIN_DATA_BYTES + 4);
+    assert_eq!(arena.stats().chunks, 2);
+
+    let _s3 = arena.push_str(&"x".repeat(MIN_DATA_BYTES)).unwrap();
+    assert_eq!(arena.stats().used_bytes, (MIN_DATA_BYTES * 2) + 4);
+    assert_eq!(arena.stats().chunks, 2);
+
+    let _s4 = arena.push_str(&"x".repeat(MIN_DATA_BYTES)).unwrap();
+    assert_eq!(arena.stats().used_bytes, (MIN_DATA_BYTES * 3) + 4);
+    assert_eq!(arena.stats().chunks, 3);
+
+    #[repr(C)]
+    struct Lay1([usize; MIN_NODE_WORDS]);
+    #[repr(C)]
+    struct Lay2(usize);
+
+    let _p1 = arena.alloc_struct::<Lay1>();
+    assert_eq!(arena.stats().chunks, 3);
+
+    let _p2 = arena.alloc_struct::<Lay2>();
+    assert_eq!(arena.stats().chunks, 4);
+
+    let _p3 = arena.alloc_struct::<Lay1>();
+    assert_eq!(arena.stats().chunks, 4);
+
+    let _p3 = arena.alloc_struct::<Lay1>();
+    assert_eq!(arena.stats().chunks, 5);
+}
+
+#[test]
 fn concat_saves_space() {
     let arena = Arena::new().unwrap();
     assert_eq!(arena.stats().chunks, 1);
@@ -176,12 +214,16 @@ fn alloc_alignments() {
 
     let p1 = arena.alloc_struct::<Lay1>().unwrap();
     assert_eq!(p1.align_offset(2), 0);
+    assert_eq!(arena.stats().used_bytes, 2);
     let p2 = arena.alloc_struct::<Lay2>().unwrap();
     assert_eq!(p2.align_offset(8), 0);
+    assert_eq!(arena.stats().used_bytes, 16);
     let p3 = arena.alloc_struct::<Lay1>().unwrap();
     assert_eq!(p3.align_offset(2), 0);
+    assert_eq!(arena.stats().used_bytes, 18);
     let p4 = arena.alloc_struct::<Lay2>().unwrap();
     assert_eq!(p4.align_offset(8), 0);
+    assert_eq!(arena.stats().used_bytes, 32);
     let _p5 = arena.alloc_struct::<Lay3>();
     let p6 = arena.alloc_struct::<Lay2>().unwrap();
     assert_eq!(p6.align_offset(8), 0);
@@ -191,6 +233,7 @@ fn alloc_alignments() {
 fn alloc_chunk_border() {
     let arena = Arena::new().unwrap();
     assert_eq!(arena.stats().chunks, 1);
+    let a1 = arena.stats().allocated_bytes;
 
     #[repr(C)]
     struct Lay1([usize; MIN_NODE_WORDS - 2]);
@@ -202,8 +245,10 @@ fn alloc_chunk_border() {
     assert_eq!(arena.stats().chunks, 1);
     let _p2 = arena.alloc_struct::<Lay2>();
     assert_eq!(arena.stats().chunks, 1);
+    assert_eq!(arena.stats().allocated_bytes, a1);
     let _p3 = arena.alloc_struct::<Lay2>();
     assert_eq!(arena.stats().chunks, 2);
+    assert!(arena.stats().allocated_bytes > a1);
 }
 
 #[test]
