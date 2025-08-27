@@ -25,6 +25,36 @@ const MIN_STRUCT_WORDS: usize = 32;
 
 const MIN_CDATA_BYTES: usize = 256;
 
+// This global is necessary to test the Drop impl in a stable
+// way and does NOT compiled in for the non-test profiles.
+#[cfg(test)]
+static mut IKSEMEL_ALLOCATED: usize = 0;
+
+#[cfg(test)]
+fn test_allocated_add(bytes: usize) {
+    unsafe {
+        IKSEMEL_ALLOCATED += bytes;
+    }
+}
+
+#[cfg(not(test))]
+fn test_allocated_add(_: usize) {}
+
+#[cfg(test)]
+fn test_allocated_sub(bytes: usize) {
+    unsafe {
+        IKSEMEL_ALLOCATED -= bytes;
+    }
+}
+
+#[cfg(not(test))]
+fn test_allocated_sub(_: usize) {}
+
+#[cfg(test)]
+pub(self) fn test_allocated() -> usize {
+    unsafe { IKSEMEL_ALLOCATED }
+}
+
 /// Statistics about the memory usage of the arena.
 ///
 /// These numbers are limited to the most useful metrics for
@@ -194,6 +224,7 @@ impl Chunk {
             if ptr.is_null() {
                 return Err(NoMemory);
             }
+            test_allocated_add(chunk_layout.size());
             let chunk = ptr as *mut Chunk;
             (*chunk).raw_init(ptr.byte_add(data_offset), size, chunk_layout);
             self.next = chunk;
@@ -352,6 +383,7 @@ impl Arena {
             if ptr.is_null() {
                 return Err(NoMemory);
             }
+            test_allocated_add(head_layout.size());
             head = ptr as *mut Head;
             (*head).alloc_layout = head_layout;
 
@@ -658,11 +690,14 @@ impl Drop for Arena {
         unsafe {
             let head = &mut **self.head_ptr.get_mut();
             for chunk in (*head).extra_struct_chunks() {
+                test_allocated_sub((*chunk).alloc_layout.size());
                 dealloc(chunk as *mut u8, (*chunk).alloc_layout);
             }
             for chunk in (*head).extra_cdata_chunks() {
+                test_allocated_sub((*chunk).alloc_layout.size());
                 dealloc(chunk as *mut u8, (*chunk).alloc_layout);
             }
+            test_allocated_sub(head.alloc_layout.size());
             dealloc(*self.head_ptr.get_mut() as *mut u8, head.alloc_layout);
         }
     }

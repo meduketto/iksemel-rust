@@ -85,9 +85,8 @@ pub trait SaxHandler {
 ///         return;
 ///     }
 ///     Err(SaxError::BadXml(description)) => {
-///         println!("syntax error at line {} column {}: {}",
-///             parser.nr_lines(),
-///             parser.nr_column(),
+///         println!("syntax error at {}: {}",
+///             parser.location(),
 ///             description,
 ///         );
 ///         return;

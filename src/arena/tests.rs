@@ -34,6 +34,29 @@ fn it_works() {
 }
 
 #[test]
+fn drop() {
+    #[repr(C)]
+    struct Lay([usize; 500]);
+
+    assert_eq!(test_allocated(), 0);
+    {
+        let arena = Arena::new().unwrap();
+        let a1 = test_allocated();
+        assert!(a1 > 0);
+        assert_eq!(arena.stats().allocated_bytes, a1);
+        let _s = arena.push_str(&"a".repeat(1000)).unwrap();
+        let a2 = test_allocated();
+        assert!(a2 > a1);
+        assert_eq!(arena.stats().allocated_bytes, a2);
+        let _p = arena.alloc_struct::<Lay>().unwrap();
+        let a3 = test_allocated();
+        assert!(a3 > a2);
+        assert_eq!(arena.stats().allocated_bytes, a3);
+    }
+    assert_eq!(test_allocated(), 0);
+}
+
+#[test]
 fn prints() {
     let s1 = format!("{:?}", NoMemory);
     assert!(s1.len() > 0);

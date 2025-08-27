@@ -61,9 +61,8 @@ impl Error for SaxHandlerError {}
 /// These categories are designed to be as few as possible and correspond to the distinct
 /// actions you might take based on the nature of the problem.
 ///
-/// Location of the error is available via [nr_bytes()](super::SaxParser::nr_bytes),
-/// [nr_lines()](super::SaxParser::nr_lines), and
-/// [nr_column()](super::SaxParser::nr_column) functions.
+/// Location of the error is available from [location()](super::SaxParser::location)
+/// method.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum SaxError {
     /// Parser could not allocate the memory needed for parsing buffers.

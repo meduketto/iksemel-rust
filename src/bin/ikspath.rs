@@ -23,13 +23,32 @@ fn print_version() {
 
 fn print_usage() {
     println!(concat!(
-        "Usage: ikspath [OPTIONS] [FILE.xml] [XPATH expression]\n",
+        "Usage: ikspath [OPTIONS] [XPATH expression]\n",
         "This tool applies XPATH expression to an XML document.\n",
         "Options:\n",
-        "  -h, --help           Display this help message and exit\n",
-        "  -v, --version        Display the version and exit\n",
+        "  -f, --file <FILE.xml>  Specify the XML file to process\n",
+        "  -h, --help             Display this help message and exit\n",
+        "  -v, --version          Display the version and exit\n",
         "Report issues at https://github.com/meduketto/iksemel-rust/issues"
     ));
+}
+
+enum IkspathError {
+    IoError(std::io::Error),
+    NoMemory,
+    DocumentError(DocumentError),
+}
+
+impl From<std::io::Error> for IkspathError {
+    fn from(err: std::io::Error) -> Self {
+        IkspathError::IoError(err)
+    }
+}
+
+impl From<DocumentError> for IkspathError {
+    fn from(err: DocumentError) -> Self {
+        IkspathError::DocumentError(err)
+    }
 }
 
 fn load_file(file: &str) -> Result<Document, DocumentError> {
@@ -46,15 +65,30 @@ fn load_file(file: &str) -> Result<Document, DocumentError> {
     Ok(parser.into_document()?)
 }
 
+fn process_file(file: Option<String>, expression: Option<String>) -> Result<(), IkspathError> {
+    let doc = load_file(&file.unwrap()).unwrap();
+    println!("{:?}", doc.arena_stats());
+    Ok(())
+}
+
 fn main() -> ExitCode {
     let mut args = env::args();
 
     let mut file: Option<String> = None;
+    let mut expression: Option<String> = None;
 
     // Skip the first argument (program name)
     args.next();
     while let Some(arg) = args.next() {
         match arg.as_str() {
+            "-f" | "--file" => {
+                if let Some(value) = args.next() {
+                    file = Some(value);
+                } else {
+                    eprintln!("Error: file name expected after -f/--file");
+                    return ExitCode::FAILURE;
+                }
+            }
             "-h" | "--help" => {
                 print_usage();
                 return ExitCode::SUCCESS;
@@ -63,17 +97,36 @@ fn main() -> ExitCode {
                 print_version();
                 return ExitCode::SUCCESS;
             }
-            _ => match file {
-                Some(_) => {}
-                None => {
-                    file = Some(arg.to_string());
+            _ => {
+                if expression.is_none() {
+                    expression = Some(arg.to_string());
+                } else {
+                    eprintln!("Error: only one expression can be specified");
+                    return ExitCode::FAILURE;
                 }
-            },
+            }
         }
     }
 
-    let doc = load_file(&file.unwrap()).unwrap();
-    println!("{:?}", doc.arena_stats());
+    match process_file(file, expression) {
+        Ok(_) => {}
+        Err(IkspathError::IoError(err)) => {
+            eprintln!("IO Error: {}", err);
+            return ExitCode::FAILURE;
+        }
+        Err(IkspathError::NoMemory) => {
+            eprintln!("Error: not enough memory");
+            return ExitCode::FAILURE;
+        }
+        Err(IkspathError::DocumentError(DocumentError::NoMemory)) => {
+            eprintln!("Error: not enough memory");
+            return ExitCode::FAILURE;
+        }
+        Err(IkspathError::DocumentError(DocumentError::BadXml(err))) => {
+            eprintln!("Error: Syntax error: {}", err);
+            return ExitCode::FAILURE;
+        }
+    }
 
     ExitCode::SUCCESS
 }
