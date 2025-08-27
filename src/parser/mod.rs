@@ -12,7 +12,6 @@ mod error;
 mod location;
 
 pub use error::SaxError;
-pub use error::SaxHandlerError;
 use error::description;
 pub use location::Location;
 
@@ -51,7 +50,7 @@ pub enum SaxElement<'a> {
 }
 
 pub trait SaxHandler {
-    fn handle_element(&mut self, element: &SaxElement) -> Result<(), SaxHandlerError>;
+    fn handle_element(&mut self, element: &SaxElement) -> Result<(), SaxError>;
 }
 
 /// SAX (Simple API for XML) based XML parser.
@@ -64,12 +63,12 @@ pub trait SaxHandler {
 ///
 /// Typical usage:
 /// ```
-/// use iksemel::{SaxElement, SaxError, SaxHandler, SaxHandlerError, SaxParser};
+/// use iksemel::{SaxElement, SaxError, SaxHandler, SaxParser};
 ///
 /// // Example handler which just prints parsed elements
 /// struct Handler { }
 /// impl SaxHandler for Handler {
-///     fn handle_element(&mut self, element: &SaxElement) -> Result<(), SaxHandlerError> {
+///     fn handle_element(&mut self, element: &SaxElement) -> Result<(), SaxError> {
 ///         println!("Element parsed: {:?}", element);
 ///         Ok(())
 ///     }
@@ -103,11 +102,10 @@ pub trait SaxHandler {
 /// # use iksemel::SaxElement;
 /// # use iksemel::SaxError;
 /// # use iksemel::SaxHandler;
-/// # use iksemel::SaxHandlerError;
 /// # fn main() -> Result<(), SaxError> {
 /// # struct Handler { }
 /// # impl SaxHandler for Handler {
-/// #     fn handle_element(&mut self, element: &SaxElement) -> Result<(), SaxHandlerError> {
+/// #     fn handle_element(&mut self, element: &SaxElement) -> Result<(), SaxError> {
 /// #         Ok(())
 /// #     }
 /// # }

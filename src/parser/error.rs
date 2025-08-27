@@ -11,51 +11,6 @@
 use std::error::Error;
 use std::fmt::Display;
 
-/// The error type for the SAX handler.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum SaxHandlerError {
-    /// Handler wants to abort parsing.
-    ///
-    /// This should be used when the reason for aborting is
-    /// application specific and unrelated to the syntax or
-    /// well-formedness of the XML document.
-    ///
-    /// [parse_bytes()](super::SaxParser::parse_bytes) will stop
-    /// processing and return [SaxError::HandlerError](super::SaxError::HandlerAbort)
-    /// to the caller.
-    Abort,
-
-    /// Handler detected an error in the XML document.
-    ///
-    /// Certain errors, such as mismatched names of the start and end tags,
-    /// or duplicate attribute names in the same tag, are not checked by the
-    /// [SaxParser](super::SaxParser), since that requires a potentially large
-    /// state to be maintained.
-    ///
-    /// Users of the [SaxParser](super::SaxParser) can implement these
-    /// checks if they want to. The [DocumentParser](crate::DocumentParser)
-    /// for example, already builds an in-memory representation of the XML
-    /// tree structure, and applies all these checks without additional cost.
-    ///
-    /// The static string argument should provide a short description of
-    /// the error detected by the handler.
-    ///
-    /// This error will be returned as [SaxError::BadXml] to the caller
-    /// from [parse_bytes()](super::SaxParser::parse_bytes) method.
-    BadXml(&'static str),
-}
-
-impl Display for SaxHandlerError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            SaxHandlerError::Abort => write!(f, "SAX handler aborts"),
-            SaxHandlerError::BadXml(msg) => write!(f, "SAX handler error: {}", msg),
-        }
-    }
-}
-
-impl Error for SaxHandlerError {}
-
 /// The error type for the SAX parsing operations.
 ///
 /// These categories are designed to be as few as possible and correspond to the distinct
@@ -78,11 +33,31 @@ pub enum SaxError {
     /// does not specify a maximum tag length, it is possible to hit this condition
     /// with either a degenarate document with gigabytes long tag name, or
     /// while running under severely memory constrained platforms.
+    ///
+    /// Another way to get this error is if your handler returns it after a
+    /// failed memory allocation.
+    ///
+    /// Best action is to abort the current operation and release any
+    /// other allocated resources.
     NoMemory,
 
     /// A syntax error is encountered in the XML input.
     ///
-    /// The static string describes the actual syntax issue.
+    /// The static string describes the actual syntax issue found
+    /// by the parser.
+    ///
+    /// Certain errors, such as mismatched names of the start and end tags,
+    /// or duplicate attribute names in the same tag, are not checked by the
+    /// [SaxParser](super::SaxParser), since that requires a potentially large
+    /// state to be maintained.
+    ///
+    /// Users of the parser can implement these checks if they want to. The
+    /// [DocumentParser](crate::DocumentParser)
+    /// for example, already builds an in-memory representation of the XML
+    /// tree structure, and applies all these checks without additional cost.
+    ///
+    /// Best action is to abort the current operation and relay the error
+    /// details to the user.
     BadXml(&'static str),
 
     /// Element handler method wants to abort.
@@ -90,15 +65,6 @@ pub enum SaxError {
     /// This is intended for your handler to be able to abort the parsing while
     /// signalling that the interruption is not caused by iksemel itself.
     HandlerAbort,
-}
-
-impl From<SaxHandlerError> for SaxError {
-    fn from(err: SaxHandlerError) -> Self {
-        match err {
-            SaxHandlerError::Abort => SaxError::HandlerAbort,
-            SaxHandlerError::BadXml(msg) => SaxError::BadXml(msg),
-        }
-    }
 }
 
 impl Display for SaxError {

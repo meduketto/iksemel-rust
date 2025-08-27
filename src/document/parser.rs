@@ -11,8 +11,8 @@
 use std::ptr::null_mut;
 
 use crate::SaxElement;
+use crate::SaxError;
 use crate::SaxHandler;
-use crate::SaxHandlerError;
 use crate::SaxParser;
 
 use super::Cursor;
@@ -36,7 +36,7 @@ impl DocumentBuilder {
 }
 
 impl SaxHandler for DocumentBuilder {
-    fn handle_element(&mut self, element: &SaxElement) -> Result<(), SaxHandlerError> {
+    fn handle_element(&mut self, element: &SaxElement) -> Result<(), SaxError> {
         match &self.doc {
             None => match element {
                 SaxElement::StartTag(name) => {
@@ -44,7 +44,7 @@ impl SaxHandler for DocumentBuilder {
                     self.node = doc.root().get_node_ptr();
                     self.doc = Some(doc);
                 }
-                _ => return Err(SaxHandlerError::Abort),
+                _ => return Err(SaxError::HandlerAbort),
             },
             Some(doc) => match element {
                 SaxElement::StartTag(name) => {
@@ -62,7 +62,7 @@ impl SaxHandler for DocumentBuilder {
                 }
                 SaxElement::EndTag(name) => {
                     if name != &Cursor::new(self.node).name() {
-                        return Err(SaxHandlerError::BadXml(description::TAG_MISMATCH));
+                        return Err(SaxError::BadXml(description::TAG_MISMATCH));
                     }
                     self.node = Cursor::new(self.node).parent().get_node_ptr();
                 }

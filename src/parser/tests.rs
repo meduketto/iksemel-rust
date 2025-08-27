@@ -55,7 +55,7 @@ impl<'a> Tester<'a> {
 }
 
 impl<'a> SaxHandler for Tester<'a> {
-    fn handle_element(&mut self, element: &SaxElement) -> Result<(), SaxHandlerError> {
+    fn handle_element(&mut self, element: &SaxElement) -> Result<(), SaxError> {
         assert!(self.current < self.expected.len());
         if let SaxElement::CData(cdata) = element {
             if let SaxElement::CData(cdata2) = self.expected[self.current] {
@@ -106,7 +106,7 @@ impl BadTester {
 }
 
 impl SaxHandler for BadTester {
-    fn handle_element(&mut self, _element: &SaxElement) -> Result<(), SaxHandlerError> {
+    fn handle_element(&mut self, _element: &SaxElement) -> Result<(), SaxError> {
         Ok(())
     }
 }

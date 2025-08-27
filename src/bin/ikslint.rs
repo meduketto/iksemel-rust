@@ -20,7 +20,6 @@ use std::vec::Vec;
 use iksemel::SaxElement;
 use iksemel::SaxError;
 use iksemel::SaxHandler;
-use iksemel::SaxHandlerError;
 use iksemel::SaxParser;
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -108,7 +107,7 @@ impl Handler {
 }
 
 impl SaxHandler for Handler {
-    fn handle_element(&mut self, element: &SaxElement) -> Result<(), SaxHandlerError> {
+    fn handle_element(&mut self, element: &SaxElement) -> Result<(), SaxError> {
         match element {
             SaxElement::StartTag(name) => {
                 self.nr_tags += 1;
@@ -123,7 +122,7 @@ impl SaxHandler for Handler {
             SaxElement::Attribute(name, _value) => {
                 if self.attribute_map.contains(*name) {
                     self.error = Some(format!("duplicate attribute: '{}'", name));
-                    return Err(SaxHandlerError::Abort);
+                    return Err(SaxError::HandlerAbort);
                 }
                 self.attribute_map.insert(name.to_string());
             }
@@ -142,7 +141,7 @@ impl SaxHandler for Handler {
                         "end tag mismatch: expected '{}', got '{}'",
                         start_name, name
                     ));
-                    return Err(SaxHandlerError::Abort);
+                    return Err(SaxError::HandlerAbort);
                 }
             }
         }
