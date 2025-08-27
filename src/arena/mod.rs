@@ -26,7 +26,7 @@ const MIN_STRUCT_WORDS: usize = 32;
 const MIN_CDATA_BYTES: usize = 256;
 
 // This global is necessary to test the Drop impl in a stable
-// way and does NOT compiled in for the non-test profiles.
+// way, and does NOT compiled in for the non-test profiles.
 #[cfg(test)]
 use std::cell::RefCell;
 
@@ -714,7 +714,7 @@ impl Debug for Arena {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         unsafe {
             let head = &mut **self.head_ptr.get();
-            write!(f, "Arena (head[alloc: {}]", (*head).alloc_layout.size())?;
+            write!(f, "Arena (head[alloc: {}]", head.alloc_layout.size())?;
             for chunk in (*head).struct_chunks() {
                 write!(
                     f,

@@ -202,10 +202,7 @@ macro_rules! whitespace {
 }
 
 fn is_valid_xml_char(c: u32) -> bool {
-    match c {
-        0x09 | 0x0a | 0x0d | 0x20..0xd7ff | 0xe000..0xfffd | 0x10000..0x10ffff => true,
-        _ => false,
-    }
+    matches!(c, 0x09 | 0x0a | 0x0d | 0x20..0xd7ff | 0xe000..0xfffd | 0x10000..0x10ffff)
 }
 
 macro_rules! xml_error {
@@ -504,10 +501,11 @@ impl SaxParser {
                     _ => (),
                 },
 
-                State::DoctypeMarkupDecl => match c {
-                    b'>' => self.state = State::DoctypeSkip,
-                    _ => (),
-                },
+                State::DoctypeMarkupDecl => {
+                    if c == b'>' {
+                        self.state = State::DoctypeSkip;
+                    }
+                }
 
                 State::CDataSectionC => {
                     if c != b'C' {
@@ -552,16 +550,15 @@ impl SaxParser {
                     self.state = State::CDataSectionBody;
                 }
 
-                State::CDataSectionBody => match c {
-                    b']' => {
+                State::CDataSectionBody => {
+                    if c == b']' {
                         if back < pos {
                             let s = unsafe { std::str::from_utf8_unchecked(&bytes[back..pos]) };
                             handler.handle_element(&SaxElement::CData(s))?;
                         }
                         self.state = State::CDataSectionMaybeEnd;
                     }
-                    _ => (),
-                },
+                }
 
                 State::CDataSectionMaybeEnd => match c {
                     b']' => self.state = State::CDataSectionMaybeEnd2,
@@ -594,10 +591,11 @@ impl SaxParser {
                     self.state = State::CommentBody;
                 }
 
-                State::CommentBody => match c {
-                    b'-' => self.state = State::CommentMaybeEnd,
-                    _ => (),
-                },
+                State::CommentBody => {
+                    if c == b'-' {
+                        self.state = State::CommentMaybeEnd;
+                    }
+                }
 
                 State::CommentMaybeEnd => match c {
                     b'-' => self.state = State::CommentEnd,
@@ -618,10 +616,11 @@ impl SaxParser {
                     }
                 }
 
-                State::PI => match c {
-                    b'?' => self.state = State::PIEnd,
-                    _ => (),
-                },
+                State::PI => {
+                    if c == b'?' {
+                        self.state = State::PIEnd;
+                    }
+                }
 
                 State::PIEnd => match c {
                     b'>' => {
