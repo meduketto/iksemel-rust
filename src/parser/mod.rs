@@ -980,7 +980,7 @@ impl SaxParser {
     }
 
     pub fn location(&self) -> Location {
-        self.location.clone()
+        self.location
     }
 }
 

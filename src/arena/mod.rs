@@ -28,13 +28,16 @@ const MIN_CDATA_BYTES: usize = 256;
 // This global is necessary to test the Drop impl in a stable
 // way and does NOT compiled in for the non-test profiles.
 #[cfg(test)]
-static mut IKSEMEL_ALLOCATED: usize = 0;
+use std::cell::RefCell;
+
+#[cfg(test)]
+thread_local! {
+    static IKSEMEL_ALLOCATED: RefCell<usize> = const { RefCell::new(0) };
+}
 
 #[cfg(test)]
 fn test_allocated_add(bytes: usize) {
-    unsafe {
-        IKSEMEL_ALLOCATED += bytes;
-    }
+    IKSEMEL_ALLOCATED.with_borrow_mut(|cell| *cell += bytes);
 }
 
 #[cfg(not(test))]
@@ -42,9 +45,7 @@ fn test_allocated_add(_: usize) {}
 
 #[cfg(test)]
 fn test_allocated_sub(bytes: usize) {
-    unsafe {
-        IKSEMEL_ALLOCATED -= bytes;
-    }
+    IKSEMEL_ALLOCATED.with_borrow_mut(|cell| *cell -= bytes);
 }
 
 #[cfg(not(test))]
@@ -52,7 +53,7 @@ fn test_allocated_sub(_: usize) {}
 
 #[cfg(test)]
 pub(self) fn test_allocated() -> usize {
-    unsafe { IKSEMEL_ALLOCATED }
+    IKSEMEL_ALLOCATED.with_borrow(|cell| *cell)
 }
 
 /// Statistics about the memory usage of the arena.
