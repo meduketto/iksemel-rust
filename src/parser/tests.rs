@@ -437,3 +437,40 @@ fn bad_unfinished() {
     BadTester::new(27, DOC_OPEN_MARKUP).check(" <a></a> <!-- open comment ");
     BadTester::new(23, DOC_OPEN_MARKUP).check(" <a></a> <?app open pi ");
 }
+
+#[test]
+fn prints() {
+    let parser = SaxParser::new();
+
+    {
+        let location = parser.location();
+        let s1 = format!("{:?}", location);
+        assert!(s1.len() > 0);
+        let s2 = format!("{}", location);
+        assert!(s2.len() > 0);
+    }
+
+    {
+        let e = SaxError::NoMemory;
+        let s1 = format!("{:?}", e);
+        assert!(s1.len() > 0);
+        let s2 = format!("{}", e);
+        assert!(s2.len() > 0);
+    }
+
+    {
+        let e = SaxError::BadXml("test");
+        let s1 = format!("{:?}", e);
+        assert!(s1.len() > 0);
+        let s2 = format!("{}", e);
+        assert!(s2.len() > 0);
+    }
+
+    {
+        let e = SaxError::HandlerAbort;
+        let s1 = format!("{:?}", e);
+        assert!(s1.len() > 0);
+        let s2 = format!("{}", e);
+        assert!(s2.len() > 0);
+    }
+}

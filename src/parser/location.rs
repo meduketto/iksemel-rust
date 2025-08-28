@@ -11,6 +11,10 @@
 use std::fmt::Display;
 
 /// A position in the parser input byte stream.
+///
+/// This struct is returned from the
+/// [location()](crate::SaxParser::location) method and gives you
+/// the position of the last parsed byte in the input stream.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct Location {
     pub bytes: usize,
@@ -19,6 +23,10 @@ pub struct Location {
 }
 
 impl Location {
+    /// Creates a new location at the beginning of the input stream.
+    ///
+    /// This constructor is made public in case if you store the
+    /// location in somewhere and need a default.
     pub fn new() -> Self {
         Location {
             bytes: 0,
