@@ -49,7 +49,16 @@ pub enum SaxElement<'a> {
     CData(&'a str),
 }
 
+/// Handling SAX parser elements.
+///
+/// Since generators are not stabilized in the Rust compiler, you have to
+/// implement this trait to receive the SAX elements from the parser.
 pub trait SaxHandler {
+    /// Handle a SAX element.
+    ///
+    /// Called for each element encountered by the parser. See
+    /// [SaxElement](crate::SaxElement) for each element you can receive,
+    /// and [SaxError](crate::SaxError) for what errors you can return.
     fn handle_element(&mut self, element: &SaxElement) -> Result<(), SaxError>;
 }
 
@@ -58,6 +67,22 @@ pub trait SaxHandler {
 /// This struct implements a SAX parser which processes the incoming
 /// bytes and invokes a handler function for each encountered
 /// XML element.
+///
+/// # Limitations
+///
+/// This parser has some limitations listed below. See the DESIGN.md
+/// file for reasons.
+///
+/// - Only the UTF-8 encoded byte streams are supported. You can parse
+/// other encodings by converting them before the parsing.
+///
+/// - DTDs are syntactically parsed but not used for validation.
+///
+/// - Custom entity references within DTDs are not supported whether
+/// they are internal or external.
+///
+/// - Processing instructions and comments are parsed but they
+/// do not generate any elements.
 ///
 /// # Examples
 ///
@@ -214,7 +239,7 @@ macro_rules! xml_error {
 impl SaxParser {
     /// Creates a new SAX parser instance.
     ///
-    /// The instance can be reused for multiple document with the [reset()](SaxParser::reset) method.
+    /// The instance can be reused for multiple documents with the [reset()](SaxParser::reset) method.
     pub fn new() -> SaxParser {
         SaxParser {
             state: State::Prolog,
