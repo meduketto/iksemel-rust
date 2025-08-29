@@ -74,15 +74,15 @@ pub trait SaxHandler {
 /// file for reasons.
 ///
 /// - Only the UTF-8 encoded byte streams are supported. You can parse
-/// other encodings by converting them before the parsing.
+///   other encodings by converting them before the parsing.
 ///
 /// - DTDs are syntactically parsed but not used for validation.
 ///
 /// - Custom entity references within DTDs are not supported whether
-/// they are internal or external.
+///   they are internal or external.
 ///
 /// - Processing instructions and comments are parsed but they
-/// do not generate any elements.
+///   do not generate any elements.
 ///
 /// # Examples
 ///
@@ -277,14 +277,16 @@ impl SaxParser {
         self.location = Location::new();
     }
 
-    fn check_buffer(&mut self, need: usize) -> Result<(), SaxError> {
-        if self.buffer.len() >= self.buffer.capacity() {
-            let diff = std::cmp::max(need, self.buffer.capacity());
-            let result = self.buffer.try_reserve_exact(diff);
+    fn extend_buffer(&mut self, bytes: &[u8]) -> Result<(), SaxError> {
+        let space = self.buffer.capacity() - self.buffer.len();
+        if bytes.len() > space {
+            let additional = bytes.len() - space;
+            let result = self.buffer.try_reserve_exact(additional);
             if result.is_err() {
                 return Err(SaxError::NoMemory);
             }
         }
+        self.buffer.extend_from_slice(bytes);
         Ok(())
     }
 
@@ -325,8 +327,7 @@ impl SaxParser {
         }
 
         if self.is_value_ref {
-            self.check_buffer(size)?;
-            self.buffer.extend(&buf[0..size]);
+            self.extend_buffer(&buf[0..size])?;
             Ok(())
         } else {
             let s = unsafe { std::str::from_utf8_unchecked(&buf[0..size]) };
@@ -668,8 +669,7 @@ impl SaxParser {
                 State::TagName => match c {
                     b'/' | b'>' | whitespace!() => {
                         if back < pos {
-                            self.check_buffer(pos - back)?;
-                            self.buffer.extend_from_slice(&bytes[back..pos]);
+                            self.extend_buffer(&bytes[back..pos])?;
                         }
                         {
                             if self.buffer.is_empty() {
@@ -781,8 +781,7 @@ impl SaxParser {
                 State::AttributeName => match c {
                     b'=' | whitespace!() => {
                         if back < pos {
-                            self.check_buffer(pos - back)?;
-                            self.buffer.extend_from_slice(&bytes[back..pos]);
+                            self.extend_buffer(&bytes[back..pos])?;
                         }
                         if c == b'=' {
                             self.state = State::AttributeValueStart;
@@ -826,8 +825,7 @@ impl SaxParser {
                 State::AttributeValue => {
                     if (self.is_quot_value && c == b'\'') || (!self.is_quot_value && c == b'"') {
                         if back < pos {
-                            self.check_buffer(pos - back)?;
-                            self.buffer.extend_from_slice(&bytes[back..pos]);
+                            self.extend_buffer(&bytes[back..pos])?;
                         }
                         let attr = unsafe {
                             std::str::from_utf8_unchecked(&self.buffer[0..self.value_pos])
@@ -840,8 +838,7 @@ impl SaxParser {
                         self.state = State::AttributeWhitespace;
                     } else if c == b'&' {
                         if back < pos {
-                            self.check_buffer(pos - back)?;
-                            self.buffer.extend_from_slice(&bytes[back..pos]);
+                            self.extend_buffer(&bytes[back..pos])?;
                         }
                         self.ref_buffer.clear();
                         self.is_value_ref = true;
@@ -896,8 +893,7 @@ impl SaxParser {
                             }
                         };
                         if self.is_value_ref {
-                            self.check_buffer(1)?;
-                            self.buffer.push(ent.as_bytes()[0]);
+                            self.extend_buffer(ent.as_bytes())?;
                             back = pos + 1;
                             self.state = State::AttributeValue;
                         } else {
@@ -987,8 +983,7 @@ impl SaxParser {
         if back < pos {
             match self.state {
                 State::TagName | State::AttributeName | State::AttributeValue => {
-                    self.check_buffer(pos - back)?;
-                    self.buffer.extend_from_slice(&bytes[back..pos])
+                    self.extend_buffer(&bytes[back..pos])?;
                 }
                 State::CData | State::CDataSectionBody => {
                     let s = unsafe { std::str::from_utf8_unchecked(&bytes[back..pos]) };
