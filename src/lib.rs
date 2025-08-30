@@ -18,6 +18,7 @@ pub use arena::Arena;
 pub use arena::ArenaStats;
 pub use arena::NoMemory;
 
+pub use parser::Location;
 pub use parser::SaxElement;
 pub use parser::SaxError;
 pub use parser::SaxHandler;

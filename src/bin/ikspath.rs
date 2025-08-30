@@ -11,9 +11,10 @@
 use std::env;
 use std::fs::File;
 use std::io::Read;
+use std::io::stdin;
 use std::process::ExitCode;
 
-use iksemel::{Document, DocumentError};
+use iksemel::{Document, DocumentError, DocumentParser};
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 
@@ -36,7 +37,7 @@ fn print_usage() {
 enum IkspathError {
     IoError(std::io::Error),
     NoMemory,
-    DocumentError(DocumentError),
+    BadXml(&'static str),
 }
 
 impl From<std::io::Error> for IkspathError {
@@ -47,28 +48,30 @@ impl From<std::io::Error> for IkspathError {
 
 impl From<DocumentError> for IkspathError {
     fn from(err: DocumentError) -> Self {
-        IkspathError::DocumentError(err)
+        match err {
+            DocumentError::NoMemory => IkspathError::NoMemory,
+            DocumentError::BadXml(msg) => IkspathError::BadXml(msg),
+        }
     }
 }
 
-fn load_file(file: &str) -> Result<Document, DocumentError> {
-    let mut parser = iksemel::DocumentParser::new();
-    let mut f = File::open(file).unwrap();
+fn load_xml_file(
+    parser: &mut DocumentParser,
+    file: Option<String>,
+) -> Result<Document, IkspathError> {
+    let mut f: Box<dyn Read> = match file {
+        None => Box::new(stdin()),
+        Some(file_name) => Box::new(File::open(file_name)?),
+    };
     let mut buffer = vec![0u8; 256 * 1024];
     loop {
-        let bytes_read = f.read(&mut buffer).unwrap();
+        let bytes_read = f.read(&mut buffer)?;
         if bytes_read == 0 {
             break;
         }
         parser.parse_bytes(&buffer[..bytes_read])?;
     }
-    Ok(parser.into_document()?)
-}
-
-fn process_file(file: Option<String>, expression: Option<String>) -> Result<(), IkspathError> {
-    let doc = load_file(&file.unwrap()).unwrap();
-    println!("{:?}", doc.arena_stats());
-    Ok(())
+    Ok(parser.take_document()?)
 }
 
 fn main() -> ExitCode {
@@ -108,25 +111,33 @@ fn main() -> ExitCode {
         }
     }
 
-    match process_file(file, expression) {
-        Ok(_) => {}
+    let mut parser = DocumentParser::new();
+    let file_desc = match file.as_deref() {
+        None => "input stream".to_string(),
+        Some(file_name) => format!("file '{}'", file_name),
+    };
+    let document = match load_xml_file(&mut parser, file) {
+        Ok(doc) => doc,
         Err(IkspathError::IoError(err)) => {
-            eprintln!("IO Error: {}", err);
+            eprintln!("Error: io error in {}: {}", file_desc, err);
             return ExitCode::FAILURE;
         }
         Err(IkspathError::NoMemory) => {
             eprintln!("Error: not enough memory");
             return ExitCode::FAILURE;
         }
-        Err(IkspathError::DocumentError(DocumentError::NoMemory)) => {
-            eprintln!("Error: not enough memory");
+        Err(IkspathError::BadXml(err)) => {
+            eprintln!(
+                "Error: syntax error in {} at {}: {}",
+                file_desc,
+                parser.location(),
+                err
+            );
             return ExitCode::FAILURE;
         }
-        Err(IkspathError::DocumentError(DocumentError::BadXml(err))) => {
-            eprintln!("Error: Syntax error: {}", err);
-            return ExitCode::FAILURE;
-        }
-    }
+    };
+
+    println!("{:?}", document.arena_stats());
 
     ExitCode::SUCCESS
 }

@@ -10,6 +10,7 @@
 
 use std::ptr::null_mut;
 
+use crate::Location;
 use crate::SaxElement;
 use crate::SaxError;
 use crate::SaxHandler;
@@ -109,6 +110,10 @@ impl DocumentParser {
 
     pub fn reuse_document_memory(&mut self, doc: Document) {
         let _old_doc = self.builder.doc.replace(doc);
+    }
+
+    pub fn location(&self) -> Location {
+        self.parser.location()
     }
 }
 

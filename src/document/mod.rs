@@ -819,11 +819,6 @@ impl<'a> std::fmt::Display for Cursor<'a> {
 #[cfg(test)]
 mod tests;
 
-// FIXME: error line/col/byte passing
-// FIXME: insert cdata merge
-
-// FIXME: MaybeUninit?
-// FIXME: NodePayload niche optimization
 // FIXME: unit tests
 // FIXME: docs
 // FIXME: Cursor and navigation funcs

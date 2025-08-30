@@ -56,7 +56,7 @@ impl Display for Location {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "byte: {}, line: {},  column: {}",
+            "byte: {}, line: {}, column: {}",
             self.bytes, self.lines, self.column
         )
     }
