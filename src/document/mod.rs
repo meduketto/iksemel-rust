@@ -686,7 +686,7 @@ impl<'a> Cursor<'a> {
                 VisitorStep::StartTag(tag) => {
                     size += 1; // Tag opening '<'
                     size += tag.name_size;
-                    let mut attr = (*tag).attributes;
+                    let mut attr = tag.attributes;
                     while !attr.is_null() {
                         size += 1; // space
                         unsafe {
@@ -730,7 +730,7 @@ impl<'a> Cursor<'a> {
                 VisitorStep::StartTag(tag) => {
                     buf.push('<');
                     buf.push_str(tag.as_str());
-                    let mut attr = (*tag).attributes;
+                    let mut attr = tag.attributes;
                     while !attr.is_null() {
                         buf.push(' ');
                         unsafe {
@@ -780,7 +780,7 @@ impl<'a> std::fmt::Display for Cursor<'a> {
                 VisitorStep::StartTag(tag) => {
                     f.write_str("<")?;
                     f.write_str(tag.as_str())?;
-                    let mut attr = (*tag).attributes;
+                    let mut attr = tag.attributes;
                     while !attr.is_null() {
                         f.write_str(" ")?;
                         unsafe {

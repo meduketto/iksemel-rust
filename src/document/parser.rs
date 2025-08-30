@@ -111,3 +111,9 @@ impl DocumentParser {
         let _old_doc = self.builder.doc.replace(doc);
     }
 }
+
+impl Default for DocumentParser {
+    fn default() -> Self {
+        Self::new()
+    }
+}

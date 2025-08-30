@@ -12,17 +12,20 @@ mod arena;
 mod document;
 mod entities;
 mod parser;
+mod xpath;
 
 pub use arena::Arena;
 pub use arena::ArenaStats;
 pub use arena::NoMemory;
+
+pub use parser::SaxElement;
+pub use parser::SaxError;
+pub use parser::SaxHandler;
+pub use parser::SaxParser;
 
 pub use document::Cursor;
 pub use document::Document;
 pub use document::DocumentError;
 pub use document::DocumentParser;
 
-pub use parser::SaxElement;
-pub use parser::SaxError;
-pub use parser::SaxHandler;
-pub use parser::SaxParser;
+pub use xpath::XPath;

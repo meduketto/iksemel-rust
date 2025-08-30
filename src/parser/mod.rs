@@ -68,13 +68,23 @@ pub trait SaxHandler {
 /// bytes and invokes a handler function for each encountered
 /// XML element.
 ///
-/// # Limitations
+/// # SAX Limitations
 ///
-/// This parser has some limitations listed below. See the DESIGN.md
-/// file for reasons.
+/// This kind of parsing is extremely memory efficient, but it cannot
+/// do certain validations such as checking tag mismatches, or cannot
+/// run complex queries on the document without storing the information
+/// in external memory. The [DocumentParser](crate::DocumentParser) does
+/// all of that by building a [Document](crate::Document) tree in memory
+/// from the SAX events, and should be preferred when you don't have
+/// extreme memory constraints.
+///
+/// # Iksemel Limitations
+///
+/// Iksemel parser has some additional limitations listed below. See
+/// the DESIGN.md file for reasons.
 ///
 /// - Only the UTF-8 encoded byte streams are supported. You can parse
-///   other encodings by converting them before the parsing.
+///   other encodings by converting them to UTF-8 before the parsing.
 ///
 /// - DTDs are syntactically parsed but not used for validation.
 ///
