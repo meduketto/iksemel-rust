@@ -31,7 +31,7 @@ impl<'a> Tester<'a> {
         let nr_column = s.lines().last().unwrap().len();
 
         let mut parser = SaxParser::new();
-        assert!(parser.parse_bytes_finish(self, &s.as_bytes()).is_ok());
+        assert_eq!(parser.parse_bytes_finish(self, &s.as_bytes()), Ok(()));
         assert_eq!(self.current, self.expected.len());
         let location = parser.location();
         assert_eq!(location.lines, nr_lines);
@@ -312,6 +312,13 @@ fn entities() {
         SaxElement::EndTag("a"),
     ])
     .check("<a> &#x90; &#x900; &#x10abc; </a>");
+
+    Tester::new(&[
+        SaxElement::StartTag("a"),
+        SaxElement::CData(" \u{d7ff} \u{fffd} \u{10ffff} "),
+        SaxElement::EndTag("a"),
+    ])
+    .check("<a> &#xd7ff; &#xfffd; &#x10ffff; </a>");
 }
 
 #[test]
