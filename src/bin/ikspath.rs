@@ -14,7 +14,7 @@ use std::io::Read;
 use std::io::stdin;
 use std::process::ExitCode;
 
-use iksemel::{Document, DocumentError, DocumentParser};
+use iksemel::{Document, DocumentError, DocumentParser, XPath};
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 
@@ -78,7 +78,7 @@ fn main() -> ExitCode {
     let mut args = env::args();
 
     let mut file: Option<String> = None;
-    let mut expression: Option<String> = None;
+    let mut expression: Option<XPath> = None;
 
     // Skip the first argument (program name)
     args.next();
@@ -102,7 +102,7 @@ fn main() -> ExitCode {
             }
             _ => {
                 if expression.is_none() {
-                    expression = Some(arg.to_string());
+                    expression = Some(XPath::new(&arg));
                 } else {
                     eprintln!("Error: only one expression can be specified");
                     return ExitCode::FAILURE;
@@ -138,6 +138,10 @@ fn main() -> ExitCode {
     };
 
     println!("{:?}", document.arena_stats());
+
+    if let Some(xpath) = expression {
+        xpath.apply(document);
+    }
 
     ExitCode::SUCCESS
 }
