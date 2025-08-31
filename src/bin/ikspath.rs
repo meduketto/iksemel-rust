@@ -102,7 +102,13 @@ fn main() -> ExitCode {
             }
             _ => {
                 if expression.is_none() {
-                    expression = Some(XPath::new(&arg));
+                    match XPath::new(&arg) {
+                        Ok(xpath) => expression = Some(xpath),
+                        Err(err) => {
+                            eprintln!("Error: invalid XPath expression: {}", err);
+                            return ExitCode::FAILURE;
+                        }
+                    }
                 } else {
                     eprintln!("Error: only one expression can be specified");
                     return ExitCode::FAILURE;

@@ -8,20 +8,26 @@
 ** the License, or (at your option) any later version.
 */
 
+mod error;
+
 use crate::Document;
+
+use error::BadXPath;
 
 #[derive(Clone, Copy, Debug)]
 enum Axis {
     Child,
+    Descendant,
+    Attribute,
+    Self_,
+    DescendantOrSelf,
+    FollowingSibling,
+    Following,
+    Namespace,
     Parent,
     Ancestor,
-    Descendant,
-    Following,
-    Preceding,
-    FollowingSibling,
     PrecedingSibling,
-    Attribute,
-    DescendantOrSelf,
+    Preceding,
     AncestorOrSelf,
 }
 
@@ -40,10 +46,12 @@ enum State {
     Slash,
     AxisStart,
     Axis,
+    AxisColumn,
+    NodeTest,
 }
 
 impl XPath {
-    pub fn new(expression: &str) -> Self {
+    pub fn new(expression: &str) -> Result<Self, BadXPath> {
         let bytes = expression.as_bytes();
         let mut pos: usize = 0;
         let mut back: usize = 0;
@@ -86,7 +94,41 @@ impl XPath {
                 }
                 State::Axis => {
                     if c == b':' {
+                        axis = match &bytes[back..pos] {
+                            b"self" => Axis::Self_,
+                            b"parent" => Axis::Parent,
+                            b"ancestor" => Axis::Ancestor,
+                            b"descendant" => Axis::Descendant,
+                            b"following" => Axis::Following,
+                            b"preceding" => Axis::Preceding,
+                            b"following-sibling" => Axis::FollowingSibling,
+                            b"preceding-sibling" => Axis::PrecedingSibling,
+                            b"attribute" => Axis::Attribute,
+                            b"namespace" => Axis::Namespace,
+                            b"child" => Axis::Child,
+                            b"descendant-or-self" => Axis::DescendantOrSelf,
+                            b"ancestor-or-self" => Axis::AncestorOrSelf,
+                            _ => return Err(BadXPath),
+                        };
+                        state = State::AxisColumn;
                     } else if c == b'/' {
+                        steps.push(AxisStep {
+                            axis,
+                            name: String::from_utf8_lossy(&bytes[back..pos]).to_string(),
+                        });
+                        state = State::Slash;
+                    }
+                }
+                State::AxisColumn => {
+                    if c == b':' {
+                        back = pos + 1;
+                        state = State::NodeTest;
+                    } else {
+                        return Err(BadXPath);
+                    }
+                }
+                State::NodeTest => {
+                    if c == b'/' {
                         steps.push(AxisStep {
                             axis,
                             name: String::from_utf8_lossy(&bytes[back..pos]).to_string(),
@@ -103,7 +145,10 @@ impl XPath {
             State::Start => {}
             State::Slash => {}
             State::AxisStart => {}
-            State::Axis => {
+            State::AxisColumn => {
+                return Err(BadXPath);
+            }
+            State::Axis | State::NodeTest => {
                 steps.push(AxisStep {
                     axis,
                     name: String::from_utf8_lossy(&bytes[back..pos]).to_string(),
@@ -111,7 +156,7 @@ impl XPath {
             }
         }
 
-        XPath { steps }
+        Ok(XPath { steps })
     }
 
     pub fn apply(&self, document: Document) {
