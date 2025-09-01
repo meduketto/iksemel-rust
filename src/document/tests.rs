@@ -69,6 +69,15 @@ fn doc_parser() {
 }
 
 #[test]
+fn serialize_subset() {
+    let doc = Document::from_str("<a><b>lala</b><c>bibi</c><d><e>123</e></d></a>").unwrap();
+    assert_eq!(doc.first_child().to_string(), "<b>lala</b>");
+    assert_eq!(doc.find_tag("c").to_string(), "<c>bibi</c>");
+    assert_eq!(doc.find_tag("d").to_string(), "<d><e>123</e></d>");
+    assert_eq!(doc.find_tag("d").first_child().to_string(), "<e>123</e>");
+}
+
+#[test]
 fn bad_doc_parser() {
     assert_eq!(
         Document::from_str("<a>lala</b>").err(),

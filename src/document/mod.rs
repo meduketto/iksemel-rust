@@ -178,6 +178,7 @@ impl ArenaExt for Arena {
 struct Visitor {
     going_down: bool,
     current: *mut Node,
+    level: usize,
 }
 
 enum VisitorStep<'a> {
@@ -191,6 +192,7 @@ impl Visitor {
         Visitor {
             going_down: true,
             current: start,
+            level: 0,
         }
     }
 
@@ -201,12 +203,18 @@ impl Visitor {
                     let child = (*tag).children;
                     if !child.is_null() {
                         self.current = child;
+                        self.level += 1;
                         return;
                     }
                 };
             };
+            if self.level == 0 {
+                self.current = null_mut();
+                return;
+            }
             let next = (*self.current).next;
             if next.is_null() {
+                self.level -= 1;
                 self.current = (*self.current).parent;
                 self.going_down = false;
             } else {
@@ -274,6 +282,14 @@ impl Document {
 
     pub fn insert_cdata<'a>(&'a self, cdata: &str) -> Cursor<'a> {
         self.root().insert_cdata(self, cdata)
+    }
+
+    pub fn first_child(&self) -> Cursor {
+        self.root().first_child()
+    }
+
+    pub fn find_tag(&self, name: &str) -> Cursor {
+        self.root().find_tag(name)
     }
 
     pub fn str_size(&self) -> usize {
@@ -601,7 +617,7 @@ impl<'a> Cursor<'a> {
     // Navigation methods
     //
 
-    pub fn next(&self) -> Cursor {
+    pub fn next<'b>(&'a self) -> Cursor<'b> {
         null_cursor_guard!(self);
 
         unsafe {
@@ -631,7 +647,7 @@ impl<'a> Cursor<'a> {
         }
     }
 
-    pub fn first_child(&self) -> Cursor {
+    pub fn first_child<'b>(&'a self) -> Cursor<'b> {
         null_cursor_guard!(self);
 
         unsafe {
@@ -643,6 +659,17 @@ impl<'a> Cursor<'a> {
                 NodePayload::Tag(tag) => Cursor::new((*tag).children),
             }
         }
+    }
+
+    pub fn find_tag<'b, 'c>(&'a self, name: &'b str) -> Cursor<'c> {
+        let mut child = self.first_child();
+        while !child.is_null() {
+            if child.name() == name {
+                break;
+            }
+            child = child.next();
+        }
+        child
     }
 
     //

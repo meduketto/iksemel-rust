@@ -10,6 +10,7 @@
 
 mod error;
 
+use crate::Cursor;
 use crate::Document;
 
 use error::BadXPath;
@@ -160,8 +161,25 @@ impl XPath {
     }
 
     pub fn apply(&self, document: Document) {
+        let mut context: Vec<Cursor> = vec![document.root()];
         for step in &self.steps {
-            println!("{:?}", step);
+            let mut new_context: Vec<Cursor> = Vec::new();
+            for cursor in context {
+                match step.axis {
+                    Axis::Child => {
+                        let child = cursor.find_tag(&step.name);
+                        new_context.push(child);
+                    }
+                    _ => {
+                        return;
+                    }
+                }
+                println!("{:?}", step);
+            }
+            context = new_context;
+        }
+        for cursor in context {
+            println!("{}", cursor);
         }
     }
 }
