@@ -316,6 +316,7 @@ macro_rules! null_cursor {
         Cursor::new(null_mut() as *mut Node)
     };
 }
+
 macro_rules! null_cursor_guard {
     ($x:expr) => {
         unsafe {
@@ -661,7 +662,7 @@ impl<'a> Cursor<'a> {
         }
     }
 
-    pub fn find_tag<'b, 'c>(&'a self, name: &'b str) -> Cursor<'c> {
+    pub fn find_tag<'b>(&'a self, name: &str) -> Cursor<'a> {
         let mut child = self.first_child();
         while !child.is_null() {
             if child.name() == name {
@@ -846,13 +847,38 @@ impl<'a> std::fmt::Display for Cursor<'a> {
 #[cfg(test)]
 mod tests;
 
-// FIXME: unit tests
-// FIXME: docs
-// FIXME: Cursor and navigation funcs
-// FIXME: Drop
-// FIXME: find/xpath funcs
-// FIXME: delete funcs
-// FIXME: clone
-// FIXME: node property funcs
-
-// FIXME: hide attribute
+/// # Must not compile tests
+///
+/// Returned Cursor cannot outlive the Document:
+/// ```dontcompile
+/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+/// use iksemel::Document;
+/// use iksemel::Cursor;
+/// let c: Cursor;
+/// {
+///     let doc = Document::from_str("<a><b/></a>")?;
+///     c = doc.root();
+/// }
+/// println!("{}", c);
+/// # Ok(())
+/// # }
+/// ```
+///
+/// Returned Cursor cannot outlive the Document:
+/// ```
+/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+/// use iksemel::Document;
+/// use iksemel::Cursor;
+/// let c2: Cursor;
+/// {
+///     let doc = Document::from_str("<a><b/></a>")?;
+///     let c1 = doc.root().find_tag("b");
+///     c2 = c1;
+/// }
+/// println!("{}", c2);
+/// # Ok(())
+/// # }
+/// ```
+///
+#[cfg(doctest)]
+struct MustNotCompileTests;
