@@ -57,4 +57,5 @@
 /// # }
 /// ```
 ///
+#[cfg(doctest)]
 struct MustNotCompileTests;

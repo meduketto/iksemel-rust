@@ -63,6 +63,51 @@ fn attributes() {
 }
 
 #[test]
+fn navigation() {
+    let doc = Document::from_str("<a><b>123<c/>456</b>.,;<d/> <e x='1' y='2'> lala<f/></e>789</a>")
+        .unwrap();
+    assert_eq!(doc.root().first_tag().first_tag().to_string(), "<c/>");
+    assert_eq!(doc.root().first_child().next().to_string(), ".,;");
+    assert_eq!(doc.root().first_child().next().next().to_string(), "<d/>");
+    assert_eq!(doc.root().first_child().next_tag().to_string(), "<d/>");
+    assert_eq!(doc.root().last_child().to_string(), "789");
+    assert_eq!(
+        doc.root().last_child().previous().previous().to_string(),
+        " "
+    );
+    assert_eq!(
+        doc.root()
+            .last_child()
+            .previous_tag()
+            .previous_tag()
+            .to_string(),
+        "<d/>"
+    );
+    assert_eq!(
+        doc.root().last_child().previous().first_tag().to_string(),
+        "<f/>"
+    );
+    assert_eq!(
+        doc.first_child()
+            .first_tag()
+            .parent()
+            .next_tag()
+            .next_tag()
+            .find_tag("f")
+            .root()
+            .find_tag("e")
+            .first_child()
+            .to_string(),
+        " lala"
+    );
+    assert_eq!(doc.first_tag().first_tag().to_string(), "<c/>");
+    assert_eq!(
+        doc.find_tag("e").to_string(),
+        "<e x=\"1\" y=\"2\"> lala<f/></e>"
+    );
+}
+
+#[test]
 fn doc_parser() {
     let doc = Document::from_str("<a><b>123<c/>456</b><d x='1' y='2'>lala</d></a>");
     println!("{}", doc.unwrap());

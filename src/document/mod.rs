@@ -291,6 +291,10 @@ impl Document {
         self.root().first_child()
     }
 
+    pub fn first_tag<'a>(&'a self) -> Cursor<'a> {
+        self.root().first_tag()
+    }
+
     pub fn find_tag<'a>(&'a self, name: &str) -> Cursor<'a> {
         self.root().find_tag(name)
     }
@@ -626,6 +630,19 @@ impl<'a> Cursor<'a> {
         }
     }
 
+    pub fn next_tag(self) -> Cursor<'a> {
+        null_cursor_guard!(self);
+
+        let mut next = self.next();
+        loop {
+            if next.is_null() || next.is_tag() {
+                break;
+            }
+            next = next.next();
+        }
+        next
+    }
+
     pub fn previous(self) -> Cursor<'a> {
         null_cursor_guard!(self);
 
@@ -635,6 +652,19 @@ impl<'a> Cursor<'a> {
         }
     }
 
+    pub fn previous_tag(self) -> Cursor<'a> {
+        null_cursor_guard!(self);
+
+        let mut next = self.previous();
+        loop {
+            if next.is_null() || next.is_tag() {
+                break;
+            }
+            next = next.previous();
+        }
+        next
+    }
+
     pub fn parent(self) -> Cursor<'a> {
         null_cursor_guard!(self);
 
@@ -642,6 +672,20 @@ impl<'a> Cursor<'a> {
             let node = *self.node.get();
             Cursor::new((*node).parent)
         }
+    }
+
+    pub fn root(self) -> Cursor<'a> {
+        null_cursor_guard!(self);
+
+        let mut current = self;
+        loop {
+            let parent = current.clone().parent();
+            if parent.is_null() {
+                break;
+            }
+            current = parent;
+        }
+        current
     }
 
     pub fn first_child(self) -> Cursor<'a> {
@@ -655,6 +699,33 @@ impl<'a> Cursor<'a> {
                 }
                 NodePayload::Tag(tag) => Cursor::new((*tag).children),
             }
+        }
+    }
+
+    pub fn last_child(self) -> Cursor<'a> {
+        null_cursor_guard!(self);
+
+        unsafe {
+            let node = *self.node.get();
+            match (*node).payload {
+                NodePayload::CData(_) => {
+                    null_cursor!()
+                }
+                NodePayload::Tag(tag) => Cursor::new((*tag).last_child),
+            }
+        }
+    }
+
+    pub fn first_tag(self) -> Cursor<'a> {
+        null_cursor_guard!(self);
+
+        let child = self.first_child();
+        if child.is_null() {
+            null_cursor!()
+        } else if child.is_tag() {
+            child
+        } else {
+            child.next_tag()
         }
     }
 
@@ -677,6 +748,19 @@ impl<'a> Cursor<'a> {
         unsafe {
             let node = *self.node.get();
             node.is_null()
+        }
+    }
+
+    pub fn is_tag(&self) -> bool {
+        unsafe {
+            let node = *self.node.get();
+            if node.is_null() {
+                return false;
+            }
+            match (*node).payload {
+                NodePayload::CData(_) => false,
+                NodePayload::Tag(_) => true,
+            }
         }
     }
 
@@ -852,5 +936,4 @@ impl<'a> std::fmt::Display for Cursor<'a> {
 #[cfg(test)]
 mod tests;
 
-#[cfg(doctest)]
 mod nocompile;
