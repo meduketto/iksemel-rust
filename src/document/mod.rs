@@ -224,7 +224,7 @@ impl Visitor {
         }
     }
 
-    fn next(&mut self) -> Option<VisitorStep> {
+    fn next(&mut self) -> Option<VisitorStep<'_>> {
         if self.current.is_null() {
             return None;
         }
@@ -267,9 +267,12 @@ impl Document {
     pub fn root<'a>(&'a self) -> Cursor<'a> {
         unsafe {
             let node = *self.root_node.get();
-
             Cursor::new(node)
         }
+    }
+
+    pub fn arena_stats(&self) -> ArenaStats {
+        self.arena.stats()
     }
 
     //
@@ -284,11 +287,11 @@ impl Document {
         self.root().insert_cdata(self, cdata)
     }
 
-    pub fn first_child(&self) -> Cursor {
+    pub fn first_child<'a>(&'a self) -> Cursor<'a> {
         self.root().first_child()
     }
 
-    pub fn find_tag(&self, name: &str) -> Cursor {
+    pub fn find_tag<'a>(&'a self, name: &str) -> Cursor<'a> {
         self.root().find_tag(name)
     }
 
@@ -298,10 +301,6 @@ impl Document {
 
     pub fn to_string(&self) -> String {
         self.root().to_string()
-    }
-
-    pub fn arena_stats(&self) -> ArenaStats {
-        self.arena.stats()
     }
 }
 
@@ -618,37 +617,34 @@ impl<'a> Cursor<'a> {
     // Navigation methods
     //
 
-    pub fn next<'b>(&'a self) -> Cursor<'b> {
+    pub fn next(self) -> Cursor<'a> {
         null_cursor_guard!(self);
 
         unsafe {
             let node = *self.node.get();
-
             Cursor::new((*node).next)
         }
     }
 
-    pub fn previous(&self) -> Cursor {
+    pub fn previous(self) -> Cursor<'a> {
         null_cursor_guard!(self);
 
         unsafe {
             let node = *self.node.get();
-
             Cursor::new((*node).previous)
         }
     }
 
-    pub fn parent(&self) -> Cursor {
+    pub fn parent(self) -> Cursor<'a> {
         null_cursor_guard!(self);
 
         unsafe {
             let node = *self.node.get();
-
             Cursor::new((*node).parent)
         }
     }
 
-    pub fn first_child<'b>(&'a self) -> Cursor<'b> {
+    pub fn first_child(self) -> Cursor<'a> {
         null_cursor_guard!(self);
 
         unsafe {
@@ -662,7 +658,7 @@ impl<'a> Cursor<'a> {
         }
     }
 
-    pub fn find_tag<'b>(&'a self, name: &str) -> Cursor<'a> {
+    pub fn find_tag(self, name: &str) -> Cursor<'a> {
         let mut child = self.first_child();
         while !child.is_null() {
             if child.name() == name {
@@ -794,6 +790,15 @@ impl<'a> Cursor<'a> {
     }
 }
 
+impl Clone for Cursor<'_> {
+    fn clone(&self) -> Self {
+        Cursor {
+            node: self.get_node_ptr().into(),
+            marker: PhantomData,
+        }
+    }
+}
+
 impl<'a> std::fmt::Display for Cursor<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         unsafe {
@@ -847,38 +852,5 @@ impl<'a> std::fmt::Display for Cursor<'a> {
 #[cfg(test)]
 mod tests;
 
-/// # Must not compile tests
-///
-/// Returned Cursor cannot outlive the Document:
-/// ```dontcompile
-/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
-/// use iksemel::Document;
-/// use iksemel::Cursor;
-/// let c: Cursor;
-/// {
-///     let doc = Document::from_str("<a><b/></a>")?;
-///     c = doc.root();
-/// }
-/// println!("{}", c);
-/// # Ok(())
-/// # }
-/// ```
-///
-/// Returned Cursor cannot outlive the Document:
-/// ```
-/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
-/// use iksemel::Document;
-/// use iksemel::Cursor;
-/// let c2: Cursor;
-/// {
-///     let doc = Document::from_str("<a><b/></a>")?;
-///     let c1 = doc.root().find_tag("b");
-///     c2 = c1;
-/// }
-/// println!("{}", c2);
-/// # Ok(())
-/// # }
-/// ```
-///
 #[cfg(doctest)]
-struct MustNotCompileTests;
+mod nocompile;

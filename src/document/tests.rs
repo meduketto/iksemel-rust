@@ -78,6 +78,22 @@ fn serialize_subset() {
 }
 
 #[test]
+fn cursor_clone() {
+    let doc = Document::from_str("<a><b>lala</b><c>bibi</c><d><e>123</e></d></a>").unwrap();
+
+    let c4: Cursor;
+    {
+        let c1 = doc.root();
+        c4 = c1.clone();
+        let c2 = c1.clone().find_tag("d").first_child();
+        assert_eq!(c2.first_child().to_string(), "123");
+        let c3 = c1.find_tag("b").first_child();
+        assert_eq!(c3.to_string(), "lala");
+    }
+    assert_eq!(c4.find_tag("c").first_child().to_string(), "bibi");
+}
+
+#[test]
 fn bad_doc_parser() {
     assert_eq!(
         Document::from_str("<a>lala</b>").err(),
