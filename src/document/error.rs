@@ -53,4 +53,6 @@ pub(super) mod description {
     pub(in super::super) const TAG_MISMATCH: &str = "start and end tags have different names";
     pub(in super::super) const DUPLICATE_ATTRIBUTE: &str =
         "attribute name already used in this tag";
+    pub(in super::super) const CDATA_ATTRIBUTE: &str = "attributes cannot be set on CDATA elements";
+    pub(in super::super) const NULL_CURSOR_EDIT: &str = "null cursor cannot edit the document";
 }

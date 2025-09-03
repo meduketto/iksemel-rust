@@ -53,7 +53,15 @@ impl SaxHandler for DocumentBuilder {
                     self.node = new_tag.get_node_ptr();
                 }
                 SaxElement::Attribute(name, value) => {
-                    Cursor::new(self.node).set_attribute(doc, name, value);
+                    match Cursor::new(self.node).insert_attribute(doc, name, value) {
+                        Ok(_) => (),
+                        Err(DocumentError::NoMemory) => {
+                            return Err(SaxError::NoMemory);
+                        }
+                        Err(DocumentError::BadXml(msg)) => {
+                            return Err(SaxError::BadXml(msg));
+                        }
+                    }
                 }
                 SaxElement::EmptyElementTag => {
                     self.node = Cursor::new(self.node).parent().get_node_ptr();

@@ -48,18 +48,44 @@ fn it_works() {
 #[test]
 fn attributes() {
     let doc = Document::new("doc");
-    let _ = doc
-        .insert_tag("a")
-        .set_attribute(&doc, "i", "1")
-        .set_attribute(&doc, "j", "2");
+    let a = doc.insert_tag("a");
+    assert!(a.insert_attribute(&doc, "i", "1").unwrap().is_tag());
+    assert_eq!(
+        a.insert_attribute(&doc, "i", "1").unwrap_err(),
+        DocumentError::BadXml(description::DUPLICATE_ATTRIBUTE)
+    );
+    assert!(a.insert_attribute(&doc, "j", "2").unwrap().is_tag());
+    assert_eq!(
+        a.insert_attribute(&doc, "i", "1").unwrap_err(),
+        DocumentError::BadXml(description::DUPLICATE_ATTRIBUTE)
+    );
+    assert_eq!(
+        a.insert_attribute(&doc, "j", "1").unwrap_err(),
+        DocumentError::BadXml(description::DUPLICATE_ATTRIBUTE)
+    );
     let _ = doc
         .insert_tag("b")
-        .set_attribute(&doc, "i", "1")
-        .set_attribute(&doc, "i", "2");
+        .set_attribute(&doc, "i", Some("1"))
+        .unwrap()
+        .set_attribute(&doc, "i", Some("2"))
+        .unwrap();
     check_doc_xml(&doc, "<doc><a i=\"1\" j=\"2\"/><b i=\"2\"/></doc>");
 
-    let _ = doc.root().first_child().set_attribute(&doc, "k", "3");
+    let _ = doc.root().first_child().set_attribute(&doc, "k", Some("3"));
     check_doc_xml(&doc, "<doc><a i=\"1\" j=\"2\" k=\"3\"/><b i=\"2\"/></doc>");
+
+    assert_eq!(doc.find_tag("a").attribute("i"), Some("1"));
+    assert_eq!(doc.find_tag("a").attribute("j"), Some("2"));
+    assert_eq!(doc.find_tag("a").attribute("k"), Some("3"));
+    assert_eq!(doc.find_tag("b").attribute("i"), Some("2"));
+
+    let _ = doc.find_tag("a").set_attribute(&doc, "i", None);
+    let _ = doc.find_tag("a").set_attribute(&doc, "x", None);
+    check_doc_xml(&doc, "<doc><a j=\"2\" k=\"3\"/><b i=\"2\"/></doc>");
+    let _ = doc.find_tag("a").set_attribute(&doc, "k", None);
+    check_doc_xml(&doc, "<doc><a j=\"2\"/><b i=\"2\"/></doc>");
+    let _ = doc.find_tag("a").set_attribute(&doc, "j", None);
+    check_doc_xml(&doc, "<doc><a/><b i=\"2\"/></doc>");
 }
 
 #[test]
@@ -112,6 +138,7 @@ fn navigation() {
 fn doc_parser() {
     let doc = Document::from_str("<a><b>123<c/>456</b><d x='1' y='2'>lala</d></a>");
     println!("{}", doc.unwrap());
+    // FIXME:
 }
 
 #[test]
@@ -147,6 +174,7 @@ fn null_checks() {
     assert_eq!(doc.root().next().is_null(), true);
     assert_eq!(doc.root().next().is_tag(), false);
     assert_eq!(doc.root().next().name(), "");
+    assert_eq!(doc.root().next().attribute("lala"), None);
     assert_eq!(doc.root().next().cdata(), "");
     assert_eq!(doc.root().next().str_size(), 0);
     // FIXME: to_string
@@ -165,6 +193,8 @@ fn null_checks() {
     assert!(doc.root().next().find_tag("lala").is_null());
     // edits
     // FIXME: edits
+    assert!(doc.root().next().insert_attribute(&doc, "k", "v").is_err());
+    assert!(doc.root().next().set_attribute(&doc, "k", None).is_err());
 }
 
 #[test]
@@ -180,5 +210,9 @@ fn bad_doc_parser() {
     assert_eq!(
         Document::from_str("<a><b><c/></b><d></d><e></e2></a>").err(),
         Some(DocumentError::BadXml(TAG_MISMATCH))
+    );
+    assert_eq!(
+        Document::from_str("<a><b x=\"1\" y=\"2\" x=\"abc\"/></a>").err(),
+        Some(DocumentError::BadXml(DUPLICATE_ATTRIBUTE))
     );
 }

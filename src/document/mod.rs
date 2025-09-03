@@ -12,9 +12,14 @@ mod error;
 mod parser;
 
 use std::cell::UnsafeCell;
+use std::fmt::Debug;
 use std::marker::PhantomData;
 use std::marker::PhantomPinned;
+use std::ptr::NonNull;
 use std::ptr::null_mut;
+
+use crate::NoMemory;
+use crate::document::error::description;
 
 use super::arena::Arena;
 use super::arena::ArenaStats;
@@ -116,7 +121,7 @@ trait ArenaExt {
     fn alloc_node(&self, payload: NodePayload) -> *mut Node;
     fn alloc_tag(&self, tag_name: &str) -> *mut Tag;
     fn alloc_cdata(&self, cdata_value: &str) -> *mut CData;
-    fn alloc_attribute(&self, name: &str, value: &str) -> *mut Attribute;
+    fn alloc_attribute(&self, name: &str, value: &str) -> Result<NonNull<Attribute>, NoMemory>;
 }
 
 impl ArenaExt for Arena {
@@ -158,10 +163,10 @@ impl ArenaExt for Arena {
         cdata
     }
 
-    fn alloc_attribute(&self, name: &str, value: &str) -> *mut Attribute {
-        let name = self.push_str(name).unwrap();
-        let value = self.push_str(value).unwrap();
-        let attribute = self.alloc_struct::<Attribute>().unwrap().as_ptr();
+    fn alloc_attribute(&self, name: &str, value: &str) -> Result<NonNull<Attribute>, NoMemory> {
+        let name = self.push_str(name)?;
+        let value = self.push_str(value)?;
+        let attribute = self.alloc_struct::<Attribute>()?.as_ptr();
         unsafe {
             (*attribute).next = null_mut();
             (*attribute).previous = null_mut();
@@ -169,9 +174,9 @@ impl ArenaExt for Arena {
             (*attribute).name_size = name.len();
             (*attribute).value = value.as_ptr();
             (*attribute).value_size = value.len();
-        }
 
-        attribute
+            Ok(NonNull::new_unchecked(attribute))
+        }
     }
 }
 
@@ -310,7 +315,7 @@ impl Document {
 
 impl<'a> std::fmt::Display for Document {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        self.root().fmt(f)
+        std::fmt::Display::fmt(&self.root(), f)
     }
 }
 
@@ -456,35 +461,33 @@ impl<'a> Cursor<'a> {
         }
     }
 
-    pub fn set_attribute<'b, 'c>(
+    pub fn insert_attribute<'b, 'c>(
         &'a self,
         document: &'b Document,
         name: &'c str,
         value: &'c str,
-    ) -> Cursor<'b> {
-        null_cursor_guard!(self);
+    ) -> Result<Cursor<'b>, DocumentError> {
+        if self.get_node_ptr().is_null() {
+            return Err(DocumentError::BadXml(description::NULL_CURSOR_EDIT));
+        }
 
-        let value = document.arena.push_str(value).unwrap();
         unsafe {
             let node = *self.node.get();
             match (*node).payload {
                 NodePayload::CData(_) => {
-                    // Cannot set attributes on a cdata element
-                    null_cursor!()
+                    return Err(DocumentError::BadXml(description::CDATA_ATTRIBUTE));
                 }
                 NodePayload::Tag(tag) => {
                     let mut attr = (*tag).attributes;
                     while !attr.is_null() {
                         if name == (*attr).name_as_str() {
-                            // Existing attribute, change the value
-                            (*attr).value = value.as_ptr();
-                            (*attr).value_size = value.len();
-                            return Cursor::new(node);
+                            // Two attributes with the same name
+                            return Err(DocumentError::BadXml(description::DUPLICATE_ATTRIBUTE));
                         }
                         attr = (*attr).next;
                     }
-                    // Add a new attribute
-                    let attribute = document.arena.alloc_attribute(name, value);
+                    // Add the new attribute
+                    let attribute = document.arena.alloc_attribute(name, value)?.as_ptr();
                     if (*tag).attributes.is_null() {
                         (*tag).attributes = attribute;
                     }
@@ -494,7 +497,78 @@ impl<'a> Cursor<'a> {
                     }
                     (*tag).last_attribute = attribute;
 
-                    Cursor::new(node)
+                    Ok(Cursor::new(node))
+                }
+            }
+        }
+    }
+
+    pub fn set_attribute<'b, 'c>(
+        &'a self,
+        document: &'b Document,
+        name: &'c str,
+        value: Option<&'c str>,
+    ) -> Result<Cursor<'b>, DocumentError> {
+        if self.get_node_ptr().is_null() {
+            return Err(DocumentError::BadXml(description::NULL_CURSOR_EDIT));
+        }
+
+        unsafe {
+            let node = *self.node.get();
+            match (*node).payload {
+                NodePayload::CData(_) => {
+                    return Err(DocumentError::BadXml(description::CDATA_ATTRIBUTE));
+                }
+                NodePayload::Tag(tag) => {
+                    let mut attr = (*tag).attributes;
+                    while !attr.is_null() {
+                        if name == (*attr).name_as_str() {
+                            // Existing attribute, change the value
+                            match value {
+                                None => {
+                                    if !(*attr).next.is_null() {
+                                        (*(*attr).next).previous = (*attr).previous;
+                                    }
+                                    if !(*attr).previous.is_null() {
+                                        (*(*attr).previous).next = (*attr).next;
+                                    }
+                                    if (*tag).attributes == attr {
+                                        (*tag).attributes = (*attr).next;
+                                    }
+                                    if (*tag).last_attribute == attr {
+                                        (*tag).last_attribute = (*attr).previous;
+                                    }
+                                }
+                                Some(value) => {
+                                    let value = document.arena.push_str(value)?;
+                                    (*attr).value = value.as_ptr();
+                                    (*attr).value_size = value.len();
+                                    return Ok(Cursor::new(node));
+                                }
+                            }
+                        }
+                        attr = (*attr).next;
+                    }
+                    match value {
+                        None => {
+                            // Attribute already non existent
+                            return Ok(Cursor::new(node));
+                        }
+                        Some(value) => {
+                            // Add a new attribute
+                            let attribute = document.arena.alloc_attribute(name, value)?.as_ptr();
+                            if (*tag).attributes.is_null() {
+                                (*tag).attributes = attribute;
+                            }
+                            if !(*tag).last_attribute.is_null() {
+                                (*(*tag).last_attribute).next = attribute;
+                                (*attribute).previous = (*tag).last_attribute;
+                            }
+                            (*tag).last_attribute = attribute;
+
+                            Ok(Cursor::new(node))
+                        }
+                    }
                 }
             }
         }
@@ -780,6 +854,26 @@ impl<'a> Cursor<'a> {
         }
     }
 
+    pub fn attribute(&self, name: &str) -> Option<&str> {
+        let node = self.get_node_ptr();
+        if node.is_null() {
+            return None;
+        }
+        unsafe {
+            if let NodePayload::Tag(tag) = (*node).payload {
+                let mut attr = (*tag).attributes;
+                while !attr.is_null() {
+                    let attr_name = (*attr).name_as_str();
+                    if attr_name == name {
+                        return Some((*attr).value_as_str());
+                    }
+                    attr = (*attr).next;
+                }
+            }
+        }
+        None
+    }
+
     pub fn cdata(&self) -> &str {
         unsafe {
             let node = *self.node.get();
@@ -896,6 +990,12 @@ impl Clone for Cursor<'_> {
             node: self.get_node_ptr().into(),
             marker: PhantomData,
         }
+    }
+}
+
+impl Debug for Cursor<'_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Cursor ({:?})", self.get_node_ptr())
     }
 }
 
