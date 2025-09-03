@@ -780,6 +780,22 @@ impl<'a> Cursor<'a> {
         }
     }
 
+    pub fn cdata(&self) -> &str {
+        unsafe {
+            let node = *self.node.get();
+            if node.is_null() {
+                return "";
+            }
+            match (*node).payload {
+                NodePayload::CData(cdata) => (*cdata).as_str(),
+                NodePayload::Tag(_) => {
+                    // Not a CData
+                    ""
+                }
+            }
+        }
+    }
+
     pub fn str_size(&self) -> usize {
         unsafe {
             if (*self.node.get()).is_null() {

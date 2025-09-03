@@ -70,6 +70,7 @@ fn navigation() {
     assert_eq!(doc.root().first_child().next().to_string(), ".,;");
     assert_eq!(doc.root().first_child().next().next().to_string(), "<d/>");
     assert_eq!(doc.root().first_child().next_tag().to_string(), "<d/>");
+    assert_eq!(doc.root().first_tag().last_child().cdata(), "456");
     assert_eq!(doc.root().last_child().to_string(), "789");
     assert_eq!(
         doc.root().last_child().previous().previous().to_string(),
@@ -146,6 +147,7 @@ fn null_checks() {
     assert_eq!(doc.root().next().is_null(), true);
     assert_eq!(doc.root().next().is_tag(), false);
     assert_eq!(doc.root().next().name(), "");
+    assert_eq!(doc.root().next().cdata(), "");
     assert_eq!(doc.root().next().str_size(), 0);
     // FIXME: to_string
     // FIXME: display

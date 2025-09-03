@@ -11,7 +11,7 @@
 /// # Must not compile tests
 ///
 /// Returned Cursor cannot outlive the Document:
-/// ```dontcompile
+/// ```compile_fail
 /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
 /// use iksemel::Document;
 /// use iksemel::Cursor;
@@ -26,7 +26,7 @@
 /// ```
 ///
 /// Cursor clone cannot outlive the Document:
-/// ```dontcompile
+/// ```compile_fail
 /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
 /// use iksemel::Document;
 /// use iksemel::Cursor;
@@ -42,7 +42,7 @@
 /// ```
 ///
 /// Returned Cursor cannot outlive the Document:
-/// ```dontcompile
+/// ```compile_fail
 /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
 /// use iksemel::Document;
 /// use iksemel::Cursor;
