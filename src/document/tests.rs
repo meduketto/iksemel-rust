@@ -139,6 +139,33 @@ fn cursor_clone() {
 }
 
 #[test]
+fn null_checks() {
+    let doc = Document::new("a");
+
+    // property
+    assert_eq!(doc.root().next().is_null(), true);
+    assert_eq!(doc.root().next().is_tag(), false);
+    assert_eq!(doc.root().next().name(), "");
+    assert_eq!(doc.root().next().str_size(), 0);
+    // FIXME: to_string
+    // FIXME: display
+    assert_eq!(doc.root().next().clone().is_null(), true);
+    // navigation
+    assert!(doc.root().next().next().is_null());
+    assert!(doc.root().next().next_tag().is_null());
+    assert!(doc.root().next().previous().is_null());
+    assert!(doc.root().next().previous_tag().is_null());
+    assert!(doc.root().next().first_child().is_null());
+    assert!(doc.root().next().last_child().is_null());
+    assert!(doc.root().next().first_tag().is_null());
+    assert!(doc.root().next().parent().is_null());
+    assert!(doc.root().next().root().is_null());
+    assert!(doc.root().next().find_tag("lala").is_null());
+    // edits
+    // FIXME: edits
+}
+
+#[test]
 fn bad_doc_parser() {
     assert_eq!(
         Document::from_str("<a>lala</b>").err(),
