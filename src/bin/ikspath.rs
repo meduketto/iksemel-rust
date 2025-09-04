@@ -146,7 +146,7 @@ fn main() -> ExitCode {
     println!("{:?}", document.arena_stats());
 
     if let Some(xpath) = expression {
-        xpath.apply(document);
+        xpath.apply(&document);
     }
 
     ExitCode::SUCCESS
