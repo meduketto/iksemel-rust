@@ -24,7 +24,9 @@ pub use parser::SaxError;
 pub use parser::SaxHandler;
 pub use parser::SaxParser;
 
+pub use document::Attributes;
 pub use document::Cursor;
+pub use document::DescendantOrSelf;
 pub use document::Document;
 pub use document::DocumentError;
 pub use document::DocumentParser;

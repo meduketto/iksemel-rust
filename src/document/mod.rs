@@ -28,6 +28,7 @@ use super::entities::escape;
 use super::entities::escape_fmt;
 use super::entities::escaped_size;
 pub use error::DocumentError;
+pub use iterators::Attributes;
 pub use iterators::DescendantOrSelf;
 pub use parser::DocumentParser;
 
@@ -823,6 +824,10 @@ impl<'a> Cursor<'a> {
     //
     // Iterator methods
     //
+
+    pub fn attributes(self) -> Attributes<'a> {
+        Attributes::new(self.clone())
+    }
 
     pub fn descendant_or_self_iter(self) -> DescendantOrSelf<'a> {
         DescendantOrSelf::new(self.clone())

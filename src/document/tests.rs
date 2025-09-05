@@ -74,6 +74,12 @@ fn attributes() {
     let _ = doc.root().first_child().set_attribute(&doc, "k", Some("3"));
     check_doc_xml(&doc, "<doc><a i=\"1\" j=\"2\" k=\"3\"/><b i=\"2\"/></doc>");
 
+    let mut iter = doc.first_child().attributes();
+    assert_eq!(iter.next(), Some(("i", "1")));
+    assert_eq!(iter.next(), Some(("j", "2")));
+    assert_eq!(iter.next(), Some(("k", "3")));
+    assert_eq!(iter.next(), None);
+
     assert_eq!(doc.find_tag("a").attribute("i"), Some("1"));
     assert_eq!(doc.find_tag("a").attribute("j"), Some("2"));
     assert_eq!(doc.find_tag("a").attribute("k"), Some("3"));
@@ -206,6 +212,8 @@ fn null_checks() {
     assert!(doc.root().next().parent().is_null());
     assert!(doc.root().next().root().is_null());
     assert!(doc.root().next().find_tag("lala").is_null());
+    // iterators
+    // FIXME: descens, attribs
     // edits
     // FIXME: edits
     assert!(doc.root().next().insert_attribute(&doc, "k", "v").is_err());

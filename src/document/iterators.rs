@@ -8,7 +8,58 @@
 ** the License, or (at your option) any later version.
 */
 
+use std::marker::PhantomData;
+use std::ptr::null_mut;
+
 use crate::Cursor;
+
+use super::Attribute;
+use super::NodePayload;
+
+pub struct Attributes<'a> {
+    current: *mut Attribute,
+    marker: PhantomData<Cursor<'a>>,
+}
+
+impl<'a> Attributes<'a> {
+    pub fn new(cursor: Cursor<'a>) -> Self {
+        let node = cursor.get_node_ptr();
+        if node.is_null() {
+            return Attributes {
+                current: null_mut(),
+                marker: PhantomData,
+            };
+        }
+        unsafe {
+            let attr = match (*node).payload {
+                NodePayload::Tag(tag) => (*tag).attributes,
+                NodePayload::CData(_) => null_mut::<Attribute>(),
+            };
+            Attributes {
+                current: attr,
+                marker: PhantomData,
+            }
+        }
+    }
+}
+
+impl<'a> Iterator for Attributes<'a> {
+    type Item = (&'a str, &'a str);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.current.is_null() {
+            return None;
+        }
+        unsafe {
+            let result = Some((
+                (*self.current).name_as_str(),
+                (*self.current).value_as_str(),
+            ));
+            self.current = (*self.current).next;
+            result
+        }
+    }
+}
 
 pub struct DescendantOrSelf<'a> {
     current: Cursor<'a>,
