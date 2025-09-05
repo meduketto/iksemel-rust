@@ -54,12 +54,18 @@ impl XPathSequence<'_> {
     }
 }
 
+impl Default for XPathSequence<'_> {
+    fn default() -> Self {
+        XPathSequence::new()
+    }
+}
+
 impl std::fmt::Display for XPathSequence<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         for value in self.items.iter() {
             match value {
                 XPathValue::Node(node) => {
-                    write!(f, "{}\n", node)?;
+                    writeln!(f, "{}", node)?;
                 }
             }
         }
@@ -255,7 +261,7 @@ impl XPath {
         Ok(new_context)
     }
 
-    pub fn apply<'a, 'b>(&'a self, document: &'b Document) -> Result<XPathSequence<'b>, BadXPath> {
+    pub fn apply<'b>(&self, document: &'b Document) -> Result<XPathSequence<'b>, BadXPath> {
         let mut context = XPathSequence::new();
         for step in &self.steps {
             context = match step.axis {

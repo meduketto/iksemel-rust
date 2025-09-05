@@ -207,16 +207,16 @@ impl Visitor {
 
     fn step(&mut self) {
         unsafe {
-            if self.going_down {
-                if let NodePayload::Tag(tag) = (*self.current).payload {
-                    let child = (*tag).children;
-                    if !child.is_null() {
-                        self.current = child;
-                        self.level += 1;
-                        return;
-                    }
-                };
-            };
+            if self.going_down
+                && let NodePayload::Tag(tag) = (*self.current).payload
+            {
+                let child = (*tag).children;
+                if !child.is_null() {
+                    self.current = child;
+                    self.level += 1;
+                    return;
+                }
+            }
             if self.level == 0 {
                 self.current = null_mut();
                 return;
@@ -317,7 +317,7 @@ impl Document {
     }
 }
 
-impl<'a> std::fmt::Display for Document {
+impl std::fmt::Display for Document {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         std::fmt::Display::fmt(&self.root(), f)
     }
@@ -385,7 +385,7 @@ impl<'a> Cursor<'a> {
             match (*node).payload {
                 NodePayload::CData(_) => {
                     // Cannot insert a tag into a cdata element
-                    return Err(DocumentError::BadXml(description::CDATA_CHILDREN));
+                    Err(DocumentError::BadXml(description::CDATA_CHILDREN))
                 }
                 NodePayload::Tag(tag) => {
                     let new_tag = document.arena.alloc_tag(tag_name)?.as_ptr();
@@ -506,9 +506,7 @@ impl<'a> Cursor<'a> {
 
         unsafe {
             match (*node).payload {
-                NodePayload::CData(_) => {
-                    return Err(DocumentError::BadXml(description::CDATA_ATTRIBUTE));
-                }
+                NodePayload::CData(_) => Err(DocumentError::BadXml(description::CDATA_ATTRIBUTE)),
                 NodePayload::Tag(tag) => {
                     let mut attr = (*tag).attributes;
                     while !attr.is_null() {
@@ -545,9 +543,7 @@ impl<'a> Cursor<'a> {
 
         unsafe {
             match (*node).payload {
-                NodePayload::CData(_) => {
-                    return Err(DocumentError::BadXml(description::CDATA_ATTRIBUTE));
-                }
+                NodePayload::CData(_) => Err(DocumentError::BadXml(description::CDATA_ATTRIBUTE)),
                 NodePayload::Tag(tag) => {
                     let mut attr = (*tag).attributes;
                     while !attr.is_null() {
@@ -581,7 +577,7 @@ impl<'a> Cursor<'a> {
                     match value {
                         None => {
                             // Attribute already non existent
-                            return Ok(Cursor::new(node));
+                            Ok(Cursor::new(node))
                         }
                         Some(value) => {
                             // Add a new attribute
@@ -612,20 +608,18 @@ impl<'a> Cursor<'a> {
 
         unsafe {
             match (*node).payload {
-                NodePayload::CData(_) => {
-                    return Err(DocumentError::BadXml(description::CDATA_CHILDREN));
-                }
+                NodePayload::CData(_) => Err(DocumentError::BadXml(description::CDATA_CHILDREN)),
                 NodePayload::Tag(tag) => {
                     let last = (*tag).last_child;
-                    if !last.is_null() {
-                        if let NodePayload::CData(cdata_node) = (*last).payload {
-                            let old_s = (*cdata_node).as_str();
-                            let s = document.arena.concat_str(old_s, cdata).unwrap();
-                            (*cdata_node).value = s.as_ptr();
-                            (*cdata_node).value_size = s.len();
+                    if !last.is_null()
+                        && let NodePayload::CData(cdata_node) = (*last).payload
+                    {
+                        let old_s = (*cdata_node).as_str();
+                        let s = document.arena.concat_str(old_s, cdata).unwrap();
+                        (*cdata_node).value = s.as_ptr();
+                        (*cdata_node).value_size = s.len();
 
-                            return Ok(Cursor::new(last));
-                        }
+                        return Ok(Cursor::new(last));
                     }
 
                     let new_cdata = document.arena.alloc_cdata(cdata)?.as_ptr();

@@ -109,14 +109,12 @@ impl<'a> Iterator for DescendantOrSelf<'a> {
         }
         let result = self.current.clone();
         loop {
-            if self.going_down {
-                if self.current.is_tag() {
-                    let child = self.current.clone().first_child();
-                    if !child.is_null() {
-                        self.current = child;
-                        self.level += 1;
-                        return Some(result);
-                    }
+            if self.going_down && self.current.is_tag() {
+                let child = self.current.clone().first_child();
+                if !child.is_null() {
+                    self.current = child;
+                    self.level += 1;
+                    return Some(result);
                 }
             };
             if self.level == 0 {
