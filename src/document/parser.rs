@@ -59,7 +59,7 @@ impl SaxHandler for DocumentBuilder {
                     self.node = Cursor::new(self.node).parent().get_node_ptr();
                 }
                 SaxElement::CData(cdata) => {
-                    Cursor::new(self.node).insert_cdata(doc, cdata);
+                    Cursor::new(self.node).insert_cdata(doc, cdata)?;
                 }
                 SaxElement::EndTag(name) => {
                     if name != &Cursor::new(self.node).name() {

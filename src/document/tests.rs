@@ -45,7 +45,8 @@ fn it_works() {
 
     p2.prepend_cdata(&doc, "bar")
         .unwrap()
-        .prepend_tag(&doc, "p3");
+        .prepend_tag(&doc, "p3")
+        .unwrap();
 
     check_doc_xml(
         &doc,

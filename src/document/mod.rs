@@ -347,7 +347,7 @@ macro_rules! cursor_edit_guards {
         }
         unsafe {
             if (*node).next == node && (*node).previous == node {
-                return Err(DocumentError::BadXml(description::NULL_CURSOR_EDIT));
+                return Err(DocumentError::BadXml(description::REMOVED_EDIT));
             }
         }
         node
@@ -502,12 +502,9 @@ impl<'a> Cursor<'a> {
         name: &'c str,
         value: &'c str,
     ) -> Result<Cursor<'b>, DocumentError> {
-        if self.get_node_ptr().is_null() {
-            return Err(DocumentError::BadXml(description::NULL_CURSOR_EDIT));
-        }
+        let node = cursor_edit_guards!(self);
 
         unsafe {
-            let node = *self.node.get();
             match (*node).payload {
                 NodePayload::CData(_) => {
                     return Err(DocumentError::BadXml(description::CDATA_ATTRIBUTE));
@@ -544,12 +541,9 @@ impl<'a> Cursor<'a> {
         name: &'c str,
         value: Option<&'c str>,
     ) -> Result<Cursor<'b>, DocumentError> {
-        if self.get_node_ptr().is_null() {
-            return Err(DocumentError::BadXml(description::NULL_CURSOR_EDIT));
-        }
+        let node = cursor_edit_guards!(self);
 
         unsafe {
-            let node = *self.node.get();
             match (*node).payload {
                 NodePayload::CData(_) => {
                     return Err(DocumentError::BadXml(description::CDATA_ATTRIBUTE));
