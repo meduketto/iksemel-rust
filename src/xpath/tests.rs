@@ -26,28 +26,38 @@ fn check_path(document: &Document, expression: &str, expected: &[&str]) {
 
 #[test]
 fn simple_steps() {
-    let doc = Document::from_str("<a><b><c/></b><d><e>123</e><f>456<b/>789</f><b>abc</b></d></a>")
-        .unwrap();
+    let doc = Document::from_str(
+        "<a><b><b/></b><d><e>123</e><f>456<b i=\"1\"/>789</f><b>abc</b></d></a>",
+    )
+    .unwrap();
 
     check_path(
         &doc,
         "/*",
-        &["<a><b><c/></b><d><e>123</e><f>456<b/>789</f><b>abc</b></d></a>"],
+        &["<a><b><b/></b><d><e>123</e><f>456<b i=\"1\"/>789</f><b>abc</b></d></a>"],
     );
 
     check_path(
         &doc,
         "/a",
-        &["<a><b><c/></b><d><e>123</e><f>456<b/>789</f><b>abc</b></d></a>"],
+        &["<a><b><b/></b><d><e>123</e><f>456<b i=\"1\"/>789</f><b>abc</b></d></a>"],
     );
 
-    check_path(&doc, "/a/b", &["<b><c/></b>"]);
+    check_path(&doc, "/a/b", &["<b><b/></b>"]);
+
+    check_path(&doc, "/a/d/f/b", &["<b i=\"1\"/>"]);
 
     check_path(
         &doc,
         "/a/d/*",
-        &["<e>123</e>", "<f>456<b/>789</f>", "<b>abc</b>"],
+        &["<e>123</e>", "<f>456<b i=\"1\"/>789</f>", "<b>abc</b>"],
     );
 
-    check_path(&doc, "//b", &["<e>123</e>", "<f>456</f>"]);
+    check_path(
+        &doc,
+        "//b",
+        &["<b><b/></b>", "<b/>", "<b i=\"1\"/>", "<b>abc</b>"],
+    );
+
+    check_path(&doc, "/a/d//b", &["<b i=\"1\"/>", "<b>abc</b>"]);
 }
