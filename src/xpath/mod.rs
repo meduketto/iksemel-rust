@@ -38,10 +38,12 @@ struct AxisStep {
     name: String,
 }
 
+#[derive(Debug)]
 pub enum XPathValue<'a> {
     Node(Cursor<'a>),
 }
 
+#[derive(Debug)]
 pub struct XPathSequence<'a> {
     pub items: Vec<XPathValue<'a>>,
 }
@@ -49,6 +51,19 @@ pub struct XPathSequence<'a> {
 impl XPathSequence<'_> {
     pub fn new() -> Self {
         XPathSequence { items: Vec::new() }
+    }
+}
+
+impl std::fmt::Display for XPathSequence<'_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        for value in self.items.iter() {
+            match value {
+                XPathValue::Node(node) => {
+                    write!(f, "{}\n", node)?;
+                }
+            }
+        }
+        Ok(())
     }
 }
 
@@ -211,17 +226,47 @@ impl XPath {
         Ok(new_context)
     }
 
+    fn descendant_or_self_step<'a>(
+        document: &'a Document,
+        context: &XPathSequence<'a>,
+        step: &AxisStep,
+    ) -> Result<XPathSequence<'a>, BadXPath> {
+        let mut new_context = XPathSequence::new();
+        if context.items.is_empty() {
+            let root = document.root();
+            for descendant in root.clone().descendant_or_self_iter() {
+                if step.name == "*" || step.name == descendant.name() {
+                    new_context.items.push(XPathValue::Node(descendant.clone()));
+                }
+            }
+        } else {
+            for value in context.items.as_slice() {
+                match value {
+                    XPathValue::Node(cursor) => {
+                        for descendant in cursor.clone().descendant_or_self_iter() {
+                            if step.name == "*" || step.name == descendant.name() {
+                                new_context.items.push(XPathValue::Node(descendant.clone()));
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        Ok(new_context)
+    }
+
     pub fn apply<'a, 'b>(&'a self, document: &'b Document) -> Result<XPathSequence<'b>, BadXPath> {
         let mut context = XPathSequence::new();
         for step in &self.steps {
             context = match step.axis {
                 Axis::Child => XPath::child_step(document, &context, step)?,
+                Axis::DescendantOrSelf => XPath::descendant_or_self_step(document, &context, step)?,
                 _ => {
                     return Err(BadXPath);
                 }
             };
             if context.items.is_empty() {
-                return Err(BadXPath);
+                break;
             }
         }
         Ok(context)

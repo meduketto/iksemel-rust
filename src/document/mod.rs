@@ -9,6 +9,7 @@
 */
 
 mod error;
+mod iterators;
 mod parser;
 
 use std::cell::UnsafeCell;
@@ -27,6 +28,7 @@ use super::entities::escape;
 use super::entities::escape_fmt;
 use super::entities::escaped_size;
 pub use error::DocumentError;
+pub use iterators::DescendantOrSelf;
 pub use parser::DocumentParser;
 
 pub struct Document {
@@ -695,6 +697,10 @@ impl<'a> Cursor<'a> {
     // Navigation methods
     //
 
+    pub fn clear(&mut self) {
+        self.node = null_mut::<Node>().into();
+    }
+
     pub fn next(self) -> Cursor<'a> {
         null_cursor_guard!(self);
 
@@ -812,6 +818,14 @@ impl<'a> Cursor<'a> {
             child = child.next();
         }
         child
+    }
+
+    //
+    // Iterator methods
+    //
+
+    pub fn descendant_or_self_iter(self) -> DescendantOrSelf<'a> {
+        DescendantOrSelf::new(self.clone())
     }
 
     //

@@ -167,6 +167,21 @@ fn cursor_clone() {
 }
 
 #[test]
+fn iterators() {
+    let doc = Document::from_str("<a>lala<b><c>bibi</c><d><e>123</e></d>456</b>foo</a>").unwrap();
+
+    let mut iter = doc.find_tag("b").descendant_or_self_iter();
+    assert_eq!(iter.next().unwrap().name(), "b");
+    assert_eq!(iter.next().unwrap().name(), "c");
+    assert_eq!(iter.next().unwrap().cdata(), "bibi");
+    assert_eq!(iter.next().unwrap().name(), "d");
+    assert_eq!(iter.next().unwrap().name(), "e");
+    assert_eq!(iter.next().unwrap().cdata(), "123");
+    assert_eq!(iter.next().unwrap().cdata(), "456");
+    assert!(iter.next().is_none());
+}
+
+#[test]
 fn null_checks() {
     let doc = Document::new("a");
 
