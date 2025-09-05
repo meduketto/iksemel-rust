@@ -735,7 +735,7 @@ impl<'a> Cursor<'a> {
         }
     }
 
-    pub fn remove(self) {
+    pub fn remove(self, _document: &Document) {
         let node = self.get_node_ptr();
         if node.is_null() {
             return;

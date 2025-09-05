@@ -186,20 +186,20 @@ fn cursor_clone() {
 fn removals() {
     let doc = Document::from_str("<a>123<b/>456<c/><d><e/></d>789<f/></a>").unwrap();
 
-    doc.find_tag("d").remove();
+    doc.find_tag("d").remove(&doc);
     assert_eq!(doc.to_string(), "<a>123<b/>456<c/>789<f/></a>");
 
-    doc.find_tag("f").remove();
+    doc.find_tag("f").remove(&doc);
     assert_eq!(doc.to_string(), "<a>123<b/>456<c/>789</a>");
 
-    doc.first_child().remove();
+    doc.first_child().remove(&doc);
     assert_eq!(doc.to_string(), "<a><b/>456<c/>789</a>");
 
-    doc.root().last_child().remove();
+    doc.root().last_child().remove(&doc);
     assert_eq!(doc.to_string(), "<a><b/>456<c/></a>");
 
     for child in doc.root().children() {
-        child.remove();
+        child.remove(&doc);
     }
     assert_eq!(doc.to_string(), "<a/>");
 }
@@ -255,9 +255,15 @@ fn null_checks() {
     assert!(doc.root().next().descendant_or_self().next().is_none());
     assert!(doc.root().next().attributes().next().is_none());
     // edits
-    // FIXME: edits
+    assert!(doc.root().next().insert_tag(&doc, "k").is_err());
+    assert!(doc.root().next().append_tag(&doc, "k").is_err());
+    assert!(doc.root().next().prepend_tag(&doc, "k").is_err());
     assert!(doc.root().next().insert_attribute(&doc, "k", "v").is_err());
     assert!(doc.root().next().set_attribute(&doc, "k", None).is_err());
+    assert!(doc.root().next().insert_cdata(&doc, "k").is_err());
+    assert!(doc.root().next().append_cdata(&doc, "k").is_err());
+    assert!(doc.root().next().prepend_cdata(&doc, "k").is_err());
+    doc.root().next().remove(&doc);
 }
 
 #[test]
