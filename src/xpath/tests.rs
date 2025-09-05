@@ -60,4 +60,6 @@ fn simple_steps() {
     );
 
     check_path(&doc, "/a/d//b", &["<b i=\"1\"/>", "<b>abc</b>"]);
+
+    check_path(&doc, "//b/b", &["<b/>"]);
 }
