@@ -23,21 +23,29 @@ fn check_doc_xml(doc: &Document, expected: &str) {
 
 #[test]
 fn it_works() {
-    let doc = Document::new("html");
+    let doc = Document::new("html").unwrap();
     let blink = doc
         .insert_tag("p")
+        .unwrap()
         .insert_tag(&doc, "b")
+        .unwrap()
         .insert_tag(&doc, "blink")
-        .insert_cdata(&doc, "lala");
+        .unwrap()
+        .insert_cdata(&doc, "lala")
+        .unwrap();
     assert!(!blink.is_null());
 
     let p2 = doc
         .root()
         .first_child()
         .append_cdata(&doc, "foo&")
-        .append_tag(&doc, "p2");
+        .unwrap()
+        .append_tag(&doc, "p2")
+        .unwrap();
 
-    p2.prepend_cdata(&doc, "bar").prepend_tag(&doc, "p3");
+    p2.prepend_cdata(&doc, "bar")
+        .unwrap()
+        .prepend_tag(&doc, "p3");
 
     check_doc_xml(
         &doc,
@@ -47,8 +55,8 @@ fn it_works() {
 
 #[test]
 fn attributes() {
-    let doc = Document::new("doc");
-    let a = doc.insert_tag("a");
+    let doc = Document::new("doc").unwrap();
+    let a = doc.insert_tag("a").unwrap();
     assert!(a.insert_attribute(&doc, "i", "1").unwrap().is_tag());
     assert_eq!(
         a.insert_attribute(&doc, "i", "1").unwrap_err(),
@@ -65,6 +73,7 @@ fn attributes() {
     );
     let _ = doc
         .insert_tag("b")
+        .unwrap()
         .set_attribute(&doc, "i", Some("1"))
         .unwrap()
         .set_attribute(&doc, "i", Some("2"))
@@ -173,10 +182,32 @@ fn cursor_clone() {
 }
 
 #[test]
+fn removals() {
+    let doc = Document::from_str("<a>123<b/>456<c/><d><e/></d>789<f/></a>").unwrap();
+
+    doc.find_tag("d").remove();
+    assert_eq!(doc.to_string(), "<a>123<b/>456<c/>789<f/></a>");
+
+    doc.find_tag("f").remove();
+    assert_eq!(doc.to_string(), "<a>123<b/>456<c/>789</a>");
+
+    doc.first_child().remove();
+    assert_eq!(doc.to_string(), "<a><b/>456<c/>789</a>");
+
+    doc.root().last_child().remove();
+    assert_eq!(doc.to_string(), "<a><b/>456<c/></a>");
+
+    for child in doc.root().children() {
+        child.remove();
+    }
+    assert_eq!(doc.to_string(), "<a/>");
+}
+
+#[test]
 fn iterators() {
     let doc = Document::from_str("<a>lala<b><c>bibi</c><d><e>123</e></d>456</b>foo</a>").unwrap();
 
-    let mut iter = doc.find_tag("b").descendant_or_self_iter();
+    let mut iter = doc.find_tag("b").descendant_or_self();
     assert_eq!(iter.next().unwrap().name(), "b");
     assert_eq!(iter.next().unwrap().name(), "c");
     assert_eq!(iter.next().unwrap().cdata(), "bibi");
@@ -185,11 +216,17 @@ fn iterators() {
     assert_eq!(iter.next().unwrap().cdata(), "123");
     assert_eq!(iter.next().unwrap().cdata(), "456");
     assert!(iter.next().is_none());
+
+    let mut iter = doc.find_tag("b").children();
+    assert_eq!(iter.next().unwrap().name(), "c");
+    assert_eq!(iter.next().unwrap().name(), "d");
+    assert_eq!(iter.next().unwrap().cdata(), "456");
+    assert!(iter.next().is_none());
 }
 
 #[test]
 fn null_checks() {
-    let doc = Document::new("a");
+    let doc = Document::new("a").unwrap();
 
     // property
     assert_eq!(doc.root().next().is_null(), true);
@@ -213,7 +250,9 @@ fn null_checks() {
     assert!(doc.root().next().root().is_null());
     assert!(doc.root().next().find_tag("lala").is_null());
     // iterators
-    // FIXME: descens, attribs
+    assert!(doc.root().next().children().next().is_none());
+    assert!(doc.root().next().descendant_or_self().next().is_none());
+    assert!(doc.root().next().attributes().next().is_none());
     // edits
     // FIXME: edits
     assert!(doc.root().next().insert_attribute(&doc, "k", "v").is_err());

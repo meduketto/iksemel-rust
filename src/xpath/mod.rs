@@ -234,7 +234,7 @@ impl XPath {
         let mut new_context = XPathSequence::new();
         if context.items.is_empty() {
             let root = document.root();
-            for descendant in root.clone().descendant_or_self_iter() {
+            for descendant in root.clone().descendant_or_self() {
                 if step.name == "*" || step.name == descendant.name() {
                     new_context.items.push(XPathValue::Node(descendant.clone()));
                 }
@@ -243,7 +243,7 @@ impl XPath {
             for value in context.items.as_slice() {
                 match value {
                     XPathValue::Node(cursor) => {
-                        for descendant in cursor.clone().descendant_or_self_iter() {
+                        for descendant in cursor.clone().descendant_or_self() {
                             if step.name == "*" || step.name == descendant.name() {
                                 new_context.items.push(XPathValue::Node(descendant.clone()));
                             }

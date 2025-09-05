@@ -41,6 +41,15 @@ impl From<SaxError> for DocumentError {
     }
 }
 
+impl From<DocumentError> for SaxError {
+    fn from(err: DocumentError) -> Self {
+        match err {
+            DocumentError::NoMemory => SaxError::NoMemory,
+            DocumentError::BadXml(msg) => SaxError::BadXml(msg),
+        }
+    }
+}
+
 impl From<NoMemory> for DocumentError {
     fn from(_: NoMemory) -> Self {
         DocumentError::NoMemory
@@ -54,5 +63,9 @@ pub(super) mod description {
     pub(in super::super) const DUPLICATE_ATTRIBUTE: &str =
         "attribute name already used in this tag";
     pub(in super::super) const CDATA_ATTRIBUTE: &str = "attributes cannot be set on CDATA elements";
+    pub(in super::super) const CDATA_CHILDREN: &str =
+        "child elements cannot be added on CDATA elements";
     pub(in super::super) const NULL_CURSOR_EDIT: &str = "null cursor cannot edit the document";
+    pub(in super::super) const REMOVED_EDIT: &str = "cannot edit a removed element";
+    pub(in super::super) const ROOT_SIBLING: &str = "root element cannot have siblings";
 }

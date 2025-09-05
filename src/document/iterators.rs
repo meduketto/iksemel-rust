@@ -61,6 +61,29 @@ impl<'a> Iterator for Attributes<'a> {
     }
 }
 
+pub struct Children<'a> {
+    current: Cursor<'a>,
+}
+
+impl<'a> Children<'a> {
+    pub fn new(cursor: Cursor<'a>) -> Self {
+        Children { current: cursor }
+    }
+}
+
+impl<'a> Iterator for Children<'a> {
+    type Item = Cursor<'a>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.current.is_null() {
+            return None;
+        }
+        let result = self.current.clone();
+        self.current = self.current.clone().next();
+        Some(result)
+    }
+}
+
 pub struct DescendantOrSelf<'a> {
     current: Cursor<'a>,
     level: usize,

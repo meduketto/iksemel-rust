@@ -29,6 +29,7 @@ use super::entities::escape_fmt;
 use super::entities::escaped_size;
 pub use error::DocumentError;
 pub use iterators::Attributes;
+pub use iterators::Children;
 pub use iterators::DescendantOrSelf;
 pub use parser::DocumentParser;
 
@@ -121,15 +122,15 @@ impl Attribute {
 }
 
 trait ArenaExt {
-    fn alloc_node(&self, payload: NodePayload) -> *mut Node;
-    fn alloc_tag(&self, tag_name: &str) -> *mut Tag;
-    fn alloc_cdata(&self, cdata_value: &str) -> *mut CData;
+    fn alloc_node(&self, payload: NodePayload) -> Result<NonNull<Node>, NoMemory>;
+    fn alloc_tag(&self, tag_name: &str) -> Result<NonNull<Tag>, NoMemory>;
+    fn alloc_cdata(&self, cdata_value: &str) -> Result<NonNull<CData>, NoMemory>;
     fn alloc_attribute(&self, name: &str, value: &str) -> Result<NonNull<Attribute>, NoMemory>;
 }
 
 impl ArenaExt for Arena {
-    fn alloc_node(&self, payload: NodePayload) -> *mut Node {
-        let node = self.alloc_struct::<Node>().unwrap().as_ptr();
+    fn alloc_node(&self, payload: NodePayload) -> Result<NonNull<Node>, NoMemory> {
+        let node = self.alloc_struct::<Node>()?.as_ptr();
         unsafe {
             (*node).next = null_mut();
             (*node).previous = null_mut();
@@ -137,12 +138,12 @@ impl ArenaExt for Arena {
             (*node).payload = payload;
         }
 
-        node
+        Ok(NonNull::new(node).unwrap())
     }
 
-    fn alloc_tag(&self, tag_name: &str) -> *mut Tag {
-        let name = self.push_str(tag_name).unwrap();
-        let tag = self.alloc_struct::<Tag>().unwrap().as_ptr();
+    fn alloc_tag(&self, tag_name: &str) -> Result<NonNull<Tag>, NoMemory> {
+        let name = self.push_str(tag_name)?;
+        let tag = self.alloc_struct::<Tag>()?.as_ptr();
         unsafe {
             (*tag).children = null_mut();
             (*tag).last_child = null_mut();
@@ -152,18 +153,18 @@ impl ArenaExt for Arena {
             (*tag).name_size = name.len();
         }
 
-        tag
+        Ok(NonNull::new(tag).unwrap())
     }
 
-    fn alloc_cdata(&self, cdata_value: &str) -> *mut CData {
-        let value = self.push_str(cdata_value).unwrap();
-        let cdata = self.alloc_struct::<CData>().unwrap().as_ptr();
+    fn alloc_cdata(&self, cdata_value: &str) -> Result<NonNull<CData>, NoMemory> {
+        let value = self.push_str(cdata_value)?;
+        let cdata = self.alloc_struct::<CData>()?.as_ptr();
         unsafe {
             (*cdata).value = value.as_ptr();
             (*cdata).value_size = value.len();
         }
 
-        cdata
+        Ok(NonNull::new(cdata).unwrap())
     }
 
     fn alloc_attribute(&self, name: &str, value: &str) -> Result<NonNull<Attribute>, NoMemory> {
@@ -255,15 +256,15 @@ impl Visitor {
 }
 
 impl Document {
-    pub fn new(root_tag_name: &str) -> Document {
+    pub fn new(root_tag_name: &str) -> Result<Document, DocumentError> {
         let arena = Arena::new().unwrap();
-        let tag = arena.alloc_tag(root_tag_name);
-        let node = arena.alloc_node(NodePayload::Tag(tag));
+        let tag = arena.alloc_tag(root_tag_name)?.as_ptr();
+        let node = arena.alloc_node(NodePayload::Tag(tag))?.as_ptr();
 
-        Document {
+        Ok(Document {
             arena,
             root_node: node.into(),
-        }
+        })
     }
 
     pub fn from_str(xml_str: &str) -> Result<Document, DocumentError> {
@@ -287,11 +288,11 @@ impl Document {
     // Convenience functions to avoid typing .root() all the time
     //
 
-    pub fn insert_tag<'a>(&'a self, tag_name: &str) -> Cursor<'a> {
+    pub fn insert_tag<'a>(&'a self, tag_name: &str) -> Result<Cursor<'a>, DocumentError> {
         self.root().insert_tag(self, tag_name)
     }
 
-    pub fn insert_cdata<'a>(&'a self, cdata: &str) -> Cursor<'a> {
+    pub fn insert_cdata<'a>(&'a self, cdata: &str) -> Result<Cursor<'a>, DocumentError> {
         self.root().insert_cdata(self, cdata)
     }
 
@@ -338,6 +339,21 @@ macro_rules! null_cursor_guard {
     };
 }
 
+macro_rules! cursor_edit_guards {
+    ($self:ident) => {{
+        let node = $self.get_node_ptr();
+        if node.is_null() {
+            return Err(DocumentError::BadXml(description::NULL_CURSOR_EDIT));
+        }
+        unsafe {
+            if (*node).next == node && (*node).previous == node {
+                return Err(DocumentError::BadXml(description::NULL_CURSOR_EDIT));
+            }
+        }
+        node
+    }};
+}
+
 impl<'a> Cursor<'a> {
     fn new(node: *mut Node) -> Cursor<'a> {
         Cursor {
@@ -358,19 +374,25 @@ impl<'a> Cursor<'a> {
     // Edit methods
     //
 
-    pub fn insert_tag<'b, 'c>(&'a self, document: &'b Document, tag_name: &'c str) -> Cursor<'b> {
-        null_cursor_guard!(self);
+    pub fn insert_tag<'b, 'c>(
+        &'a self,
+        document: &'b Document,
+        tag_name: &'c str,
+    ) -> Result<Cursor<'b>, DocumentError> {
+        let node = cursor_edit_guards!(self);
 
         unsafe {
-            let node = *self.node.get();
             match (*node).payload {
                 NodePayload::CData(_) => {
                     // Cannot insert a tag into a cdata element
-                    null_cursor!()
+                    return Err(DocumentError::BadXml(description::CDATA_CHILDREN));
                 }
                 NodePayload::Tag(tag) => {
-                    let new_tag = document.arena.alloc_tag(tag_name);
-                    let new_node = document.arena.alloc_node(NodePayload::Tag(new_tag));
+                    let new_tag = document.arena.alloc_tag(tag_name)?.as_ptr();
+                    let new_node = document
+                        .arena
+                        .alloc_node(NodePayload::Tag(new_tag))?
+                        .as_ptr();
 
                     (*new_node).parent = node;
                     if (*tag).children.is_null() {
@@ -382,24 +404,29 @@ impl<'a> Cursor<'a> {
                     }
                     (*tag).last_child = new_node;
 
-                    Cursor::new(new_node)
+                    Ok(Cursor::new(new_node))
                 }
             }
         }
     }
 
-    pub fn append_tag<'b, 'c>(&'a self, document: &'b Document, tag_name: &'c str) -> Cursor<'b> {
-        null_cursor_guard!(self);
+    pub fn append_tag<'b, 'c>(
+        &'a self,
+        document: &'b Document,
+        tag_name: &'c str,
+    ) -> Result<Cursor<'b>, DocumentError> {
+        let node = cursor_edit_guards!(self);
 
         unsafe {
-            let node = *self.node.get();
             if (*node).parent.is_null() {
-                // Root tag cannot have siblings
-                return null_cursor!();
+                return Err(DocumentError::BadXml(description::ROOT_SIBLING));
             }
 
-            let new_tag = document.arena.alloc_tag(tag_name);
-            let new_node = document.arena.alloc_node(NodePayload::Tag(new_tag));
+            let new_tag = document.arena.alloc_tag(tag_name)?.as_ptr();
+            let new_node = document
+                .arena
+                .alloc_node(NodePayload::Tag(new_tag))?
+                .as_ptr();
 
             let parent = (*node).parent;
             (*new_node).parent = parent;
@@ -422,22 +449,27 @@ impl<'a> Cursor<'a> {
             (*new_node).previous = node;
             (*node).next = new_node;
 
-            Cursor::new(new_node)
+            Ok(Cursor::new(new_node))
         }
     }
 
-    pub fn prepend_tag<'b, 'c>(&'a self, document: &'b Document, tag_name: &'c str) -> Cursor<'b> {
-        null_cursor_guard!(self);
+    pub fn prepend_tag<'b, 'c>(
+        &'a self,
+        document: &'b Document,
+        tag_name: &'c str,
+    ) -> Result<Cursor<'b>, DocumentError> {
+        let node = cursor_edit_guards!(self);
 
         unsafe {
-            let node = *self.node.get();
             if (*node).parent.is_null() {
-                // Root tag cannot have siblings
-                return null_cursor!();
+                return Err(DocumentError::BadXml(description::ROOT_SIBLING));
             }
 
-            let new_tag = document.arena.alloc_tag(tag_name);
-            let new_node = document.arena.alloc_node(NodePayload::Tag(new_tag));
+            let new_tag = document.arena.alloc_tag(tag_name)?.as_ptr();
+            let new_node = document
+                .arena
+                .alloc_node(NodePayload::Tag(new_tag))?
+                .as_ptr();
 
             let parent = (*node).parent;
             (*new_node).parent = parent;
@@ -460,7 +492,7 @@ impl<'a> Cursor<'a> {
             (*new_node).next = node;
             (*node).previous = new_node;
 
-            Cursor::new(new_node)
+            Ok(Cursor::new(new_node))
         }
     }
 
@@ -577,15 +609,17 @@ impl<'a> Cursor<'a> {
         }
     }
 
-    pub fn insert_cdata<'b, 'c>(&'a self, document: &'b Document, cdata: &'c str) -> Cursor<'b> {
-        null_cursor_guard!(self);
+    pub fn insert_cdata<'b, 'c>(
+        &'a self,
+        document: &'b Document,
+        cdata: &'c str,
+    ) -> Result<Cursor<'b>, DocumentError> {
+        let node = cursor_edit_guards!(self);
 
         unsafe {
-            let node = *self.node.get();
             match (*node).payload {
                 NodePayload::CData(_) => {
-                    // Cannot insert a tag into a cdata element
-                    null_cursor!()
+                    return Err(DocumentError::BadXml(description::CDATA_CHILDREN));
                 }
                 NodePayload::Tag(tag) => {
                     let last = (*tag).last_child;
@@ -596,12 +630,15 @@ impl<'a> Cursor<'a> {
                             (*cdata_node).value = s.as_ptr();
                             (*cdata_node).value_size = s.len();
 
-                            return Cursor::new(last);
+                            return Ok(Cursor::new(last));
                         }
                     }
 
-                    let new_cdata = document.arena.alloc_cdata(cdata);
-                    let new_node = document.arena.alloc_node(NodePayload::CData(new_cdata));
+                    let new_cdata = document.arena.alloc_cdata(cdata)?.as_ptr();
+                    let new_node = document
+                        .arena
+                        .alloc_node(NodePayload::CData(new_cdata))?
+                        .as_ptr();
 
                     (*new_node).parent = node;
                     if (*tag).children.is_null() {
@@ -613,24 +650,29 @@ impl<'a> Cursor<'a> {
                     }
                     (*tag).last_child = new_node;
 
-                    Cursor::new(new_node)
+                    Ok(Cursor::new(new_node))
                 }
             }
         }
     }
 
-    pub fn append_cdata<'b, 'c>(&'a self, document: &'b Document, cdata: &'c str) -> Cursor<'b> {
-        null_cursor_guard!(self);
+    pub fn append_cdata<'b, 'c>(
+        &'a self,
+        document: &'b Document,
+        cdata: &'c str,
+    ) -> Result<Cursor<'b>, DocumentError> {
+        let node = cursor_edit_guards!(self);
 
         unsafe {
-            let node = *self.node.get();
             if (*node).parent.is_null() {
-                // Root tag cannot have siblings
-                return null_cursor!();
+                return Err(DocumentError::BadXml(description::ROOT_SIBLING));
             }
 
-            let new_cdata = document.arena.alloc_cdata(cdata);
-            let new_node = document.arena.alloc_node(NodePayload::CData(new_cdata));
+            let new_cdata = document.arena.alloc_cdata(cdata)?.as_ptr();
+            let new_node = document
+                .arena
+                .alloc_node(NodePayload::CData(new_cdata))?
+                .as_ptr();
 
             let parent = (*node).parent;
             (*new_node).parent = parent;
@@ -652,22 +694,27 @@ impl<'a> Cursor<'a> {
             (*new_node).previous = node;
             (*node).next = new_node;
 
-            Cursor::new(new_node)
+            Ok(Cursor::new(new_node))
         }
     }
 
-    pub fn prepend_cdata<'b, 'c>(&'a self, document: &'b Document, cdata: &'c str) -> Cursor<'b> {
-        null_cursor_guard!(self);
+    pub fn prepend_cdata<'b, 'c>(
+        &'a self,
+        document: &'b Document,
+        cdata: &'c str,
+    ) -> Result<Cursor<'b>, DocumentError> {
+        let node = cursor_edit_guards!(self);
 
         unsafe {
-            let node = *self.node.get();
             if (*node).parent.is_null() {
-                // Root tag cannot have siblings
-                return null_cursor!();
+                return Err(DocumentError::BadXml(description::ROOT_SIBLING));
             }
 
-            let new_cdata = document.arena.alloc_cdata(cdata);
-            let new_node = document.arena.alloc_node(NodePayload::CData(new_cdata));
+            let new_cdata = document.arena.alloc_cdata(cdata)?.as_ptr();
+            let new_node = document
+                .arena
+                .alloc_node(NodePayload::CData(new_cdata))?
+                .as_ptr();
 
             let parent = (*node).parent;
             (*new_node).parent = parent;
@@ -690,7 +737,45 @@ impl<'a> Cursor<'a> {
             (*new_node).next = node;
             (*node).previous = new_node;
 
-            Cursor::new(new_node)
+            Ok(Cursor::new(new_node))
+        }
+    }
+
+    pub fn remove(self) {
+        let node = self.get_node_ptr();
+        if node.is_null() {
+            return;
+        }
+        unsafe {
+            let parent = (*node).parent;
+            if parent.is_null() {
+                return;
+            }
+            if (*node).next == node && (*node).previous == node {
+                return;
+            }
+            // Fix siblings
+            if !(*node).next.is_null() {
+                (*(*node).next).previous = (*node).previous;
+            }
+            if !(*node).previous.is_null() {
+                (*(*node).previous).next = (*node).next;
+            }
+            // Fix parent
+            match (*parent).payload {
+                NodePayload::Tag(tag) => {
+                    if (*tag).children == node {
+                        (*tag).children = (*node).next;
+                    }
+                    if (*tag).last_child == node {
+                        (*tag).last_child = (*node).previous;
+                    }
+                }
+                NodePayload::CData(_) => {}
+            }
+            // Fix self
+            (*node).next = node;
+            (*node).previous = node;
         }
     }
 
@@ -698,7 +783,7 @@ impl<'a> Cursor<'a> {
     // Navigation methods
     //
 
-    pub fn clear(&mut self) {
+    fn clear(&mut self) {
         self.node = null_mut::<Node>().into();
     }
 
@@ -825,11 +910,15 @@ impl<'a> Cursor<'a> {
     // Iterator methods
     //
 
+    pub fn children(self) -> Children<'a> {
+        Children::new(self.first_child())
+    }
+
     pub fn attributes(self) -> Attributes<'a> {
         Attributes::new(self.clone())
     }
 
-    pub fn descendant_or_self_iter(self) -> DescendantOrSelf<'a> {
+    pub fn descendant_or_self(self) -> DescendantOrSelf<'a> {
         DescendantOrSelf::new(self.clone())
     }
 

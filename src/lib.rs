@@ -12,6 +12,7 @@ mod arena;
 mod document;
 mod entities;
 mod parser;
+mod xmpp;
 mod xpath;
 
 pub use arena::Arena;

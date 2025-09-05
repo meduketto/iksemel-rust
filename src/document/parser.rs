@@ -41,7 +41,7 @@ impl SaxHandler for DocumentBuilder {
         match &self.doc {
             None => match element {
                 SaxElement::StartTag(name) => {
-                    let doc = Document::new(name);
+                    let doc = Document::new(name)?;
                     self.node = doc.root().get_node_ptr();
                     self.doc = Some(doc);
                 }
@@ -49,19 +49,11 @@ impl SaxHandler for DocumentBuilder {
             },
             Some(doc) => match element {
                 SaxElement::StartTag(name) => {
-                    let new_tag = Cursor::new(self.node).insert_tag(doc, name);
+                    let new_tag = Cursor::new(self.node).insert_tag(doc, name)?;
                     self.node = new_tag.get_node_ptr();
                 }
                 SaxElement::Attribute(name, value) => {
-                    match Cursor::new(self.node).insert_attribute(doc, name, value) {
-                        Ok(_) => (),
-                        Err(DocumentError::NoMemory) => {
-                            return Err(SaxError::NoMemory);
-                        }
-                        Err(DocumentError::BadXml(msg)) => {
-                            return Err(SaxError::BadXml(msg));
-                        }
-                    }
+                    Cursor::new(self.node).insert_attribute(doc, name, value)?;
                 }
                 SaxElement::EmptyElementTag => {
                     self.node = Cursor::new(self.node).parent().get_node_ptr();

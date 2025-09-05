@@ -10,4 +10,4 @@ original C implementation:
 * DTDs are correctly skipped, but still not used.
 * Valid character checks are now more strict according to the XML
   specification. Longer than four bytes UTF8 sequences are rejected.
-* Experimental XPath support.
+* Experimental XPath support with new 'ikspath' command line tool.
