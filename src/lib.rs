@@ -13,7 +13,11 @@
 #![deny(clippy::perf)]
 #![deny(clippy::style)]
 #![deny(clippy::cargo)]
-//#![deny(clippy::pedantic)]
+#![deny(clippy::items_after_statements)]
+#![deny(clippy::uninlined_format_args)]
+#![deny(clippy::unnecessary_semicolon)]
+#![deny(clippy::missing_panics_doc)]
+#![deny(clippy::unreadable_literal)]
 
 mod arena;
 mod document;

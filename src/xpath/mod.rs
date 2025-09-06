@@ -65,7 +65,7 @@ impl std::fmt::Display for XPathSequence<'_> {
         for value in self.items.iter() {
             match value {
                 XPathValue::Node(node) => {
-                    writeln!(f, "{}", node)?;
+                    writeln!(f, "{node}")?;
                 }
             }
         }

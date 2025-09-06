@@ -361,6 +361,10 @@ impl Arena {
     /// # }
     /// ```
     ///
+    #[allow(
+        clippy::missing_panics_doc,
+        reason = "None of these Layout unwraps can fail"
+    )]
     pub fn with_chunk_sizes(struct_words: usize, cdata_bytes: usize) -> Result<Arena, NoMemory> {
         // First node chunk should have capacity for this many pointer words.
         let struct_words = cmp::max(struct_words, MIN_STRUCT_WORDS);

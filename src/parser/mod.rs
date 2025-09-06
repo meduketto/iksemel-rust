@@ -237,7 +237,7 @@ macro_rules! whitespace {
 }
 
 fn is_valid_xml_char(c: u32) -> bool {
-    matches!(c, 0x09 | 0x0a | 0x0d | 0x20..=0xd7ff | 0xe000..=0xfffd | 0x10000..=0x10ffff)
+    matches!(c, 0x09 | 0x0a | 0x0d | 0x20..=0xd7ff | 0xe000..=0xfffd | 0x10000..=0x10_ffff)
 }
 
 macro_rules! xml_error {
@@ -305,29 +305,30 @@ impl SaxParser {
         handler: &mut impl SaxHandler,
         value: u32,
     ) -> Result<(), SaxError> {
+        const DATA_MASK: u32 = 0b0011_1111;
+        const DATA_PREFIX: u8 = 0b1000_0000;
+
         if !is_valid_xml_char(value) {
             xml_error!(CHAR_INVALID);
         }
 
         let mut buf: [u8; 4] = [0; 4];
         let mut size = 1;
-        const DATA_MASK: u32 = 0b00111111;
-        const DATA_PREFIX: u8 = 0b10000000;
         match value {
             0..=0x7f => buf[0] = value as u8,
             0x80..=0x7ff => {
-                buf[0] = 0b11000000 | ((value >> 6) as u8);
+                buf[0] = 0b1100_0000 | ((value >> 6) as u8);
                 buf[1] = DATA_PREFIX | ((value & DATA_MASK) as u8);
                 size = 2;
             }
             0x800..=0xffff => {
-                buf[0] = 0b11100000 | ((value >> 12) as u8);
+                buf[0] = 0b1110_0000 | ((value >> 12) as u8);
                 buf[1] = DATA_PREFIX | (((value >> 6) & DATA_MASK) as u8);
                 buf[2] = DATA_PREFIX | ((value & DATA_MASK) as u8);
                 size = 3;
             }
-            0x10000..=0x10ffff => {
-                buf[0] = 0b11110000 | ((value >> 18) as u8);
+            0x10000..=0x10_ffff => {
+                buf[0] = 0b1111_0000 | ((value >> 18) as u8);
                 buf[1] = DATA_PREFIX | (((value >> 12) & DATA_MASK) as u8);
                 buf[2] = DATA_PREFIX | (((value >> 6) & DATA_MASK) as u8);
                 buf[3] = DATA_PREFIX | ((value & DATA_MASK) as u8);

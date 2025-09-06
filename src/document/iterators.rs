@@ -116,7 +116,7 @@ impl<'a> Iterator for DescendantOrSelf<'a> {
                     self.level += 1;
                     return Some(result);
                 }
-            };
+            }
             if self.level == 0 {
                 self.current.clear();
                 break;

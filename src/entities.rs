@@ -42,7 +42,7 @@ pub fn escape(s: &str, output: &mut String) {
             match bytes[i] {
                 b'<' | b'>' | b'&' | b'\'' | b'"' => break,
                 _ => back += 1,
-            };
+            }
             i += 1;
         }
         unsafe {
@@ -56,7 +56,7 @@ pub fn escape(s: &str, output: &mut String) {
                 b'\'' => output.push_str(predefined::APOS),
                 b'"' => output.push_str(predefined::QUOT),
                 _ => unreachable!(),
-            };
+            }
             i += 1;
         }
         back = 0;
@@ -73,7 +73,7 @@ pub fn escape_fmt(s: &str, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result 
             match bytes[i] {
                 b'<' | b'>' | b'&' | b'\'' | b'"' => break,
                 _ => back += 1,
-            };
+            }
             i += 1;
         }
         unsafe {

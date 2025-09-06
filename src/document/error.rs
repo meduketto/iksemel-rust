@@ -24,7 +24,7 @@ impl Display for DocumentError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             DocumentError::NoMemory => write!(f, "not enough memory"),
-            DocumentError::BadXml(msg) => write!(f, "invalid XML syntax: {}", msg),
+            DocumentError::BadXml(msg) => write!(f, "invalid XML syntax: {msg}"),
         }
     }
 }

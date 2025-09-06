@@ -258,7 +258,7 @@ impl Visitor {
 
 impl Document {
     pub fn new(root_tag_name: &str) -> Result<Document, DocumentError> {
-        let arena = Arena::new().unwrap();
+        let arena = Arena::new()?;
         let tag = arena.alloc_tag(root_tag_name)?.as_ptr();
         let node = arena.alloc_node(NodePayload::Tag(tag))?.as_ptr();
 
@@ -624,7 +624,7 @@ impl<'a> Cursor<'a> {
                         && let NodePayload::CData(cdata_node) = (*last).payload
                     {
                         let old_s = (*cdata_node).as_str();
-                        let s = document.arena.concat_str(old_s, cdata).unwrap();
+                        let s = document.arena.concat_str(old_s, cdata)?;
                         (*cdata_node).value = s.as_ptr();
                         (*cdata_node).value_size = s.len();
 

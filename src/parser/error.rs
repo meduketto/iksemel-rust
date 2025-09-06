@@ -71,7 +71,7 @@ impl Display for SaxError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             SaxError::NoMemory => write!(f, "not enough memory"),
-            SaxError::BadXml(msg) => write!(f, "invalid xml syntax: {}", msg),
+            SaxError::BadXml(msg) => write!(f, "invalid xml syntax: {msg}"),
             SaxError::HandlerAbort => write!(f, "abort from sax handler"),
         }
     }
