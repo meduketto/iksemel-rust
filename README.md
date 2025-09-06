@@ -28,7 +28,58 @@ and alternative solutions.
 
 # Installation
 
+You can use iks in your rust projects by adding the following to your `Cargo.toml`:
+
+```toml
+[dependencies]
+iks = "0.1.0"
+```
+
+You can also install it via cargo:
+
+```sh
+cargo install iks
+```
+
+which also installs the command line tools.
+
 # Usage
+
+See API documentation for detailed examples and information.
+
+Here is a simple example:
+
+```rust
+use iksemel::Document;
+use std::str::FromStr;
+
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let doc = Document::from_str("<doc><a>123</a><b><a>456</a><a>789</a></b></doc>")?;
+
+    let count = doc
+        .root()
+        .descendant_or_self()
+        .filter(|element| element.name() == "a")
+        .enumerate()
+        .map(|(index, element)| element.set_attribute("nr", Some(&index.to_string())))
+        .count();
+
+    assert!(count == 3);
+    assert!(
+        doc.to_string()
+            == "<doc><a nr=\"0\">123</a><b><a nr=\"1\">456</a><a nr=\"2\">789</a></b></doc>"
+    );
+
+    Ok(())
+}
+```
+
+# Tools
+
+iks provides a few command line tools for quick XML processing:
+
+* ikslint: validates XML files
+* ikspath: loads XML files into a DOM tree and runs XPath queries on them
 
 # License
 

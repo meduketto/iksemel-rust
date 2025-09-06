@@ -38,8 +38,25 @@ Always use GitHub issues for feature requests.
 
 ### 4. Write code, tests, documentation
 
+A Pull Request (PR) on the Github repository is the most preferred
+form for such contributions.
 
-#### Licencing
+#### License
+
+By sending a PR, you agree to license your code under the same
+terms as the iksemel project, which is LGPL3 or later.
+
+For bug fixes and similar small changes, I will require you to
+assign your copyright as well to the project by including the
+following line in your commit message:
+
+```
+I hereby assign copyright in my code to the iksemel project,
+to be licensed under the same terms as the rest of the code.
+```
+
+For large or substantial changes, you may retain your copyright
+by adding it to the file header.
 
 #### Coding Standards
 
