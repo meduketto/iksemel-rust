@@ -42,3 +42,19 @@ Always use GitHub issues for feature requests.
 #### Licencing
 
 #### Coding Standards
+
+* All code must be formatted with `cargo fmt`.
+* Code must be passing `cargo clippy`. If there is a good reason to
+  ignore a rule, it must be done in the smallest possible scope, and
+  a reason must be specified in the `#[allow()]` attribute.
+* Code must be passing `cargo test` under `miri`. Since miri is
+  slow, I suggest using it only before the final submission.
+* Bugfixes and new features must be accompanied by unit tests.
+* Unit tests must be tested for decent coverage with `cargo mutants`.
+  Not all misses need to be caught by tests, but they should be
+  reviewed.
+* Public API must have `rustdoc` comments with examples.
+* Dependencies can only be added if they are absolutely necessary,
+  not for convenience.
+* Backwards incompatible API changes must be avoided, unless they
+  provide significant type safety or performance improvements.
