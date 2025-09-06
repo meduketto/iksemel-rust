@@ -17,10 +17,10 @@ use std::io::stdin;
 use std::process::ExitCode;
 use std::vec::Vec;
 
-use iksemel::SaxElement;
-use iksemel::SaxError;
-use iksemel::SaxHandler;
-use iksemel::SaxParser;
+use iks::SaxElement;
+use iks::SaxError;
+use iks::SaxHandler;
+use iks::SaxParser;
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 

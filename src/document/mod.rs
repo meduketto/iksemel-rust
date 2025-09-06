@@ -273,7 +273,7 @@ impl Document {
     }
 
     //
-    // Convenience functions to avoid typing .root() all the time
+    // Convenience methods to avoid typing .root() all the time
     //
 
     pub fn insert_tag<'a>(&'a self, tag_name: &str) -> Result<Cursor<'a>, DocumentError> {
@@ -302,7 +302,7 @@ impl Document {
 
     #[allow(
         clippy::inherent_to_string_shadow_display,
-        reason = "prereserving exact capacity makes this function significantly faster"
+        reason = "prereserving exact capacity makes this method significantly faster"
     )]
     pub fn to_string(&self) -> String {
         self.root().to_string()
@@ -1003,7 +1003,7 @@ impl<'a> Cursor<'a> {
 
     #[allow(
         clippy::inherent_to_string_shadow_display,
-        reason = "prereserving exact capacity makes this function significantly faster"
+        reason = "prereserving exact capacity makes this method significantly faster"
     )]
     fn to_string(&self) -> String {
         let mut buf = String::with_capacity(self.str_size());

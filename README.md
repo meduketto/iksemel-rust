@@ -1,4 +1,4 @@
-# iks
+# iksemel
 
 Copyright (c) 2000-2025 Gurer Ozen <meduketto at gmail.com>
 
@@ -28,7 +28,7 @@ and alternative solutions.
 
 # Installation
 
-You can use iks in your rust projects by adding the following to your `Cargo.toml`:
+You can use it in your rust projects by adding the following to your `Cargo.toml`:
 
 ```toml
 [dependencies]
@@ -50,7 +50,7 @@ See API documentation for detailed examples and information.
 Here is a simple example:
 
 ```rust
-use iksemel::Document;
+use iks::Document;
 use std::str::FromStr;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -76,7 +76,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 # Tools
 
-iks provides a few command line tools for quick XML processing:
+Iksemel provides a few command line tools for quick XML processing:
 
 * ikslint: validates XML files
 * ikspath: loads XML files into a DOM tree and runs XPath queries on them

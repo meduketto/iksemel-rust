@@ -328,7 +328,7 @@ impl Arena {
     /// # Examples
     /// ```
     /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
-    /// use iksemel::Arena;
+    /// use iks::Arena;
     ///
     /// let arena : Arena = Arena::new()?;
     /// # Ok(())
@@ -355,7 +355,7 @@ impl Arena {
     /// # Examples
     /// ```
     /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
-    /// # use iksemel::Arena;
+    /// # use iks::Arena;
     /// let arena : Arena = Arena::with_chunk_sizes(128, 4096)?;
     /// # Ok(())
     /// # }
@@ -433,7 +433,7 @@ impl Arena {
     /// safety section for more details.
     ///
     /// The best way to do that is to extend the Arena with your
-    /// own trait and implement individual alloc functions for your
+    /// own trait and implement individual alloc methods for your
     /// own types. Rest of your program can use these abstractions
     /// safely. The example below illustrates this method which was
     /// also used in the [Document](crate::Document) implementation.
@@ -455,9 +455,9 @@ impl Arena {
     /// Best practice:
     /// ```
     /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
-    /// # use iksemel::Arena;
+    /// # use iks::Arena;
     /// # let arena : Arena = Arena::new()?;
-    /// use iksemel::NoMemory;
+    /// use iks::NoMemory;
     ///
     /// struct MyStruct<'a> {
     ///     a: i32,
@@ -487,10 +487,10 @@ impl Arena {
     /// Struct with Drop fields:
     /// ```
     /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
-    /// # use iksemel::Arena;
+    /// # use iks::Arena;
     /// # let arena : Arena = Arena::new()?;
     /// use std::ptr::addr_of_mut;
-    /// use iksemel::NoMemory;
+    /// use iks::NoMemory;
     ///
     /// struct MyStruct {
     ///     a: i32,
@@ -537,7 +537,7 @@ impl Arena {
     ///
     /// # Examples
     /// ```
-    /// # use iksemel::Arena;
+    /// # use iks::Arena;
     /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
     /// # let arena = Arena::new()?;
     /// let s = arena.push_str("Hello")?;
@@ -574,7 +574,7 @@ impl Arena {
     ///
     /// # Examples
     /// ```
-    /// # use iksemel::Arena;
+    /// # use iks::Arena;
     /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
     /// # let arena = Arena::new()?;
     /// let s1 = arena.push_str("Hello, ")?;
@@ -663,7 +663,7 @@ impl Arena {
     ///
     /// # Examples
     /// ```
-    /// # use iksemel::Arena;
+    /// # use iks::Arena;
     /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
     /// let arena = Arena::new()?;
     /// // use the arena
@@ -750,7 +750,7 @@ mod tests;
 /// Returned &str cannot outlive the arena:
 /// ```compile_fail
 /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
-/// use iksemel::Arena;
+/// use iks::Arena;
 /// let mut s : &str = "";
 /// {
 ///     let arena = Arena::new()?;
@@ -764,7 +764,7 @@ mod tests;
 /// into_empty_arena cannot be called with existing references
 /// ```compile_fail
 /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
-/// use iksemel::Arena;
+/// use iks::Arena;
 /// let arena = Arena::new()?;
 /// let s = arena.push_str("dangling")?;
 /// let arena2 = arena.into_empty_arena();

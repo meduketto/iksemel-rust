@@ -63,7 +63,7 @@ pub enum SaxError {
     /// Element handler method wants to abort.
     ///
     /// This is intended for your handler to be able to abort the parsing while
-    /// signalling that the interruption is not caused by iksemel itself.
+    /// signalling that the interruption is not caused by iks itself.
     HandlerAbort,
 }
 

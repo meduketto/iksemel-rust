@@ -65,7 +65,7 @@ pub trait SaxHandler {
 /// SAX (Simple API for XML) based XML parser.
 ///
 /// This struct implements a SAX parser which processes the incoming
-/// bytes and invokes a handler function for each encountered
+/// bytes and invokes a handler method for each encountered
 /// XML element.
 ///
 /// # SAX Limitations
@@ -98,7 +98,7 @@ pub trait SaxHandler {
 ///
 /// Typical usage:
 /// ```
-/// use iksemel::{SaxElement, SaxError, SaxHandler, SaxParser};
+/// use iks::{SaxElement, SaxError, SaxHandler, SaxParser};
 ///
 /// // Example handler which just prints parsed elements
 /// struct Handler { }
@@ -134,9 +134,9 @@ pub trait SaxHandler {
 ///
 /// Alternatively you can pass the input in multiple blocks:
 /// ```
-/// # use iksemel::SaxElement;
-/// # use iksemel::SaxError;
-/// # use iksemel::SaxHandler;
+/// # use iks::SaxElement;
+/// # use iks::SaxError;
+/// # use iks::SaxHandler;
 /// # fn main() -> Result<(), SaxError> {
 /// # struct Handler { }
 /// # impl SaxHandler for Handler {
@@ -145,7 +145,7 @@ pub trait SaxHandler {
 /// #     }
 /// # }
 /// # let mut handler = Handler {};
-/// # use iksemel::SaxParser;
+/// # use iks::SaxParser;
 /// # let mut parser = SaxParser::new();
 /// # use std::io::Read;
 /// # let mut binding = vec!(b'<', b'a', b'/', b'>');
@@ -365,7 +365,7 @@ impl SaxParser {
 
     /// Parses given XML bytes and checks if the document is complete.
     ///
-    /// This is a convenience function which calls [parse_bytes()](SaxParser::parse_bytes)
+    /// This is a convenience method which calls [parse_bytes()](SaxParser::parse_bytes)
     /// and [parse_finish()](SaxParser::parse_finish) methods for you.
     pub fn parse_bytes_finish(
         &mut self,

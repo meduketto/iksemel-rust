@@ -13,8 +13,8 @@
 /// Returned Cursor cannot outlive the Document:
 /// ```compile_fail
 /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
-/// use iksemel::Document;
-/// use iksemel::Cursor;
+/// use iks::Document;
+/// use iks::Cursor;
 /// use std::str::FromStr;
 /// let c: Cursor;
 /// {
@@ -29,8 +29,8 @@
 /// Cursor clone cannot outlive the Document:
 /// ```compile_fail
 /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
-/// use iksemel::Document;
-/// use iksemel::Cursor;
+/// use iks::Document;
+/// use iks::Cursor;
 /// use std::str::FromStr;
 /// let c2: Cursor;
 /// {
@@ -46,8 +46,8 @@
 /// Returned Cursor cannot outlive the Document:
 /// ```compile_fail
 /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
-/// use iksemel::Document;
-/// use iksemel::Cursor;
+/// use iks::Document;
+/// use iks::Cursor;
 /// use std::str::FromStr;
 /// let c2: Cursor;
 /// {

@@ -4,7 +4,7 @@ description = "Fast, easy to use XML parser library for Jabber/XMPP and general 
 edition = "2024"
 keywords = ["xml", "xmpp", "jabber", "parser"]
 license = "LGPL-3.0-or-later"
-name = "iksemel"
+name = "iks"
 repository = "https://github.com/meduketto/iksemel-rust"
 version = "0.1.0"
 

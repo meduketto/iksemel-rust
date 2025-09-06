@@ -1,10 +1,10 @@
-# Contributing to iks
+# Contributing to iksemel
 
 Thank you very much for your interest in contributing! :heart:
 
 ## Ways to Contribute
 
-There are many ways you can contribute to iks. You can:
+There are many ways you can contribute to iksemel. You can:
 
 ### 1. Share your experience
 

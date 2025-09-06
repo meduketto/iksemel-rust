@@ -14,7 +14,7 @@ use std::io::Read;
 use std::io::stdin;
 use std::process::ExitCode;
 
-use iksemel::{Document, DocumentError, DocumentParser, XPath};
+use iks::{Document, DocumentError, DocumentParser, XPath};
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 
