@@ -81,6 +81,11 @@ Iksemel provides a few command line tools for quick XML processing:
 * ikslint: validates XML files
 * ikspath: loads XML files into a DOM tree and runs XPath queries on them
 
+# Contributing
+
+There are many [ways to contribute](CONTRIBUTE.md) to the project. See also
+the [design decisions](DESIGN.md) document.
+
 # License
 
 Iksemel is free software: you can redistribute it and/or modify it under
