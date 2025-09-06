@@ -83,7 +83,7 @@ Iksemel provides a few command line tools for quick XML processing:
 
 # Contributing
 
-There are many [ways to contribute](CONTRIBUTE.md) to the project. See also
+There are many [ways to contribute](CONTRIBUTING.md) to the project. See also
 the [design decisions](DESIGN.md) document.
 
 # License
