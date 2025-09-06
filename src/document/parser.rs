@@ -49,23 +49,23 @@ impl SaxHandler for DocumentBuilder {
             },
             Some(doc) => match element {
                 SaxElement::StartTag(name) => {
-                    let new_tag = Cursor::new(self.node).insert_tag(doc, name)?;
+                    let new_tag = Cursor::new(self.node, &doc.arena).insert_tag(name)?;
                     self.node = new_tag.get_node_ptr();
                 }
                 SaxElement::Attribute(name, value) => {
-                    Cursor::new(self.node).insert_attribute(doc, name, value)?;
+                    Cursor::new(self.node, &doc.arena).insert_attribute(name, value)?;
                 }
                 SaxElement::EmptyElementTag => {
-                    self.node = Cursor::new(self.node).parent().get_node_ptr();
+                    self.node = Cursor::new(self.node, &doc.arena).parent().get_node_ptr();
                 }
                 SaxElement::CData(cdata) => {
-                    Cursor::new(self.node).insert_cdata(doc, cdata)?;
+                    Cursor::new(self.node, &doc.arena).insert_cdata(cdata)?;
                 }
                 SaxElement::EndTag(name) => {
-                    if name != &Cursor::new(self.node).name() {
+                    if name != &Cursor::new(self.node, &doc.arena).name() {
                         return Err(SaxError::BadXml(description::TAG_MISMATCH));
                     }
-                    self.node = Cursor::new(self.node).parent().get_node_ptr();
+                    self.node = Cursor::new(self.node, &doc.arena).parent().get_node_ptr();
                 }
             },
         }

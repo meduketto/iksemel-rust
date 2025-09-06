@@ -27,26 +27,23 @@ fn it_works() {
     let blink = doc
         .insert_tag("p")
         .unwrap()
-        .insert_tag(&doc, "b")
+        .insert_tag("b")
         .unwrap()
-        .insert_tag(&doc, "blink")
+        .insert_tag("blink")
         .unwrap()
-        .insert_cdata(&doc, "lala")
+        .insert_cdata("lala")
         .unwrap();
     assert!(!blink.is_null());
 
     let p2 = doc
         .root()
         .first_child()
-        .append_cdata(&doc, "foo&")
+        .append_cdata("foo&")
         .unwrap()
-        .append_tag(&doc, "p2")
+        .append_tag("p2")
         .unwrap();
 
-    p2.prepend_cdata(&doc, "bar")
-        .unwrap()
-        .prepend_tag(&doc, "p3")
-        .unwrap();
+    p2.prepend_cdata("bar").unwrap().prepend_tag("p3").unwrap();
 
     check_doc_xml(
         &doc,
@@ -58,30 +55,30 @@ fn it_works() {
 fn attributes() {
     let doc = Document::new("doc").unwrap();
     let a = doc.insert_tag("a").unwrap();
-    assert!(a.insert_attribute(&doc, "i", "1").unwrap().is_tag());
+    assert!(a.insert_attribute("i", "1").unwrap().is_tag());
     assert_eq!(
-        a.insert_attribute(&doc, "i", "1").unwrap_err(),
+        a.insert_attribute("i", "1").unwrap_err(),
         DocumentError::BadXml(description::DUPLICATE_ATTRIBUTE)
     );
-    assert!(a.insert_attribute(&doc, "j", "2").unwrap().is_tag());
+    assert!(a.insert_attribute("j", "2").unwrap().is_tag());
     assert_eq!(
-        a.insert_attribute(&doc, "i", "1").unwrap_err(),
+        a.insert_attribute("i", "1").unwrap_err(),
         DocumentError::BadXml(description::DUPLICATE_ATTRIBUTE)
     );
     assert_eq!(
-        a.insert_attribute(&doc, "j", "1").unwrap_err(),
+        a.insert_attribute("j", "1").unwrap_err(),
         DocumentError::BadXml(description::DUPLICATE_ATTRIBUTE)
     );
     let _ = doc
         .insert_tag("b")
         .unwrap()
-        .set_attribute(&doc, "i", Some("1"))
+        .set_attribute("i", Some("1"))
         .unwrap()
-        .set_attribute(&doc, "i", Some("2"))
+        .set_attribute("i", Some("2"))
         .unwrap();
     check_doc_xml(&doc, "<doc><a i=\"1\" j=\"2\"/><b i=\"2\"/></doc>");
 
-    let _ = doc.root().first_child().set_attribute(&doc, "k", Some("3"));
+    let _ = doc.root().first_child().set_attribute("k", Some("3"));
     check_doc_xml(&doc, "<doc><a i=\"1\" j=\"2\" k=\"3\"/><b i=\"2\"/></doc>");
 
     let mut iter = doc.first_child().attributes();
@@ -95,12 +92,12 @@ fn attributes() {
     assert_eq!(doc.find_tag("a").attribute("k"), Some("3"));
     assert_eq!(doc.find_tag("b").attribute("i"), Some("2"));
 
-    let _ = doc.find_tag("a").set_attribute(&doc, "i", None);
-    let _ = doc.find_tag("a").set_attribute(&doc, "x", None);
+    let _ = doc.find_tag("a").set_attribute("i", None);
+    let _ = doc.find_tag("a").set_attribute("x", None);
     check_doc_xml(&doc, "<doc><a j=\"2\" k=\"3\"/><b i=\"2\"/></doc>");
-    let _ = doc.find_tag("a").set_attribute(&doc, "k", None);
+    let _ = doc.find_tag("a").set_attribute("k", None);
     check_doc_xml(&doc, "<doc><a j=\"2\"/><b i=\"2\"/></doc>");
-    let _ = doc.find_tag("a").set_attribute(&doc, "j", None);
+    let _ = doc.find_tag("a").set_attribute("j", None);
     check_doc_xml(&doc, "<doc><a/><b i=\"2\"/></doc>");
 }
 
@@ -186,20 +183,20 @@ fn cursor_clone() {
 fn removals() {
     let doc = Document::from_str("<a>123<b/>456<c/><d><e/></d>789<f/></a>").unwrap();
 
-    doc.find_tag("d").remove(&doc);
+    doc.find_tag("d").remove();
     assert_eq!(doc.to_string(), "<a>123<b/>456<c/>789<f/></a>");
 
-    doc.find_tag("f").remove(&doc);
+    doc.find_tag("f").remove();
     assert_eq!(doc.to_string(), "<a>123<b/>456<c/>789</a>");
 
-    doc.first_child().remove(&doc);
+    doc.first_child().remove();
     assert_eq!(doc.to_string(), "<a><b/>456<c/>789</a>");
 
-    doc.root().last_child().remove(&doc);
+    doc.root().last_child().remove();
     assert_eq!(doc.to_string(), "<a><b/>456<c/></a>");
 
     for child in doc.root().children() {
-        child.remove(&doc);
+        child.remove();
     }
     assert_eq!(doc.to_string(), "<a/>");
 }
@@ -255,15 +252,15 @@ fn null_checks() {
     assert!(doc.root().next().descendant_or_self().next().is_none());
     assert!(doc.root().next().attributes().next().is_none());
     // edits
-    assert!(doc.root().next().insert_tag(&doc, "k").is_err());
-    assert!(doc.root().next().append_tag(&doc, "k").is_err());
-    assert!(doc.root().next().prepend_tag(&doc, "k").is_err());
-    assert!(doc.root().next().insert_attribute(&doc, "k", "v").is_err());
-    assert!(doc.root().next().set_attribute(&doc, "k", None).is_err());
-    assert!(doc.root().next().insert_cdata(&doc, "k").is_err());
-    assert!(doc.root().next().append_cdata(&doc, "k").is_err());
-    assert!(doc.root().next().prepend_cdata(&doc, "k").is_err());
-    doc.root().next().remove(&doc);
+    assert!(doc.root().next().insert_tag("k").is_err());
+    assert!(doc.root().next().append_tag("k").is_err());
+    assert!(doc.root().next().prepend_tag("k").is_err());
+    assert!(doc.root().next().insert_attribute("k", "v").is_err());
+    assert!(doc.root().next().set_attribute("k", None).is_err());
+    assert!(doc.root().next().insert_cdata("k").is_err());
+    assert!(doc.root().next().append_cdata("k").is_err());
+    assert!(doc.root().next().prepend_cdata("k").is_err());
+    doc.root().next().remove();
 }
 
 #[test]

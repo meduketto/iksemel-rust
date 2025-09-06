@@ -39,12 +39,6 @@ pub struct Document {
     root_node: UnsafeCell<*mut Node>,
 }
 
-#[repr(transparent)]
-pub struct Cursor<'a> {
-    node: UnsafeCell<*mut Node>,
-    marker: PhantomData<&'a Document>,
-}
-
 enum NodePayload {
     Tag(*mut Tag),
     CData(*mut CData),
@@ -271,7 +265,7 @@ impl Document {
     pub fn root<'a>(&'a self) -> Cursor<'a> {
         unsafe {
             let node = *self.root_node.get();
-            Cursor::new(node)
+            Cursor::new(node, &self.arena)
         }
     }
 
@@ -284,11 +278,11 @@ impl Document {
     //
 
     pub fn insert_tag<'a>(&'a self, tag_name: &str) -> Result<Cursor<'a>, DocumentError> {
-        self.root().insert_tag(self, tag_name)
+        self.root().insert_tag(tag_name)
     }
 
     pub fn insert_cdata<'a>(&'a self, cdata: &str) -> Result<Cursor<'a>, DocumentError> {
-        self.root().insert_cdata(self, cdata)
+        self.root().insert_cdata(cdata)
     }
 
     pub fn first_child<'a>(&'a self) -> Cursor<'a> {
@@ -333,8 +327,8 @@ impl FromStr for Document {
 }
 
 macro_rules! null_cursor {
-    () => {
-        Cursor::new(null_mut() as *mut Node)
+    ($x:expr) => {
+        Cursor::new(null_mut() as *mut Node, $x.arena)
     };
 }
 
@@ -342,7 +336,7 @@ macro_rules! null_cursor_guard {
     ($x:expr) => {
         unsafe {
             if (*$x.node.get()).is_null() {
-                return null_cursor!();
+                return null_cursor!($x);
             }
         }
     };
@@ -363,11 +357,17 @@ macro_rules! cursor_edit_guards {
     }};
 }
 
+pub struct Cursor<'a> {
+    node: UnsafeCell<*mut Node>,
+    arena: &'a Arena,
+    //    marker: PhantomData<&'a Document>,
+}
+
 impl<'a> Cursor<'a> {
-    fn new(node: *mut Node) -> Cursor<'a> {
+    fn new(node: *mut Node, arena: &'a Arena) -> Cursor<'a> {
         Cursor {
             node: node.into(),
-            marker: PhantomData,
+            arena: arena,
         }
     }
 
@@ -383,11 +383,7 @@ impl<'a> Cursor<'a> {
     // Edit methods
     //
 
-    pub fn insert_tag<'b, 'c>(
-        &'a self,
-        document: &'b Document,
-        tag_name: &'c str,
-    ) -> Result<Cursor<'b>, DocumentError> {
+    pub fn insert_tag<'b>(self, tag_name: &'b str) -> Result<Cursor<'a>, DocumentError> {
         let node = cursor_edit_guards!(self);
 
         unsafe {
@@ -397,11 +393,8 @@ impl<'a> Cursor<'a> {
                     Err(DocumentError::BadXml(description::CDATA_CHILDREN))
                 }
                 NodePayload::Tag(tag) => {
-                    let new_tag = document.arena.alloc_tag(tag_name)?.as_ptr();
-                    let new_node = document
-                        .arena
-                        .alloc_node(NodePayload::Tag(new_tag))?
-                        .as_ptr();
+                    let new_tag = self.arena.alloc_tag(tag_name)?.as_ptr();
+                    let new_node = self.arena.alloc_node(NodePayload::Tag(new_tag))?.as_ptr();
 
                     (*new_node).parent = node;
                     if (*tag).children.is_null() {
@@ -413,17 +406,13 @@ impl<'a> Cursor<'a> {
                     }
                     (*tag).last_child = new_node;
 
-                    Ok(Cursor::new(new_node))
+                    Ok(Cursor::new(new_node, self.arena))
                 }
             }
         }
     }
 
-    pub fn append_tag<'b, 'c>(
-        &'a self,
-        document: &'b Document,
-        tag_name: &'c str,
-    ) -> Result<Cursor<'b>, DocumentError> {
+    pub fn append_tag<'b>(self, tag_name: &'b str) -> Result<Cursor<'a>, DocumentError> {
         let node = cursor_edit_guards!(self);
 
         unsafe {
@@ -431,11 +420,8 @@ impl<'a> Cursor<'a> {
                 return Err(DocumentError::BadXml(description::ROOT_SIBLING));
             }
 
-            let new_tag = document.arena.alloc_tag(tag_name)?.as_ptr();
-            let new_node = document
-                .arena
-                .alloc_node(NodePayload::Tag(new_tag))?
-                .as_ptr();
+            let new_tag = self.arena.alloc_tag(tag_name)?.as_ptr();
+            let new_node = self.arena.alloc_node(NodePayload::Tag(new_tag))?.as_ptr();
 
             let parent = (*node).parent;
             (*new_node).parent = parent;
@@ -458,15 +444,11 @@ impl<'a> Cursor<'a> {
             (*new_node).previous = node;
             (*node).next = new_node;
 
-            Ok(Cursor::new(new_node))
+            Ok(Cursor::new(new_node, self.arena))
         }
     }
 
-    pub fn prepend_tag<'b, 'c>(
-        &'a self,
-        document: &'b Document,
-        tag_name: &'c str,
-    ) -> Result<Cursor<'b>, DocumentError> {
+    pub fn prepend_tag<'b>(self, tag_name: &'b str) -> Result<Cursor<'a>, DocumentError> {
         let node = cursor_edit_guards!(self);
 
         unsafe {
@@ -474,11 +456,8 @@ impl<'a> Cursor<'a> {
                 return Err(DocumentError::BadXml(description::ROOT_SIBLING));
             }
 
-            let new_tag = document.arena.alloc_tag(tag_name)?.as_ptr();
-            let new_node = document
-                .arena
-                .alloc_node(NodePayload::Tag(new_tag))?
-                .as_ptr();
+            let new_tag = self.arena.alloc_tag(tag_name)?.as_ptr();
+            let new_node = self.arena.alloc_node(NodePayload::Tag(new_tag))?.as_ptr();
 
             let parent = (*node).parent;
             (*new_node).parent = parent;
@@ -501,16 +480,15 @@ impl<'a> Cursor<'a> {
             (*new_node).next = node;
             (*node).previous = new_node;
 
-            Ok(Cursor::new(new_node))
+            Ok(Cursor::new(new_node, self.arena))
         }
     }
 
-    pub fn insert_attribute<'b, 'c>(
-        &'a self,
-        document: &'b Document,
-        name: &'c str,
-        value: &'c str,
-    ) -> Result<Cursor<'b>, DocumentError> {
+    pub fn insert_attribute<'b>(
+        &self,
+        name: &'b str,
+        value: &'b str,
+    ) -> Result<Cursor<'a>, DocumentError> {
         let node = cursor_edit_guards!(self);
 
         unsafe {
@@ -526,7 +504,7 @@ impl<'a> Cursor<'a> {
                         attr = (*attr).next;
                     }
                     // Add the new attribute
-                    let attribute = document.arena.alloc_attribute(name, value)?.as_ptr();
+                    let attribute = self.arena.alloc_attribute(name, value)?.as_ptr();
                     if (*tag).attributes.is_null() {
                         (*tag).attributes = attribute;
                     }
@@ -536,18 +514,17 @@ impl<'a> Cursor<'a> {
                     }
                     (*tag).last_attribute = attribute;
 
-                    Ok(Cursor::new(node))
+                    Ok(Cursor::new(node, self.arena))
                 }
             }
         }
     }
 
-    pub fn set_attribute<'b, 'c>(
-        &'a self,
-        document: &'b Document,
-        name: &'c str,
-        value: Option<&'c str>,
-    ) -> Result<Cursor<'b>, DocumentError> {
+    pub fn set_attribute<'b>(
+        &self,
+        name: &'b str,
+        value: Option<&'b str>,
+    ) -> Result<Cursor<'a>, DocumentError> {
         let node = cursor_edit_guards!(self);
 
         unsafe {
@@ -574,10 +551,10 @@ impl<'a> Cursor<'a> {
                                     }
                                 }
                                 Some(value) => {
-                                    let value = document.arena.push_str(value)?;
+                                    let value = self.arena.push_str(value)?;
                                     (*attr).value = value.as_ptr();
                                     (*attr).value_size = value.len();
-                                    return Ok(Cursor::new(node));
+                                    return Ok(Cursor::new(node, self.arena));
                                 }
                             }
                         }
@@ -586,11 +563,11 @@ impl<'a> Cursor<'a> {
                     match value {
                         None => {
                             // Attribute already non existent
-                            Ok(Cursor::new(node))
+                            Ok(Cursor::new(node, self.arena))
                         }
                         Some(value) => {
                             // Add a new attribute
-                            let attribute = document.arena.alloc_attribute(name, value)?.as_ptr();
+                            let attribute = self.arena.alloc_attribute(name, value)?.as_ptr();
                             if (*tag).attributes.is_null() {
                                 (*tag).attributes = attribute;
                             }
@@ -600,7 +577,7 @@ impl<'a> Cursor<'a> {
                             }
                             (*tag).last_attribute = attribute;
 
-                            Ok(Cursor::new(node))
+                            Ok(Cursor::new(node, self.arena))
                         }
                     }
                 }
@@ -608,11 +585,7 @@ impl<'a> Cursor<'a> {
         }
     }
 
-    pub fn insert_cdata<'b, 'c>(
-        &'a self,
-        document: &'b Document,
-        cdata: &'c str,
-    ) -> Result<Cursor<'b>, DocumentError> {
+    pub fn insert_cdata<'b>(self, cdata: &'b str) -> Result<Cursor<'a>, DocumentError> {
         let node = cursor_edit_guards!(self);
 
         unsafe {
@@ -624,15 +597,15 @@ impl<'a> Cursor<'a> {
                         && let NodePayload::CData(cdata_node) = (*last).payload
                     {
                         let old_s = (*cdata_node).as_str();
-                        let s = document.arena.concat_str(old_s, cdata)?;
+                        let s = self.arena.concat_str(old_s, cdata)?;
                         (*cdata_node).value = s.as_ptr();
                         (*cdata_node).value_size = s.len();
 
-                        return Ok(Cursor::new(last));
+                        return Ok(Cursor::new(last, self.arena));
                     }
 
-                    let new_cdata = document.arena.alloc_cdata(cdata)?.as_ptr();
-                    let new_node = document
+                    let new_cdata = self.arena.alloc_cdata(cdata)?.as_ptr();
+                    let new_node = self
                         .arena
                         .alloc_node(NodePayload::CData(new_cdata))?
                         .as_ptr();
@@ -647,17 +620,13 @@ impl<'a> Cursor<'a> {
                     }
                     (*tag).last_child = new_node;
 
-                    Ok(Cursor::new(new_node))
+                    Ok(Cursor::new(new_node, self.arena))
                 }
             }
         }
     }
 
-    pub fn append_cdata<'b, 'c>(
-        &'a self,
-        document: &'b Document,
-        cdata: &'c str,
-    ) -> Result<Cursor<'b>, DocumentError> {
+    pub fn append_cdata<'b>(self, cdata: &'b str) -> Result<Cursor<'a>, DocumentError> {
         let node = cursor_edit_guards!(self);
 
         unsafe {
@@ -665,8 +634,8 @@ impl<'a> Cursor<'a> {
                 return Err(DocumentError::BadXml(description::ROOT_SIBLING));
             }
 
-            let new_cdata = document.arena.alloc_cdata(cdata)?.as_ptr();
-            let new_node = document
+            let new_cdata = self.arena.alloc_cdata(cdata)?.as_ptr();
+            let new_node = self
                 .arena
                 .alloc_node(NodePayload::CData(new_cdata))?
                 .as_ptr();
@@ -691,15 +660,11 @@ impl<'a> Cursor<'a> {
             (*new_node).previous = node;
             (*node).next = new_node;
 
-            Ok(Cursor::new(new_node))
+            Ok(Cursor::new(new_node, self.arena))
         }
     }
 
-    pub fn prepend_cdata<'b, 'c>(
-        &'a self,
-        document: &'b Document,
-        cdata: &'c str,
-    ) -> Result<Cursor<'b>, DocumentError> {
+    pub fn prepend_cdata<'b>(self, cdata: &'b str) -> Result<Cursor<'a>, DocumentError> {
         let node = cursor_edit_guards!(self);
 
         unsafe {
@@ -707,8 +672,8 @@ impl<'a> Cursor<'a> {
                 return Err(DocumentError::BadXml(description::ROOT_SIBLING));
             }
 
-            let new_cdata = document.arena.alloc_cdata(cdata)?.as_ptr();
-            let new_node = document
+            let new_cdata = self.arena.alloc_cdata(cdata)?.as_ptr();
+            let new_node = self
                 .arena
                 .alloc_node(NodePayload::CData(new_cdata))?
                 .as_ptr();
@@ -734,11 +699,11 @@ impl<'a> Cursor<'a> {
             (*new_node).next = node;
             (*node).previous = new_node;
 
-            Ok(Cursor::new(new_node))
+            Ok(Cursor::new(new_node, self.arena))
         }
     }
 
-    pub fn remove(self, _document: &Document) {
+    pub fn remove(self) {
         let node = self.get_node_ptr();
         if node.is_null() {
             return;
@@ -789,7 +754,7 @@ impl<'a> Cursor<'a> {
 
         unsafe {
             let node = *self.node.get();
-            Cursor::new((*node).next)
+            Cursor::new((*node).next, self.arena)
         }
     }
 
@@ -811,7 +776,7 @@ impl<'a> Cursor<'a> {
 
         unsafe {
             let node = *self.node.get();
-            Cursor::new((*node).previous)
+            Cursor::new((*node).previous, self.arena)
         }
     }
 
@@ -833,7 +798,7 @@ impl<'a> Cursor<'a> {
 
         unsafe {
             let node = *self.node.get();
-            Cursor::new((*node).parent)
+            Cursor::new((*node).parent, self.arena)
         }
     }
 
@@ -858,9 +823,9 @@ impl<'a> Cursor<'a> {
             let node = *self.node.get();
             match (*node).payload {
                 NodePayload::CData(_) => {
-                    null_cursor!()
+                    null_cursor!(self)
                 }
-                NodePayload::Tag(tag) => Cursor::new((*tag).children),
+                NodePayload::Tag(tag) => Cursor::new((*tag).children, self.arena),
             }
         }
     }
@@ -872,9 +837,9 @@ impl<'a> Cursor<'a> {
             let node = *self.node.get();
             match (*node).payload {
                 NodePayload::CData(_) => {
-                    null_cursor!()
+                    null_cursor!(self)
                 }
-                NodePayload::Tag(tag) => Cursor::new((*tag).last_child),
+                NodePayload::Tag(tag) => Cursor::new((*tag).last_child, self.arena),
             }
         }
     }
@@ -882,9 +847,9 @@ impl<'a> Cursor<'a> {
     pub fn first_tag(self) -> Cursor<'a> {
         null_cursor_guard!(self);
 
-        let child = self.first_child();
+        let child = self.clone().first_child();
         if child.is_null() {
-            null_cursor!()
+            null_cursor!(self)
         } else if child.is_tag() {
             child
         } else {
@@ -1097,7 +1062,7 @@ impl Clone for Cursor<'_> {
     fn clone(&self) -> Self {
         Cursor {
             node: self.get_node_ptr().into(),
-            marker: PhantomData,
+            arena: self.arena,
         }
     }
 }
