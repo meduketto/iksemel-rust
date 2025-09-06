@@ -14,10 +14,15 @@
 #![deny(clippy::style)]
 #![deny(clippy::cargo)]
 #![deny(clippy::items_after_statements)]
+#![deny(clippy::missing_panics_doc)]
 #![deny(clippy::uninlined_format_args)]
 #![deny(clippy::unnecessary_semicolon)]
-#![deny(clippy::missing_panics_doc)]
 #![deny(clippy::unreadable_literal)]
+#![deny(clippy::allow_attributes_without_reason)]
+#![deny(clippy::panic)]
+#![deny(clippy::partial_pub_fields)]
+#![deny(clippy::redundant_test_prefix)]
+//#![deny(clippy::undocumented_unsafe_blocks)]
 
 mod arena;
 mod document;
