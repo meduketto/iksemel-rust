@@ -754,7 +754,7 @@ mod tests;
 /// let mut s : &str = "";
 /// {
 ///     let arena = Arena::new()?;
-///     s = arena.push_str("will dangle")
+///     s = arena.push_str("will dangle").unwrap();
 /// }
 /// println!("{}", s);
 /// # Ok(())

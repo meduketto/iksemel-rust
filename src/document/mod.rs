@@ -14,7 +14,6 @@ mod parser;
 
 use std::cell::UnsafeCell;
 use std::fmt::Debug;
-use std::marker::PhantomData;
 use std::marker::PhantomPinned;
 use std::ptr::NonNull;
 use std::ptr::null_mut;
@@ -33,11 +32,6 @@ pub use iterators::Attributes;
 pub use iterators::Children;
 pub use iterators::DescendantOrSelf;
 pub use parser::DocumentParser;
-
-pub struct Document {
-    arena: Arena,
-    root_node: UnsafeCell<*mut Node>,
-}
 
 enum NodePayload {
     Tag(*mut Tag),
@@ -250,6 +244,11 @@ impl Visitor {
     }
 }
 
+pub struct Document {
+    arena: Arena,
+    root_node: UnsafeCell<*mut Node>,
+}
+
 impl Document {
     pub fn new(root_tag_name: &str) -> Result<Document, DocumentError> {
         let arena = Arena::new()?;
@@ -360,14 +359,13 @@ macro_rules! cursor_edit_guards {
 pub struct Cursor<'a> {
     node: UnsafeCell<*mut Node>,
     arena: &'a Arena,
-    //    marker: PhantomData<&'a Document>,
 }
 
 impl<'a> Cursor<'a> {
     fn new(node: *mut Node, arena: &'a Arena) -> Cursor<'a> {
         Cursor {
             node: node.into(),
-            arena: arena,
+            arena,
         }
     }
 

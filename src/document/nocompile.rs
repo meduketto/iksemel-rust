@@ -15,6 +15,7 @@
 /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
 /// use iksemel::Document;
 /// use iksemel::Cursor;
+/// use std::str::FromStr;
 /// let c: Cursor;
 /// {
 ///     let doc = Document::from_str("<a><b/></a>")?;
@@ -30,6 +31,7 @@
 /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
 /// use iksemel::Document;
 /// use iksemel::Cursor;
+/// use std::str::FromStr;
 /// let c2: Cursor;
 /// {
 ///     let doc = Document::from_str("<a><b/></a>")?;
@@ -46,6 +48,7 @@
 /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
 /// use iksemel::Document;
 /// use iksemel::Cursor;
+/// use std::str::FromStr;
 /// let c2: Cursor;
 /// {
 ///     let doc = Document::from_str("<a><b/></a>")?;
