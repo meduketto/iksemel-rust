@@ -1,6 +1,8 @@
 [package]
 categories = ["parsing", "network-programming"]
+description = "Fast, easy to use XML parser library for Jabber/XMPP and general XML processing"
 edition = "2024"
+keywords = ["xml", "xmpp", "jabber", "parser"]
 license = "LGPL-3.0-or-later"
 name = "iksemel"
 repository = "https://github.com/meduketto/iksemel-rust"

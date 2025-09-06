@@ -8,6 +8,13 @@
 ** the License, or (at your option) any later version.
 */
 
+#![deny(clippy::suspicious)]
+#![deny(clippy::complexity)]
+#![deny(clippy::perf)]
+#![deny(clippy::style)]
+#![deny(clippy::cargo)]
+//#![deny(clippy::pedantic)]
+
 mod arena;
 mod document;
 mod entities;

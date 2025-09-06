@@ -18,6 +18,7 @@ use std::marker::PhantomData;
 use std::marker::PhantomPinned;
 use std::ptr::NonNull;
 use std::ptr::null_mut;
+use std::str::FromStr;
 
 use crate::NoMemory;
 use crate::document::error::description;
@@ -267,12 +268,6 @@ impl Document {
         })
     }
 
-    pub fn from_str(xml_str: &str) -> Result<Document, DocumentError> {
-        let mut parser = DocumentParser::new();
-        parser.parse_bytes(xml_str.as_bytes())?;
-        parser.into_document()
-    }
-
     pub fn root<'a>(&'a self) -> Cursor<'a> {
         unsafe {
             let node = *self.root_node.get();
@@ -312,6 +307,10 @@ impl Document {
         self.root().str_size()
     }
 
+    #[allow(
+        clippy::inherent_to_string_shadow_display,
+        reason = "prereserving exact capacity makes this function significantly faster"
+    )]
     pub fn to_string(&self) -> String {
         self.root().to_string()
     }
@@ -320,6 +319,16 @@ impl Document {
 impl std::fmt::Display for Document {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         std::fmt::Display::fmt(&self.root(), f)
+    }
+}
+
+impl FromStr for Document {
+    type Err = DocumentError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let mut parser = DocumentParser::new();
+        parser.parse_bytes(s.as_bytes())?;
+        parser.into_document()
     }
 }
 
@@ -1035,6 +1044,10 @@ impl<'a> Cursor<'a> {
         size
     }
 
+    #[allow(
+        clippy::inherent_to_string_shadow_display,
+        reason = "prereserving exact capacity makes this function significantly faster"
+    )]
     fn to_string(&self) -> String {
         let mut buf = String::with_capacity(self.str_size());
 

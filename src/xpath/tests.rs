@@ -8,6 +8,8 @@
 ** the License, or (at your option) any later version.
 */
 
+use std::str::FromStr;
+
 use crate::Document;
 
 use super::*;

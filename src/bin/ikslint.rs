@@ -84,8 +84,8 @@ impl Handler {
                 "Tags pairs: {}, empty element tags: {}, max depth: {}",
                 self.nr_tags, self.nr_empty_tags, self.max_depth
             );
-            print!(
-                "Total size of character data: {} bytes.\n",
+            println!(
+                "Total size of character data: {} bytes.",
                 self.nr_cdata_size
             );
         }
