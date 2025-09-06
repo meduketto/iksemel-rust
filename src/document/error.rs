@@ -66,6 +66,5 @@ pub(super) mod description {
     pub(in super::super) const CDATA_CHILDREN: &str =
         "child elements cannot be added on CDATA elements";
     pub(in super::super) const NULL_CURSOR_EDIT: &str = "null cursor cannot edit the document";
-    pub(in super::super) const REMOVED_EDIT: &str = "cannot edit a removed element";
     pub(in super::super) const ROOT_SIBLING: &str = "root element cannot have siblings";
 }

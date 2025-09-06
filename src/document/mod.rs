@@ -347,11 +347,6 @@ macro_rules! cursor_edit_guards {
         if node.is_null() {
             return Err(DocumentError::BadXml(description::NULL_CURSOR_EDIT));
         }
-        unsafe {
-            if (*node).next == node && (*node).previous == node {
-                return Err(DocumentError::BadXml(description::REMOVED_EDIT));
-            }
-        }
         node
     }};
 }
@@ -709,9 +704,7 @@ impl<'a> Cursor<'a> {
         unsafe {
             let parent = (*node).parent;
             if parent.is_null() {
-                return;
-            }
-            if (*node).next == node && (*node).previous == node {
+                // Cannot remove the root element
                 return;
             }
             // Fix siblings
@@ -734,8 +727,9 @@ impl<'a> Cursor<'a> {
                 NodePayload::CData(_) => {}
             }
             // Fix self
-            (*node).next = node;
-            (*node).previous = node;
+            (*node).parent = null_mut();
+            (*node).next = null_mut();
+            (*node).previous = null_mut();
         }
     }
 
