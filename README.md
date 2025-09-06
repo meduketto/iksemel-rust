@@ -6,6 +6,9 @@ Copyright (c) 2000-2025 Gurer Ozen <meduketto at gmail.com>
 general XML processing applications. It aims to be easy to use,
 fast, and usable in resource-constrained environments.
 
+![Crates.io Version](https://img.shields.io/crates/v/iks)![GitHub License](https://img.shields.io/github/license/meduketto/iksemel-rust)
+
+
 # Features
 
 * SAX API for minimal memory usage.

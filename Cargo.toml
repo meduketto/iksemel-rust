@@ -6,6 +6,6 @@ keywords = ["xml", "xmpp", "jabber", "parser"]
 license = "LGPL-3.0-or-later"
 name = "iks"
 repository = "https://github.com/meduketto/iksemel-rust"
-version = "0.1.0"
+version = "0.2.0"
 
 [dependencies]
