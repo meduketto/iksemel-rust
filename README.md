@@ -2,7 +2,7 @@
 
 Copyright (c) 2000-2025 Gurer Ozen <meduketto at gmail.com>
 
-[iks](iks) is an XML parser library for [Jabber/XMPP](XMPP) and
+[iks][iks] is an XML parser library for [Jabber/XMPP][XMPP] and
 general XML processing applications. It aims to be easy to use,
 fast, and usable in resource-constrained environments.
 
