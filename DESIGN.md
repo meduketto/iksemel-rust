@@ -108,4 +108,53 @@ Iksemel just skips them.
 
 ### Chunked Parsing
 
+Since data is coming as chunks from network, and not loading the
+entire file is quite a memory saving, all parser APIs accept a
+variable length of bytes, and allow the caller to do a final
+validation when the entire document has been fed.
+
+This requires the DOM and Stream parsers to copy some data, but
+the efficient Arena implementation and the smart packing of tree
+structs makes this quite fast. This also allows combining of CData
+sections escaped with various XML structures into a single
+continous string.
+
 ### Comment Processing
+
+Comments are skipped but not returned to the application. Since
+they are intended for human editors' consumption, preserving them
+through machine processing would not be useful. It is very easy
+to include a namespaced comment/description as an actual XML
+element if there is a need for machine processing.
+
+### NoMemory Errors
+
+It is really not good for a server handling ten thousand requests
+to crash and take down all when one request tries to make a big
+allocation.
+
+It can be argued that, this is not going to help when the allocation
+is tiny, as something else will inevitable fail anyway.
+
+Whether small or not, Iksemel always checks allocations and returns
+a NoMemory error when they fail.
+
+### Null Cursors
+
+It is possible to end up with nothing when navigating or querying
+the document tree. Rather than using an `Option` to represent this
+state, the Cursor changes its internal pointer to a null value, and
+subsequent operations do NOT do anything.
+
+This is not very idiomatic in Rust, but it allows a very elegant
+chaining of multiple navigation operations without putting them
+into individual functions to be able to use the `?` operator, or
+writing bunch of extra `.or(...)` and `.and_then(...)`s etc.
+
+This is a remnant of how it was working in the C version, and I am
+not very happy about it. Once the `try` block is stabilized in the
+Rust language, I will switch to it.
+
+Note that the cursor editing functions have a idiomatic `Result` return
+type as their failures almost always require short cutting the chain,
+and then exiting from the containing function.
