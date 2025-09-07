@@ -1,0 +1,58 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  RUST_BACKTRACE: 1
+  CARGO_TERM_COLOR: always
+  CARGO_TERM_VERBOSE: "true"
+  CARGO_INCREMENTAL: 0
+  CARGO_PROFILE_TEST_DEBUG: 0
+
+jobs:
+  ci-all:
+    name: All CI Stages
+    runs-on: ubuntu-latest
+    needs:
+      - lint
+      - test
+    if: ${{ success() || failure()}}
+    steps:
+      - name: Job outcomes
+        run: |
+          echo "Lint job status: ${{ needs.lint.result }}"
+          echo "Test job status: ${{ needs.test.result }}"
+      - if: ${{ needs.lint.result != 'success' }}
+        run: exit 1
+      - if: ${{ needs.test.result != 'success' }}
+        run: exit 1
+
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+      - name: Rustfmt
+        run: cargo fmt --all --check
+      - name: Clippy
+        run: cargo clippy
+      - name: Rustdoc
+        run: cargo doc --no-deps
+
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+      - name: Cargo Test
+        run: cargo test
