@@ -244,6 +244,11 @@ impl Visitor {
     }
 }
 
+/// An element tree representation of an XML document.
+///
+/// This struct contains all structs and character data of an XML
+/// document allocated within a memory [Arena](crate::Arena).
+///
 pub struct Document {
     arena: Arena,
     root_node: UnsafeCell<*mut Node>,
