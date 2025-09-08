@@ -158,3 +158,22 @@ Rust language, I will switch to it.
 Note that the cursor editing functions have a idiomatic `Result` return
 type as their failures almost always require short cutting the chain,
 and then exiting from the containing function.
+
+### XPath
+
+XPath is a kitchen sink language, trying to pack too much into a
+simple query string. Its data model has incompatible changes
+across the versions. Despite all the shortcomings, its basic
+filtering syntax is workable, and better than inventing a new one.
+
+Iksemel Document API tries to make XPath axis traversals and various
+predicate filterings easy to program. That way, we can implement
+similar queries in a better language.
+
+But a string query is sometimes useful too. That is why the `ikspath`
+tool is provided. It implements a basic subset of XPath syntax.
+Underlying implementation of XPath parsing and execution is shipped
+as a part of the library crate, but not necessarily at the same
+quality level or complies with the similar standards as the rest of
+the library. This might change in the future, but it is unlikely
+that any complicated features of XPath will be supported.

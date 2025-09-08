@@ -87,6 +87,18 @@ enum State {
 }
 
 impl XPath {
+    fn fix_steps(steps: &mut [AxisStep]) {
+        if let Some(step) = steps.first_mut()
+            && let Axis::Child = step.axis
+        {
+            // Iksemel does not have the extra indirection between the
+            // document and the root element like XPath, so we map axes
+            // to work with the iksemel model when they are at the
+            // beginning of the expression.
+            step.axis = Axis::Self_;
+        }
+    }
+
     pub fn new(expression: &str) -> Result<Self, BadXPath> {
         let bytes = expression.as_bytes();
         let mut pos: usize = 0;
@@ -192,68 +204,68 @@ impl XPath {
             }
         }
 
+        XPath::fix_steps(&mut steps);
+
         Ok(XPath { steps })
     }
 
-    fn child_step<'a>(
-        document: &'a Document,
-        context: &XPathSequence<'a>,
+    fn run_step_for_item<'a>(
+        cursor: Cursor<'a>,
+        new_context: &mut XPathSequence<'a>,
         step: &AxisStep,
-    ) -> Result<XPathSequence<'a>, BadXPath> {
-        let mut new_context = XPathSequence::new();
-        if context.items.is_empty() {
-            let root = document.root();
-            if step.name == "*" || step.name == root.name() {
-                new_context.items.push(XPathValue::Node(root));
-            }
-        } else {
-            for value in context.items.as_slice() {
-                match value {
-                    XPathValue::Node(cursor) => {
-                        if step.name == "*" {
-                            let mut child = cursor.clone().first_child();
-                            while !child.is_null() {
-                                new_context.items.push(XPathValue::Node(child.clone()));
-                                child = child.next();
-                            }
-                        } else {
-                            let mut child = cursor.clone().first_child();
-                            while !child.is_null() {
-                                if step.name == child.name() {
-                                    new_context.items.push(XPathValue::Node(child.clone()));
-                                }
-                                child = child.next();
-                            }
-                        }
+    ) -> Result<(), BadXPath> {
+        match step.axis {
+            Axis::Child => {
+                for child in cursor.clone().children() {
+                    if step.name == "*" || step.name == child.name() {
+                        new_context.items.push(XPathValue::Node(child.clone()));
                     }
                 }
             }
+            Axis::DescendantOrSelf => {
+                for descendant in cursor.clone().descendant_or_self() {
+                    if step.name == "*" || step.name == descendant.name() {
+                        new_context.items.push(XPathValue::Node(descendant.clone()));
+                    }
+                }
+            }
+            Axis::FollowingSibling => {
+                for sibling in cursor.clone().following_sibling() {
+                    if step.name == "*" || step.name == sibling.name() {
+                        new_context.items.push(XPathValue::Node(sibling.clone()));
+                    }
+                }
+            }
+            Axis::PrecedingSibling => {
+                for sibling in cursor.clone().preceding_sibling() {
+                    if step.name == "*" || step.name == sibling.name() {
+                        new_context.items.push(XPathValue::Node(sibling.clone()));
+                    }
+                }
+            }
+            Axis::Self_ => {
+                if step.name == "*" || step.name == cursor.name() {
+                    new_context.items.push(XPathValue::Node(cursor.clone()));
+                }
+            }
+            _ => {}
         }
-        Ok(new_context)
+        Ok(())
     }
 
-    fn descendant_or_self_step<'a>(
+    fn run_step<'a>(
         document: &'a Document,
         context: &XPathSequence<'a>,
         step: &AxisStep,
     ) -> Result<XPathSequence<'a>, BadXPath> {
         let mut new_context = XPathSequence::new();
         if context.items.is_empty() {
-            let root = document.root();
-            for descendant in root.clone().descendant_or_self() {
-                if step.name == "*" || step.name == descendant.name() {
-                    new_context.items.push(XPathValue::Node(descendant.clone()));
-                }
-            }
+            XPath::run_step_for_item(document.root(), &mut new_context, step)?;
         } else {
-            for value in context.items.as_slice() {
-                match value {
+            for item in &context.items {
+                match item {
                     XPathValue::Node(cursor) => {
-                        for descendant in cursor.clone().descendant_or_self() {
-                            if step.name == "*" || step.name == descendant.name() {
-                                new_context.items.push(XPathValue::Node(descendant.clone()));
-                            }
-                        }
+                        XPath::run_step_for_item(cursor.clone(), &mut new_context, step)?;
                     }
                 }
             }
@@ -264,13 +276,7 @@ impl XPath {
     pub fn apply<'b>(&self, document: &'b Document) -> Result<XPathSequence<'b>, BadXPath> {
         let mut context = XPathSequence::new();
         for step in &self.steps {
-            context = match step.axis {
-                Axis::Child => XPath::child_step(document, &context, step)?,
-                Axis::DescendantOrSelf => XPath::descendant_or_self_step(document, &context, step)?,
-                _ => {
-                    return Err(BadXPath);
-                }
-            };
+            context = XPath::run_step(document, &context, step)?;
             if context.items.is_empty() {
                 break;
             }
