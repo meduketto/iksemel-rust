@@ -48,4 +48,7 @@ pub use document::Document;
 pub use document::DocumentError;
 pub use document::DocumentParser;
 
+pub use xmpp::StreamHandler;
+pub use xmpp::StreamParser;
+
 pub use xpath::XPath;

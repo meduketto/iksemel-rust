@@ -8,18 +8,22 @@
 ** the License, or (at your option) any later version.
 */
 
-mod parser;
-
 use crate::Document;
+use crate::parser::SaxParser;
 
-pub use parser::StreamHandler;
-pub use parser::StreamParser;
-
-trait ClientStreamHandler {
-    fn handle_stream_start(&mut self, stream: Document);
-    fn handle_stanza(&mut self, stanza: Document);
-    fn handle_stream_error(&mut self, error: Document);
+pub trait StreamHandler {
+    fn handle_stream_element(&mut self, element: Document);
     fn handle_stream_end(&mut self);
 }
 
-struct ClientStream {}
+pub struct StreamParser {
+    parser: SaxParser,
+}
+
+impl StreamParser {
+    pub fn new() -> Self {
+        Self {
+            parser: SaxParser::new(),
+        }
+    }
+}
