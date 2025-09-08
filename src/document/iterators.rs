@@ -67,11 +67,38 @@ pub struct Children<'a> {
 
 impl<'a> Children<'a> {
     pub fn new(cursor: Cursor<'a>) -> Self {
-        Children { current: cursor }
+        Children {
+            current: cursor.first_child(),
+        }
     }
 }
 
 impl<'a> Iterator for Children<'a> {
+    type Item = Cursor<'a>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.current.is_null() {
+            return None;
+        }
+        let result = self.current.clone();
+        self.current = self.current.clone().next();
+        Some(result)
+    }
+}
+
+pub struct FollowingSibling<'a> {
+    current: Cursor<'a>,
+}
+
+impl<'a> FollowingSibling<'a> {
+    pub fn new(cursor: Cursor<'a>) -> Self {
+        FollowingSibling {
+            current: cursor.next(),
+        }
+    }
+}
+
+impl<'a> Iterator for FollowingSibling<'a> {
     type Item = Cursor<'a>;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -132,6 +159,31 @@ impl<'a> Iterator for DescendantOrSelf<'a> {
                 break;
             }
         }
+        Some(result)
+    }
+}
+
+pub struct PrecedingSibling<'a> {
+    current: Cursor<'a>,
+}
+
+impl<'a> PrecedingSibling<'a> {
+    pub fn new(cursor: Cursor<'a>) -> Self {
+        PrecedingSibling {
+            current: cursor.previous(),
+        }
+    }
+}
+
+impl<'a> Iterator for PrecedingSibling<'a> {
+    type Item = Cursor<'a>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.current.is_null() {
+            return None;
+        }
+        let result = self.current.clone();
+        self.current = self.current.clone().previous();
         Some(result)
     }
 }

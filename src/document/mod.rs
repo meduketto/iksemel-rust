@@ -31,6 +31,8 @@ pub use error::DocumentError;
 pub use iterators::Attributes;
 pub use iterators::Children;
 pub use iterators::DescendantOrSelf;
+pub use iterators::FollowingSibling;
+pub use iterators::PrecedingSibling;
 pub use parser::DocumentParser;
 
 enum NodePayload {
@@ -870,15 +872,23 @@ impl<'a> Cursor<'a> {
     //
 
     pub fn children(self) -> Children<'a> {
-        Children::new(self.first_child())
+        Children::new(self)
     }
 
     pub fn attributes(self) -> Attributes<'a> {
-        Attributes::new(self.clone())
+        Attributes::new(self)
+    }
+
+    pub fn following_sibling(self) -> FollowingSibling<'a> {
+        FollowingSibling::new(self)
     }
 
     pub fn descendant_or_self(self) -> DescendantOrSelf<'a> {
-        DescendantOrSelf::new(self.clone())
+        DescendantOrSelf::new(self)
+    }
+
+    pub fn preceding_sibling(self) -> PrecedingSibling<'a> {
+        PrecedingSibling::new(self)
     }
 
     //

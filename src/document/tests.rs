@@ -220,6 +220,21 @@ fn iterators() {
     assert_eq!(iter.next().unwrap().name(), "d");
     assert_eq!(iter.next().unwrap().cdata(), "456");
     assert!(iter.next().is_none());
+
+    let doc = Document::from_str("<a>lala<b/>123<c>101</c>456<d/>abc<e><f/></e></a>").unwrap();
+    let mut iter = doc.find_tag("d").following_sibling();
+    assert_eq!(iter.next().unwrap().cdata(), "abc");
+    assert_eq!(iter.next().unwrap().name(), "e");
+    assert!(iter.next().is_none());
+
+    let doc = Document::from_str("<a>lala<b/>123<c>101</c>456<d/>abc<e><f/></e></a>").unwrap();
+    let mut iter = doc.find_tag("d").preceding_sibling();
+    assert_eq!(iter.next().unwrap().cdata(), "456");
+    assert_eq!(iter.next().unwrap().name(), "c");
+    assert_eq!(iter.next().unwrap().cdata(), "123");
+    assert_eq!(iter.next().unwrap().name(), "b");
+    assert_eq!(iter.next().unwrap().cdata(), "lala");
+    assert!(iter.next().is_none());
 }
 
 #[test]
@@ -250,6 +265,7 @@ fn null_checks() {
     // iterators
     assert!(doc.root().next().children().next().is_none());
     assert!(doc.root().next().descendant_or_self().next().is_none());
+    assert!(doc.root().next().following_sibling().next().is_none());
     assert!(doc.root().next().attributes().next().is_none());
     // edits
     assert!(doc.root().next().insert_tag("k").is_err());

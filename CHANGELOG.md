@@ -1,6 +1,7 @@
 # 0.2.0 (TBD)
 
-...
+* Cursor now provides following_sibling, preceding_sibling
+  iterators.
 
 # 0.1.0 (2025-09-06)
 

@@ -7,3 +7,19 @@
 ** published by the Free Software Foundation, either version 3 of
 ** the License, or (at your option) any later version.
 */
+
+mod parser;
+
+use crate::Document;
+
+pub use parser::StreamHandler;
+pub use parser::StreamParser;
+
+pub trait ClientStreamHandler {
+    fn handle_stream_start(&mut self, stream: Document);
+    fn handle_stanza(&mut self, stanza: Document);
+    fn handle_stream_error(&mut self, error: Document);
+    fn handle_stream_end(&mut self);
+}
+
+pub struct ClientStream {}
