@@ -15,11 +15,11 @@ use crate::Document;
 pub use parser::StreamHandler;
 pub use parser::StreamParser;
 
-trait ClientStreamHandler {
+pub trait ClientStreamHandler {
     fn handle_stream_start(&mut self, stream: Document);
     fn handle_stanza(&mut self, stanza: Document);
     fn handle_stream_error(&mut self, error: Document);
     fn handle_stream_end(&mut self);
 }
 
-struct ClientStream {}
+pub struct ClientStream {}

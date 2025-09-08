@@ -87,18 +87,15 @@ enum State {
 }
 
 impl XPath {
-    fn fix_steps(steps: &mut Vec<AxisStep>) {
-        if let Some(step) = steps.first_mut() {
-            match step.axis {
-                // Iksemel does not have the extra indirection between the
-                // document and the root element like XPath, so we map axes
-                // to work with the iksemel model when they are at the
-                // beginning of the expression.
-                Axis::Child => {
-                    step.axis = Axis::Self_;
-                }
-                _ => {}
-            }
+    fn fix_steps(steps: &mut [AxisStep]) {
+        if let Some(step) = steps.first_mut()
+            && let Axis::Child = step.axis
+        {
+            // Iksemel does not have the extra indirection between the
+            // document and the root element like XPath, so we map axes
+            // to work with the iksemel model when they are at the
+            // beginning of the expression.
+            step.axis = Axis::Self_;
         }
     }
 

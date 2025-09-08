@@ -48,6 +48,8 @@ pub use document::Document;
 pub use document::DocumentError;
 pub use document::DocumentParser;
 
+pub use xmpp::ClientStream;
+pub use xmpp::ClientStreamHandler;
 pub use xmpp::StreamHandler;
 pub use xmpp::StreamParser;
 
