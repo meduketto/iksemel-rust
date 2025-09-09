@@ -8,10 +8,12 @@
 ** the License, or (at your option) any later version.
 */
 
+mod error;
 mod parser;
 
 use crate::Document;
 
+pub use error::StreamError;
 pub use parser::StreamHandler;
 pub use parser::StreamParser;
 

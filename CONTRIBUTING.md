@@ -76,3 +76,5 @@ by adding it to the file header.
 * Backwards incompatible API changes must be avoided, unless they
   provide significant type safety or performance improvements.
 * Unstable language features must not be used.
+* Modules must be layered and built on top of each others public
+  interfaces.
