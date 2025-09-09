@@ -6,7 +6,10 @@ Copyright (c) 2000-2025 Gurer Ozen <meduketto at gmail.com>
 general XML processing applications. It aims to be easy to use,
 fast, and usable in resource-constrained environments.
 
-![Crates.io Version](https://img.shields.io/crates/v/iks)![GitHub License](https://img.shields.io/github/license/meduketto/iksemel-rust)
+![Crates.io Version](https://img.shields.io/crates/v/iks)
+![Crates.io Size](https://img.shields.io/crates/size/iks)
+![Crates.io Downloads (recent)](https://img.shields.io/crates/dr/iks)
+![GitHub License](https://img.shields.io/github/license/meduketto/iksemel-rust)
 
 
 # Features
@@ -26,8 +29,8 @@ fast, and usable in resource-constrained environments.
   the application.
 
 These are all intentional decisions rather than technical limitations,
-and will never be implemented. See DESIGN.md file for the rationale
-and alternative solutions.
+and will never be implemented. See [DESIGN.md](DESIGN.md) file for the
+rationale and alternative solutions.
 
 # Installation
 

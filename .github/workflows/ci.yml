@@ -24,15 +24,19 @@ jobs:
     needs:
       - lint
       - test
+      - semver-checks
     if: ${{ success() || failure()}}
     steps:
       - name: Job outcomes
         run: |
           echo "Lint job status: ${{ needs.lint.result }}"
           echo "Test job status: ${{ needs.test.result }}"
+          echo "Semver job status: ${{ needs.semver-checks.result }}"
       - if: ${{ needs.lint.result != 'success' }}
         run: exit 1
       - if: ${{ needs.test.result != 'success' }}
+        run: exit 1
+      - if: ${{ needs.semver-checks.result != 'success' }}
         run: exit 1
 
   lint:
@@ -56,3 +60,11 @@ jobs:
         uses: actions/checkout@v5
       - name: Cargo Test
         run: cargo test
+
+  semver-checks:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Check semver
+        uses: obi1kenobi/cargo-semver-checks-action@v2
