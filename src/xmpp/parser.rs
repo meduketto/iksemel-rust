@@ -9,13 +9,20 @@
 */
 
 use crate::Document;
-use crate::DocumentError;
 use crate::SaxElement;
 use crate::SaxError;
 use crate::SaxHandler;
 use crate::parser::SaxParser;
 
+use super::StreamError;
+
 struct StreamBuilder {}
+
+impl StreamBuilder {
+    fn new() -> Self {
+        Self {}
+    }
+}
 
 impl SaxHandler for StreamBuilder {
     fn handle_element(&mut self, _element: &SaxElement) -> Result<(), SaxError> {
@@ -37,11 +44,11 @@ impl StreamParser {
     pub fn new() -> Self {
         Self {
             parser: SaxParser::new(),
-            builder: StreamBuilder {},
+            builder: StreamBuilder::new(),
         }
     }
 
-    pub fn parse_bytes(&mut self, bytes: &[u8]) -> Result<(), DocumentError> {
+    pub fn parse_bytes(&mut self, bytes: &[u8]) -> Result<(), StreamError> {
         Ok(self.parser.parse_bytes(&mut self.builder, bytes)?)
     }
 }

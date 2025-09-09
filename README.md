@@ -6,9 +6,9 @@ Copyright (c) 2000-2025 Gurer Ozen <meduketto at gmail.com>
 general XML processing applications. It aims to be easy to use,
 fast, and usable in resource-constrained environments.
 
-![Crates.io Version](https://img.shields.io/crates/v/iks)
-![Crates.io Size](https://img.shields.io/crates/size/iks)
-![Crates.io Downloads (recent)](https://img.shields.io/crates/dr/iks)
+[![Crates.io Version](https://img.shields.io/crates/v/iks)](https://crates.io/crates/iks)
+[![Crates.io Size](https://img.shields.io/crates/size/iks)](https://crates.io/crates/iks)
+[![Crates.io Downloads (recent)](https://img.shields.io/crates/dr/iks)](https://crates.io/crates/iks)
 ![GitHub License](https://img.shields.io/github/license/meduketto/iksemel-rust)
 
 
@@ -18,6 +18,14 @@ fast, and usable in resource-constrained environments.
 * DOM API for flexible and powerful document querying and editing.
 * Stream API for efficient XMPP stream processing.
 * Experimental basic XPath support.
+
+# XMPP Compliance
+
+| Document | Title               | Status       |
+|----------|---------------------|--------------|
+| RFC 6120 | XMPP Core           | In progress
+| RFC 6121 | XMPP IM             | In progress
+| RFC 7622 | XMPP Address Format | In progress
 
 # Non-features
 
@@ -91,6 +99,16 @@ Iksemel provides a few command line tools for quick XML processing:
 
 There are many [ways to contribute](CONTRIBUTING.md) to the project. See also
 the [design decisions](DESIGN.md) document.
+
+# Thanks
+
+This code would not be possible without
+[Cargo Mutants](https://github.com/sourcefrog/cargo-mutants)
+and
+[Miri](https://github.com/rust-lang/miri).
+
+No library should ever be released without
+[Semver Checks](https://github.com/obi1kenobi/cargo-semver-checks).
 
 # License
 

@@ -24,6 +24,71 @@
 #![deny(clippy::redundant_test_prefix)]
 //#![deny(clippy::undocumented_unsafe_blocks)]
 
+//! This library is made up from layered modules which build upon each
+//! other to give applications a lot of flexibility and control while
+//! providing interfaces at every level.
+//!
+//! # Sax Parser
+//!
+//! This fast and memory efficient parser is the core of the Iksemel.
+//! It validates and processes byte streams and generates XML elements.
+//!
+//! See:
+//! [SaxError],
+//! [SaxParser],
+//! [SaxElement],
+//! [SaxHandler],
+//! [Location]
+//!
+//! # Arena
+//!
+//! This module provides a compact and fast memory allocation arena
+//! for storing XML element tree structs and character data. It is
+//! generally not used directly by applications.
+//!
+//! See:
+//! [Arena],
+//! [ArenaStats],
+//! [NoMemory]
+//!
+//! # Document
+//!
+//! This module builds upon the Arena module to create and query
+//! XML element trees.
+//!
+//! See:
+//! [Document],
+//! [Cursor],
+//! [Children],
+//! [Attributes],
+//! [DescendantOrSelf],
+//! [FollowingSibling],
+//! [PrecedingSibling]
+//!
+//! # Document Parser
+//!
+//! This module builds upon the Document and Sax Parser modules to
+//! parse an XML byte stream into an XML element tree structure.
+//!
+//! See:
+//! [DocumentError],
+//! [DocumentParser]
+//!
+//! # Stream Parser
+//!
+//! This module builds upon the Document and Sax Parser modules to
+//! parse an XML byte stream into an XMPP Stream.
+//!
+//! See:
+//! [StreamError],
+//! [StreamParser]
+//!
+//! # Client Stream
+//!
+//! This module builds upon the Stream Parser module to handle XMPP
+//! client stream protocol, including authentication and stanza handling.
+//!
+
 mod arena;
 mod document;
 mod entities;
@@ -42,14 +107,18 @@ pub use parser::SaxHandler;
 pub use parser::SaxParser;
 
 pub use document::Attributes;
+pub use document::Children;
 pub use document::Cursor;
 pub use document::DescendantOrSelf;
 pub use document::Document;
 pub use document::DocumentError;
 pub use document::DocumentParser;
+pub use document::FollowingSibling;
+pub use document::PrecedingSibling;
 
 pub use xmpp::ClientStream;
 pub use xmpp::ClientStreamHandler;
+pub use xmpp::StreamError;
 pub use xmpp::StreamHandler;
 pub use xmpp::StreamParser;
 
