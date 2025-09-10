@@ -11,7 +11,6 @@ fast, and usable in resource-constrained environments.
 [![Crates.io Downloads (recent)](https://img.shields.io/crates/dr/iks)](https://crates.io/crates/iks)
 ![GitHub License](https://img.shields.io/github/license/meduketto/iksemel-rust)
 
-
 # Features
 
 * SAX API for minimal memory usage.
@@ -49,17 +48,15 @@ You can use it in your rust projects by adding the following to your `Cargo.toml
 iks = "0.1.0"
 ```
 
-You can also install it via cargo:
+You can install the command line tools with:
 
 ```sh
 cargo install iks
 ```
 
-which also installs the command line tools.
-
 # Usage
 
-See API documentation for detailed examples and information.
+See [API documentation][IKSAPI] for detailed examples and information.
 
 Here is a simple example:
 
@@ -102,13 +99,11 @@ the [design decisions](DESIGN.md) document.
 
 # Thanks
 
-This code would not be possible without
-[Cargo Mutants](https://github.com/sourcefrog/cargo-mutants)
-and
-[Miri](https://github.com/rust-lang/miri).
+This code would not be possible without [Cargo Mutants][MUTANTS]
+and [Miri][MIRI].
 
 No library should ever be released without
-[Semver Checks](https://github.com/obi1kenobi/cargo-semver-checks).
+[Semver Checks][SEMVER].
 
 # License
 
@@ -127,4 +122,8 @@ along with Iksemel. If not, see <https://www.gnu.org/licenses/>.
 
 
 [iks]: https://github.com/meduketto/iksemel-rust
+[IKSAPI]: https://docs.rs/iks/latest/iks/
 [XMPP]: https://xmpp.org
+[MUTANTS]: https://github.com/sourcefrog/cargo-mutants
+[MIRI]: https://github.com/rust-lang/miri
+[SEMVER]: https://github.com/obi1kenobi/cargo-semver-checks

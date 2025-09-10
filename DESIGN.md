@@ -76,10 +76,11 @@ other sets before sending them to the parser if needed.
 
 This was a badly limited validation system which is obsoleted
 within a few years by RelaxNG, and then others like XSD,
-Schematron, etc.
+Schematron, etc. It uses an ad-hoc, non-XML language which is
+embedded within a DOCTYPE element.
 
-It uses an ad-hoc, non-XML language which is embedded within
-a DOCTYPE element.
+It was a source of many security vulnerabilities, such as the
+[External Entity][XXEATTACK] or [Billion Laughs][BILLIONLOL] attacks.
 
 Iksemel just skips it.
 
@@ -177,3 +178,7 @@ as a part of the library crate, but not necessarily at the same
 quality level or complies with the similar standards as the rest of
 the library. This might change in the future, but it is unlikely
 that any complicated features of XPath will be supported.
+
+
+[BILLIONLOL]: https://en.wikipedia.org/wiki/Billion_laughs_attack
+[XXEATTACK]: https://en.wikipedia.org/wiki/XML_external_entity_attack

@@ -1,0 +1,45 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version number"
+        required: true
+        type: string
+
+concurrency:
+  group: release
+  cancel-in-progress: true
+
+env:
+  RUST_BACKTRACE: 1
+  CARGO_TERM_COLOR: always
+  CARGO_TERM_VERBOSE: "true"
+  CARGO_INCREMENTAL: 0
+  CARGO_PROFILE_TEST_DEBUG: 0
+
+jobs:
+  release:
+    name: All Release Stages
+    runs-on: ubuntu-latest
+    needs:
+      - ci-main
+      - heavy-main
+    steps:
+      - name: Publish Crate
+        run: cargo publish --dry-run
+
+  ci-main:
+    name: CI
+    runs-on: ubuntu-latest
+    steps:
+      - name: CI
+        uses: ./.github/workflows/ci.yml@main
+
+  heavy-main:
+    name: Heavy Tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Heavy Tests
+        uses: ./.github/workflows/heavy.yml@main

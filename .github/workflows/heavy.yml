@@ -1,0 +1,27 @@
+name: Heavy Tests
+
+on:
+  workflow_call:
+
+concurrency:
+  group: heavy
+  cancel-in-progress: true
+
+env:
+  RUST_BACKTRACE: 1
+  CARGO_TERM_COLOR: always
+  CARGO_TERM_VERBOSE: "true"
+  CARGO_INCREMENTAL: 0
+  CARGO_PROFILE_TEST_DEBUG: 0
+
+jobs:
+  heavy-all:
+    name: Heavy Tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+      - name: Install Miri
+        run: rustup +nightly component add miri
+      - name: Miri Test
+        run: cargo +nightly miri test
