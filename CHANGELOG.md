@@ -1,7 +1,18 @@
 # 0.2.0 (TBD)
 
-* Cursor now provides following_sibling, preceding_sibling
-  iterators.
+## Breaking changes
+
+* `SaxElement::EmptyElementTag` is replaced with `StartTagEmpty`, and
+  a new `StartTagContent` element is added. Now you get one of these
+  after receiving any attributes to indicate that the start tag
+  is fully processed. This was necessary for `StreamParser` to detect
+  the stream start tag.
+
+## New features
+
+* Cursor now provides `following_sibling`, `preceding_sibling` iterators.
+* `StreamParser` which turns an XML stream into a sequence of top level
+  elements for stream control tags and stanzas is implemented.
 
 # 0.1.0 (2025-09-06)
 

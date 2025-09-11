@@ -20,8 +20,11 @@ pub use location::Location;
 pub enum SaxElement<'a> {
     /// A start tag or empty element tag.
     ///
-    /// The argument is the full name of the tag. This element is sent to the handler as soon as
-    /// the name is parsed.
+    /// The argument is the full name of the tag. This element is sent to
+    /// the handler as soon as the name is parsed.
+    ///
+    /// This is always followed by zero or more [Attribute] elements, and
+    /// then either a [StartTagContent] or [StartTagEmpty] element.
     StartTag(&'a str),
 
     /// A tag attribute for the last StartTag.
@@ -31,8 +34,15 @@ pub enum SaxElement<'a> {
     /// Each attribute is sent as a separate element for efficiency.
     Attribute(&'a str, &'a str),
 
+    /// Indicates that the last StartTag was not an empty element tag.
+    ///
+    /// Note that you might still get an [EndTag] immediately after this, as
+    /// `<tag/>` and `<tag></tag>` are distinct in the XML specification, and
+    /// not normalized.
+    StartTagContent,
+
     /// Indicates that the last StartTag was an empty element tag and will have no content.
-    EmptyElementTag,
+    StartTagEmpty,
 
     /// An end tag element.
     ///
@@ -699,7 +709,7 @@ impl SaxParser {
                         self.buffer.clear();
                         match c {
                             b'/' => {
-                                handler.handle_element(&SaxElement::EmptyElementTag)?;
+                                handler.handle_element(&SaxElement::StartTagEmpty)?;
                                 self.state = State::EmptyTagEnd;
                             }
                             b'>' => {
@@ -715,6 +725,7 @@ impl SaxParser {
                                         self.state = State::CData;
                                     }
                                 } else {
+                                    handler.handle_element(&SaxElement::StartTagContent)?;
                                     back = pos + 1;
                                     self.state = State::CData;
                                 }
@@ -775,10 +786,11 @@ impl SaxParser {
                         if self.is_end_tag {
                             xml_error!(TAG_DOUBLE_END);
                         }
-                        handler.handle_element(&SaxElement::EmptyElementTag)?;
+                        handler.handle_element(&SaxElement::StartTagEmpty)?;
                         self.state = State::EmptyTagEnd;
                     }
                     b'>' => {
+                        handler.handle_element(&SaxElement::StartTagContent)?;
                         back = pos + 1;
                         self.state = State::CData;
                     }

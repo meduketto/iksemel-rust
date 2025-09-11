@@ -113,17 +113,18 @@ impl SaxHandler for BadTester {
 
 #[test]
 fn tags() {
-    Tester::new(&[SaxElement::StartTag("lonely"), SaxElement::EmptyElementTag]).check("<lonely/>");
+    Tester::new(&[SaxElement::StartTag("lonely"), SaxElement::StartTagEmpty]).check("<lonely/>");
 
-    Tester::new(&[SaxElement::StartTag("lonely"), SaxElement::EmptyElementTag])
+    Tester::new(&[SaxElement::StartTag("lonely"), SaxElement::StartTagEmpty])
         .check("   <lonely/>    ");
 
     Tester::new(&[
         SaxElement::StartTag("parent"),
+        SaxElement::StartTagContent,
         SaxElement::StartTag("child"),
-        SaxElement::EmptyElementTag,
+        SaxElement::StartTagEmpty,
         SaxElement::StartTag("child"),
-        SaxElement::EmptyElementTag,
+        SaxElement::StartTagEmpty,
         SaxElement::CData("child"),
         SaxElement::EndTag("parent"),
     ])
@@ -131,9 +132,11 @@ fn tags() {
 
     Tester::new(&[
         SaxElement::StartTag("parent"),
+        SaxElement::StartTagContent,
         SaxElement::StartTag("empty"),
-        SaxElement::EmptyElementTag,
+        SaxElement::StartTagEmpty,
         SaxElement::StartTag("b"),
+        SaxElement::StartTagContent,
         SaxElement::CData("lala"),
         SaxElement::EndTag("b"),
         SaxElement::EndTag("parent"),
@@ -144,18 +147,20 @@ fn tags() {
         SaxElement::StartTag("mytag"),
         SaxElement::Attribute("abc", "123"),
         SaxElement::Attribute("id", "XC72"),
+        SaxElement::StartTagContent,
         SaxElement::EndTag("mytag"),
     ])
     .check("<mytag abc='123' id=\"XC72\"></mytag>");
 
     Tester::new(&[
         SaxElement::StartTag("a"),
+        SaxElement::StartTagContent,
         SaxElement::StartTag("b"),
         SaxElement::Attribute("x1", "lala"),
-        SaxElement::EmptyElementTag,
+        SaxElement::StartTagEmpty,
         SaxElement::StartTag("c"),
         SaxElement::Attribute("x2", "bibi"),
-        SaxElement::EmptyElementTag,
+        SaxElement::StartTagEmpty,
         SaxElement::EndTag("a"),
     ])
     .check("<a><b x1 ='lala'/><c x2\t= \t'bibi'/></a>");
@@ -170,7 +175,9 @@ fn tags() {
         SaxElement::Attribute("f", "6"),
         SaxElement::Attribute("g", "7"),
         SaxElement::Attribute("id", "xyz9"),
+        SaxElement::StartTagContent,
         SaxElement::StartTag("sub"),
+        SaxElement::StartTagContent,
         SaxElement::EndTag("sub"),
         SaxElement::EndTag("tag"),
     ])
@@ -180,21 +187,24 @@ fn tags() {
         SaxElement::StartTag("tag"),
         SaxElement::Attribute("a", "12\"34"),
         SaxElement::Attribute("b", "123'456"),
-        SaxElement::EmptyElementTag,
+        SaxElement::StartTagEmpty,
     ])
     .check("<tag a='12\"34' b=\"123'456\" />");
 
     Tester::new(&[
         SaxElement::StartTag("a"),
+        SaxElement::StartTagContent,
         SaxElement::StartTag("b"),
+        SaxElement::StartTagContent,
         SaxElement::CData("john&mary"),
         SaxElement::StartTag("c"),
+        SaxElement::StartTagContent,
         SaxElement::StartTag("d"),
         SaxElement::Attribute("e", "f"),
         SaxElement::Attribute("g", "123456"),
         SaxElement::Attribute("h", "madcat"),
         SaxElement::Attribute("klm", "nop"),
-        SaxElement::EmptyElementTag,
+        SaxElement::StartTagEmpty,
         SaxElement::EndTag("c"),
         SaxElement::EndTag("b"),
         SaxElement::EndTag("a"),
@@ -207,6 +217,7 @@ fn comments() {
     Tester::new(&[
         SaxElement::StartTag("item"),
         SaxElement::Attribute("url", "http://jabber.org"),
+        SaxElement::StartTagContent,
         SaxElement::CData("Jabber Site"),
         SaxElement::EndTag("item"),
     ])
@@ -214,15 +225,16 @@ fn comments() {
 
     Tester::new(&[
         SaxElement::StartTag("index"),
+        SaxElement::StartTagContent,
         SaxElement::StartTag("item"),
         SaxElement::Attribute("name", "lala"),
         SaxElement::Attribute("page", "42"),
-        SaxElement::EmptyElementTag,
+        SaxElement::StartTagEmpty,
         SaxElement::EndTag("index"),
     ])
     .check("<index><!-- <item> - tag has no childs --><item name='lala' page='42'/></index>");
 
-    Tester::new(&[SaxElement::StartTag("empty"), SaxElement::EmptyElementTag])
+    Tester::new(&[SaxElement::StartTag("empty"), SaxElement::StartTagEmpty])
         .check("<!-- comment --> <empty/> <!-- lala -->");
 }
 
@@ -230,6 +242,7 @@ fn comments() {
 fn cdatas() {
     Tester::new(&[
         SaxElement::StartTag("ka"),
+        SaxElement::StartTagContent,
         SaxElement::CData("1234 <ka> lala ] ]] ]]] 4321"),
         SaxElement::EndTag("ka"),
     ])
@@ -237,6 +250,7 @@ fn cdatas() {
 
     Tester::new(&[
         SaxElement::StartTag("data"),
+        SaxElement::StartTagContent,
         SaxElement::CData("[TEST]"),
         SaxElement::EndTag("data"),
     ])
@@ -244,6 +258,7 @@ fn cdatas() {
 
     Tester::new(&[
         SaxElement::StartTag("data"),
+        SaxElement::StartTagContent,
         SaxElement::CData("[TEST]]"),
         SaxElement::EndTag("data"),
     ])
@@ -251,6 +266,7 @@ fn cdatas() {
 
     Tester::new(&[
         SaxElement::StartTag("a"),
+        SaxElement::StartTagContent,
         SaxElement::CData("[[bg:Чингис хан]][[bn:চেঙ্গিজ খান]]"),
         SaxElement::EndTag("a"),
     ])
@@ -261,6 +277,7 @@ fn cdatas() {
 fn dtds() {
     Tester::new(&[
         SaxElement::StartTag("x"),
+        SaxElement::StartTagContent,
         SaxElement::CData("foo"),
         SaxElement::EndTag("x"),
     ])
@@ -271,6 +288,7 @@ fn dtds() {
 fn pi() {
     Tester::new(&[
         SaxElement::StartTag("a"),
+        SaxElement::StartTagContent,
         SaxElement::CData("bibi"),
         SaxElement::EndTag("a"),
     ])
@@ -281,6 +299,7 @@ fn pi() {
 fn entities() {
     Tester::new(&[
             SaxElement::StartTag("body"),
+            SaxElement::StartTagContent,
             SaxElement::CData("I'm fixing parser&tester for \"<\" and \">\" chars."),
             SaxElement::EndTag("body"),
         ])
@@ -288,12 +307,13 @@ fn entities() {
 
     Tester::new(&[
         SaxElement::StartTag("test"),
+        SaxElement::StartTagContent,
         SaxElement::StartTag("standalone"),
         SaxElement::Attribute("be", "happy"),
-        SaxElement::EmptyElementTag,
+        SaxElement::StartTagEmpty,
         SaxElement::CData("abcd"),
         SaxElement::StartTag("br"),
-        SaxElement::EmptyElementTag,
+        SaxElement::StartTagEmpty,
         SaxElement::CData("<escape>"),
         SaxElement::EndTag("test"),
     ])
@@ -301,6 +321,7 @@ fn entities() {
 
     Tester::new(&[
         SaxElement::StartTag("a"),
+        SaxElement::StartTagContent,
         SaxElement::CData(";AB;"),
         SaxElement::EndTag("a"),
     ])
@@ -308,6 +329,7 @@ fn entities() {
 
     Tester::new(&[
         SaxElement::StartTag("a"),
+        SaxElement::StartTagContent,
         SaxElement::CData(" \u{90} \u{900} \u{10abc} "),
         SaxElement::EndTag("a"),
     ])
@@ -315,6 +337,7 @@ fn entities() {
 
     Tester::new(&[
         SaxElement::StartTag("a"),
+        SaxElement::StartTagContent,
         SaxElement::CData(" \u{d7ff} \u{fffd} \u{10ffff} "),
         SaxElement::EndTag("a"),
     ])
@@ -326,6 +349,7 @@ fn attribute_entities() {
     Tester::new(&[
         SaxElement::StartTag("a"),
         SaxElement::Attribute("b", "a&b BA"),
+        SaxElement::StartTagContent,
         SaxElement::EndTag("a"),
     ])
     .check("<a b='a&amp;b &#x42;&#65;'></a>");
@@ -336,13 +360,19 @@ fn long_tag() {
     let name = "abc".repeat(500);
     let xml = format!("<{}></{}>", name, name);
 
-    Tester::new(&[SaxElement::StartTag(&name), SaxElement::EndTag(&name)]).check(&xml);
+    Tester::new(&[
+        SaxElement::StartTag(&name),
+        SaxElement::StartTagContent,
+        SaxElement::EndTag(&name),
+    ])
+    .check(&xml);
 }
 
 #[test]
 fn location() {
     Tester::new(&[
         SaxElement::StartTag("a"),
+        SaxElement::StartTagContent,
         SaxElement::CData("\n\n "),
         SaxElement::EndTag("a"),
     ])
