@@ -7,6 +7,14 @@ on:
         description: "Version number"
         required: true
         type: string
+      operation:
+        description: "Operation"
+        required: true
+        type: choice
+        default: dryrun
+        options:
+          - dryrun
+          - publish
 
 concurrency:
   group: release
@@ -23,6 +31,7 @@ jobs:
   release:
     name: All Release Stages
     runs-on: ubuntu-latest
+    if: github.repository_owner == 'meduketto' && github.ref == 'refs/heads/main'
     needs:
       - ci-main
       - heavy-main
@@ -35,7 +44,9 @@ jobs:
   ci-main:
     name: CI
     uses: ./.github/workflows/ci.yml
+    if: github.repository_owner == 'meduketto' && github.ref == 'refs/heads/main'
 
   heavy-main:
     name: Heavy Tests
     uses: ./.github/workflows/heavy.yml
+    if: github.repository_owner == 'meduketto' && github.ref == 'refs/heads/main'

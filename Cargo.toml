@@ -9,3 +9,6 @@ repository = "https://github.com/meduketto/iksemel-rust"
 version = "0.2.0"
 
 [dependencies]
+
+[profile.release]
+lto = true

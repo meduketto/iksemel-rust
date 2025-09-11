@@ -8,71 +8,13 @@
 ** the License, or (at your option) any later version.
 */
 
-use std::ptr::null_mut;
-
 use crate::Location;
-use crate::SaxElement;
-use crate::SaxError;
-use crate::SaxHandler;
 use crate::SaxParser;
 
-use super::Cursor;
 use super::Document;
-use super::Node;
+use super::DocumentBuilder;
 use super::error::DocumentError;
 use super::error::description;
-
-struct DocumentBuilder {
-    doc: Option<Document>,
-    node: *mut Node,
-}
-
-impl DocumentBuilder {
-    fn new() -> DocumentBuilder {
-        DocumentBuilder {
-            doc: None,
-            node: null_mut(),
-        }
-    }
-}
-
-impl SaxHandler for DocumentBuilder {
-    fn handle_element(&mut self, element: &SaxElement) -> Result<(), SaxError> {
-        match &self.doc {
-            None => match element {
-                SaxElement::StartTag(name) => {
-                    let doc = Document::new(name)?;
-                    self.node = doc.root().get_node_ptr();
-                    self.doc = Some(doc);
-                }
-                _ => return Err(SaxError::HandlerAbort),
-            },
-            Some(doc) => match element {
-                SaxElement::StartTag(name) => {
-                    let new_tag = Cursor::new(self.node, &doc.arena).insert_tag(name)?;
-                    self.node = new_tag.get_node_ptr();
-                }
-                SaxElement::Attribute(name, value) => {
-                    Cursor::new(self.node, &doc.arena).insert_attribute(name, value)?;
-                }
-                SaxElement::EmptyElementTag => {
-                    self.node = Cursor::new(self.node, &doc.arena).parent().get_node_ptr();
-                }
-                SaxElement::CData(cdata) => {
-                    Cursor::new(self.node, &doc.arena).insert_cdata(cdata)?;
-                }
-                SaxElement::EndTag(name) => {
-                    if name != &Cursor::new(self.node, &doc.arena).name() {
-                        return Err(SaxError::BadXml(description::TAG_MISMATCH));
-                    }
-                    self.node = Cursor::new(self.node, &doc.arena).parent().get_node_ptr();
-                }
-            },
-        }
-
-        Ok(())
-    }
-}
 
 pub struct DocumentParser {
     builder: DocumentBuilder,
@@ -93,7 +35,8 @@ impl DocumentParser {
 
     pub fn into_document(mut self) -> Result<Document, DocumentError> {
         self.parser.parse_finish()?;
-        match self.builder.doc {
+        let doc = self.builder.take();
+        match doc {
             None => Err(DocumentError::BadXml(description::NO_DOCUMENT)),
             Some(doc) => Ok(doc),
         }
@@ -101,7 +44,7 @@ impl DocumentParser {
 
     pub fn take_document(&mut self) -> Result<Document, DocumentError> {
         self.parser.parse_finish()?;
-        let doc = self.builder.doc.take();
+        let doc = self.builder.take();
         match doc {
             None => Err(DocumentError::BadXml(description::NO_DOCUMENT)),
             Some(doc) => Ok(doc),
@@ -109,7 +52,7 @@ impl DocumentParser {
     }
 
     pub fn reuse_document_memory(&mut self, doc: Document) {
-        let _old_doc = self.builder.doc.replace(doc);
+        let _old_doc = self.builder.replace(doc);
     }
 
     pub fn location(&self) -> Location {
