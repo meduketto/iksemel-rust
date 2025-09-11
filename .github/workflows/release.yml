@@ -25,13 +25,11 @@ env:
 
 jobs:
   release:
-    name: All Release Stages
+    name: Publish Release
     runs-on: ubuntu-latest
     if: github.repository_owner == 'meduketto' && github.ref == 'refs/heads/main'
     needs:
-      - check-version
-      - ci-main
-      - heavy-main
+      - release-checks
     steps:
       - name: Checkout code
         uses: actions/checkout@v5
@@ -49,14 +47,35 @@ jobs:
           git tag -a $TAG_NAME -m "Release $TAG_NAME"
           git push $DRYRUN origin $TAG_NAME
 
-  ci-main:
+  release-checks:
+    name: Release Checks
+    runs-on: ubuntu-latest
+    if: ${{ always() }}
+    needs:
+      - check-version
+      - run-ci
+      - run-heavy
+    steps:
+      - name: Job outcomes
+        run: |
+          echo "Version job status: ${{ needs.check-version.result }}"
+          echo "CI job status: ${{ needs.ci.result }}"
+          echo "Heavy job status: ${{ needs.heavy.result }}"
+      - if: ${{ needs.check-version.result != 'success' }}
+        run: exit 1
+      - if: ${{ inputs.operation == 'publish' && needs.ci.result != 'success' }}
+        run: exit 1
+      - if: ${{ ${{ inputs.operation == 'publish' && needs.semver-checks.result != 'success' }}
+        run: exit 1
+
+  run-ci:
     name: CI
     uses: ./.github/workflows/ci.yml
     if: inputs.operation == 'publish' && github.repository_owner == 'meduketto' && github.ref == 'refs/heads/main'
     needs:
       - check-version
 
-  heavy-main:
+  run-heavy:
     name: Heavy Tests
     uses: ./.github/workflows/heavy.yml
     if: inputs.operation == 'publish' && github.repository_owner == 'meduketto' && github.ref == 'refs/heads/main'
@@ -64,7 +83,7 @@ jobs:
       - check-version
 
   check-version:
-    name: Check Version
+    name: Version Checks
     runs-on: ubuntu-latest
     if: github.repository_owner == 'meduketto' && github.ref == 'refs/heads/main'
     outputs:
