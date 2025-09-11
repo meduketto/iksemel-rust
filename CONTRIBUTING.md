@@ -98,10 +98,8 @@ by adding it to the file header.
   - Breaking changes must be documented with instructions for migration.
   - New features must be briefly mentioned.
 * Run the tests locally to ensure that the build will not fail.
-* Tag the release with `git tag -a vX.Y.Z -m "Release vX.Y.Z"`
-* Push the tag with `git push --tags`
 * Run the `Release` Github action. This action will run regular CI tests
   and Miri tests and will check the version numbers as well before
-  publishing the release.
+  publishing the release and tagging the source.
 * Create a release record on the Github releases page.
 * Update the version number for the next development cycle.

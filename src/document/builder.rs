@@ -32,6 +32,10 @@ impl DocumentBuilder {
         }
     }
 
+    pub fn peek(&self) -> Option<&Document> {
+        self.doc.as_ref()
+    }
+
     pub fn take(&mut self) -> Option<Document> {
         self.doc.take()
     }
@@ -66,7 +70,8 @@ impl SaxHandler for DocumentBuilder {
                 SaxElement::Attribute(name, value) => {
                     Cursor::new(self.node, &doc.arena).insert_attribute(name, value)?;
                 }
-                SaxElement::EmptyElementTag => {
+                SaxElement::StartTagContent => {}
+                SaxElement::StartTagEmpty => {
                     self.node = Cursor::new(self.node, &doc.arena).parent().get_node_ptr();
                 }
                 SaxElement::CData(cdata) => {

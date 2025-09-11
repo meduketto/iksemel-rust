@@ -16,6 +16,7 @@ use crate::SaxHandler;
 use crate::parser::SaxParser;
 
 use super::StreamError;
+use super::constants::*;
 
 struct StreamBuilder<'a> {
     builder: DocumentBuilder,
@@ -39,17 +40,37 @@ impl<'a> SaxHandler for StreamBuilder<'a> {
             SaxElement::StartTag(_) => {
                 self.level += 1;
             }
-            SaxElement::EmptyElementTag | SaxElement::EndTag(_) => {
+            SaxElement::StartTagEmpty => {
+                self.level -= 1;
+            }
+            SaxElement::EndTag(name) => {
+                if self.level == 0 && name == &STREAM_TAG {
+                    self.handler.handle_stream_end();
+                    return Ok(());
+                }
                 self.level -= 1;
             }
             _ => {}
         }
         self.builder.handle_element(element)?;
         match element {
-            SaxElement::EmptyElementTag | SaxElement::EndTag(_) => {
-                if self.level == 0 {
-                    self.handler
-                        .handle_stream_element(self.builder.take().unwrap());
+            SaxElement::StartTagContent => {
+                if self.level == 1
+                    && self
+                        .builder
+                        .peek()
+                        .is_some_and(|doc| doc.root().name() == STREAM_TAG)
+                    && let Some(doc) = self.builder.take()
+                {
+                    self.handler.handle_stream_element(doc);
+                    self.level = 0;
+                }
+            }
+            SaxElement::EndTag(_) => {
+                if self.level == 0
+                    && let Some(doc) = self.builder.take()
+                {
+                    self.handler.handle_stream_element(doc);
                 }
             }
             _ => {}

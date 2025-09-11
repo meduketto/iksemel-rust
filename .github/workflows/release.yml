@@ -3,10 +3,6 @@ name: Release
 on:
   workflow_dispatch:
     inputs:
-      version:
-        description: "Version number"
-        required: true
-        type: string
       operation:
         description: "Operation"
         required: true
@@ -33,20 +29,51 @@ jobs:
     runs-on: ubuntu-latest
     if: github.repository_owner == 'meduketto' && github.ref == 'refs/heads/main'
     needs:
+      - check-version
       - ci-main
       - heavy-main
     steps:
       - name: Checkout code
         uses: actions/checkout@v5
       - name: Publish Crate
-        run: cargo publish --dry-run
+        run: |
+          set -euxo pipefail
+          export DRYRUN=--dry-run
+          if [ "${{ inputs.operation }}" = "publish" ]];then
+              export DRYRUN=""
+          fi
+          cargo package --list
+          cargo publish $DRYRUN
+          export TAG_NAME=v${{ needs.check-version.outputs.version }}
+          [ $(expr "x$TAG_NAME" : "x[0-9\.]*$") -eq 0 ] && exit 1
+          git tag -a $TAG_NAME -m "Release $TAG_NAME"
+          git push $DRYRUN origin $TAG_NAME
 
   ci-main:
     name: CI
     uses: ./.github/workflows/ci.yml
-    if: github.repository_owner == 'meduketto' && github.ref == 'refs/heads/main'
+    if: inputs.operation == 'publish' && github.repository_owner == 'meduketto' && github.ref == 'refs/heads/main'
+    needs:
+      - check-version
 
   heavy-main:
     name: Heavy Tests
     uses: ./.github/workflows/heavy.yml
+    if: inputs.operation == 'publish' && github.repository_owner == 'meduketto' && github.ref == 'refs/heads/main'
+    needs:
+      - check-version
+
+  check-version:
+    name: Check Version
+    runs-on: ubuntu-latest
     if: github.repository_owner == 'meduketto' && github.ref == 'refs/heads/main'
+    outputs:
+      version: "${{ steps.version.outputs.version }}"
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+      - name: Check version
+        id: version
+        run: |
+          set -euxo pipefail
+          ./.github/workflows/check_version.py

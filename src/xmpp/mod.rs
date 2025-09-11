@@ -8,6 +8,7 @@
 ** the License, or (at your option) any later version.
 */
 
+mod constants;
 mod error;
 mod parser;
 
@@ -25,3 +26,6 @@ pub trait ClientStreamHandler {
 }
 
 pub struct ClientStream {}
+
+#[cfg(test)]
+mod tests;

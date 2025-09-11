@@ -126,7 +126,8 @@ impl SaxHandler for Handler {
                 }
                 self.attribute_map.insert(name.to_string());
             }
-            SaxElement::EmptyElementTag => {
+            SaxElement::StartTagContent => {}
+            SaxElement::StartTagEmpty => {
                 self.nr_empty_tags += 1;
                 self.tag_stack.pop();
             }
