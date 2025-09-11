@@ -8,6 +8,7 @@
 ** the License, or (at your option) any later version.
 */
 
+mod builder;
 mod error;
 mod iterators;
 mod parser;
@@ -27,6 +28,7 @@ use super::arena::ArenaStats;
 use super::entities::escape;
 use super::entities::escape_fmt;
 use super::entities::escaped_size;
+pub use builder::DocumentBuilder;
 pub use error::DocumentError;
 pub use iterators::Attributes;
 pub use iterators::Children;

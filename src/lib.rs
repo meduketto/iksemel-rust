@@ -111,6 +111,7 @@ pub use document::Children;
 pub use document::Cursor;
 pub use document::DescendantOrSelf;
 pub use document::Document;
+pub use document::DocumentBuilder;
 pub use document::DocumentError;
 pub use document::DocumentParser;
 pub use document::FollowingSibling;

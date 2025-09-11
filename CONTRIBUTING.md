@@ -78,3 +78,30 @@ by adding it to the file header.
 * Unstable language features must not be used.
 * Modules must be layered and built on top of each others public
   interfaces.
+* There are negative tests for the unsafe code which verifies that
+  the API cannot be used incorrectly. Since there isn't a better
+  native mechanism for these in Cargo, they are implemented as
+  rustdoc tests with `compile_fail` attribute which only check for
+  any compilation error. To make sure that compilation does not fail
+  for unrelated reasons, it is necessary to check the output
+  manually via `cargo test -- --no-capture` when changing the
+  related code and tests.
+
+#### Release Process
+
+* Run `cargo mutants` to see if there is a need to add more unit tests.
+* Check the version number in these places:
+  - `Cargo.toml`
+  - `CHANGELOG.md`
+  - `iks.doap`
+* Check the release notes in `CHANGELOG.md`:
+  - Breaking changes must be documented with instructions for migration.
+  - New features must be briefly mentioned.
+* Run the tests locally to ensure that the build will not fail.
+* Tag the release with `git tag -a vX.Y.Z -m "Release vX.Y.Z"`
+* Push the tag with `git push --tags`
+* Run the `Release` Github action. This action will run regular CI tests
+  and Miri tests and will check the version numbers as well before
+  publishing the release.
+* Create a release record on the Github releases page.
+* Update the version number for the next development cycle.

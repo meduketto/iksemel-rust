@@ -9,6 +9,7 @@
 */
 
 use crate::Document;
+use crate::DocumentBuilder;
 use crate::SaxElement;
 use crate::SaxError;
 use crate::SaxHandler;
@@ -16,16 +17,43 @@ use crate::parser::SaxParser;
 
 use super::StreamError;
 
-struct StreamBuilder {}
+struct StreamBuilder<'a> {
+    builder: DocumentBuilder,
+    level: usize,
+    handler: &'a mut dyn StreamHandler,
+}
 
-impl StreamBuilder {
-    fn new() -> Self {
-        Self {}
+impl<'a> StreamBuilder<'a> {
+    fn new(handler: &'a mut impl StreamHandler) -> Self {
+        Self {
+            builder: DocumentBuilder::new(),
+            level: 0,
+            handler,
+        }
     }
 }
 
-impl SaxHandler for StreamBuilder {
-    fn handle_element(&mut self, _element: &SaxElement) -> Result<(), SaxError> {
+impl<'a> SaxHandler for StreamBuilder<'a> {
+    fn handle_element(&mut self, element: &SaxElement) -> Result<(), SaxError> {
+        match element {
+            SaxElement::StartTag(_) => {
+                self.level += 1;
+            }
+            SaxElement::EmptyElementTag | SaxElement::EndTag(_) => {
+                self.level -= 1;
+            }
+            _ => {}
+        }
+        self.builder.handle_element(element)?;
+        match element {
+            SaxElement::EmptyElementTag | SaxElement::EndTag(_) => {
+                if self.level == 0 {
+                    self.handler
+                        .handle_stream_element(self.builder.take().unwrap());
+                }
+            }
+            _ => {}
+        }
         Ok(())
     }
 }
@@ -35,26 +63,20 @@ pub trait StreamHandler {
     fn handle_stream_end(&mut self);
 }
 
-pub struct StreamParser {
+pub struct StreamParser<'a> {
     parser: SaxParser,
-    builder: StreamBuilder,
+    builder: StreamBuilder<'a>,
 }
 
-impl StreamParser {
-    pub fn new() -> Self {
+impl<'a> StreamParser<'a> {
+    pub fn new(handler: &'a mut impl StreamHandler) -> Self {
         Self {
             parser: SaxParser::new(),
-            builder: StreamBuilder::new(),
+            builder: StreamBuilder::new(handler),
         }
     }
 
     pub fn parse_bytes(&mut self, bytes: &[u8]) -> Result<(), StreamError> {
         Ok(self.parser.parse_bytes(&mut self.builder, bytes)?)
-    }
-}
-
-impl Default for StreamParser {
-    fn default() -> Self {
-        Self::new()
     }
 }
