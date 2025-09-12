@@ -104,8 +104,7 @@ def main():
         print("Errors found:")
         for error in checks.errors:
             print(f"- {error}")
-        # FIXME: ignoring error now to test the script
-        #sys.exit(1)
+        sys.exit(1)
     checks.output_version()
     print("All checks passed!")
 

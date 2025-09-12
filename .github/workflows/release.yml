@@ -28,6 +28,8 @@ jobs:
     name: Publish Release
     permissions:
       contents: write
+    env:
+      CARGO_REGISTRY_TOKEN: "${{ secrets.CARGO_REGISTRY_TOKEN }}"
     runs-on: ubuntu-latest
     if: ${{ always() }}
     needs:
