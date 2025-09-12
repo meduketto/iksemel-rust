@@ -67,6 +67,8 @@ jobs:
         run: exit 1
       - if: ${{ inputs.operation == 'publish' && needs.heavy.result != 'success' }}
         run: exit 1
+      - run: echo "${{ github.repository_owner }}"
+      - run: echo "${{ github.ref }}"
 
   run-ci:
     name: CI
