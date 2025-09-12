@@ -65,7 +65,7 @@ jobs:
         run: exit 1
       - if: ${{ inputs.operation == 'publish' && needs.ci.result != 'success' }}
         run: exit 1
-      - if: ${{ ${{ inputs.operation == 'publish' && needs.heavy.result != 'success' }}
+      - if: ${{ inputs.operation == 'publish' && needs.heavy.result != 'success' }}
         run: exit 1
 
   run-ci:
