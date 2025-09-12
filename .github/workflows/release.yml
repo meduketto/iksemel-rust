@@ -49,13 +49,13 @@ jobs:
         run: |
           set -euxo pipefail
           export DRYRUN=--dry-run
-          if [ "${{ inputs.operation }}" = "publish" ]];then
+          if [ "${{ inputs.operation }}" = "publish" ]; then
               export DRYRUN=""
           fi
           cargo package --list
           cargo publish $DRYRUN
           export TAG_NAME=v${{ needs.check-version.outputs.version }}
-          [ $(expr "x$TAG_NAME" : "x[0-9\.]*$") -eq 0 ] && exit 1
+          [ $(expr "x$TAG_NAME" : "x[0-9\.v]*$") -eq 0 ] && exit 1
           git tag -a $TAG_NAME -m "Release $TAG_NAME"
           git push $DRYRUN origin $TAG_NAME
 
