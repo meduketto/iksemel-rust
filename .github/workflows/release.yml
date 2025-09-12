@@ -27,10 +27,22 @@ jobs:
   release:
     name: Publish Release
     runs-on: ubuntu-latest
-    if: github.repository_owner == 'meduketto' && github.ref == 'refs/heads/main'
+    if: ${{ always() }}
     needs:
-      - release-checks
+      - check-version
+      - run-ci
+      - run-heavy
     steps:
+      - if: ${{ github.repository_owner != 'meduketto' }}
+        run: exit 1
+      - if: ${{ github.ref != 'refs/heads/main' }}
+        run: exit 1
+      - if: ${{ needs.check-version.result != 'success' }}
+        run: exit 1
+      - if: ${{ inputs.operation == 'publish' && needs.ci.result != 'success' }}
+        run: exit 1
+      - if: ${{ inputs.operation == 'publish' && needs.heavy.result != 'success' }}
+        run: exit 1
       - name: Checkout code
         uses: actions/checkout@v5
       - name: Publish Crate
@@ -46,29 +58,6 @@ jobs:
           [ $(expr "x$TAG_NAME" : "x[0-9\.]*$") -eq 0 ] && exit 1
           git tag -a $TAG_NAME -m "Release $TAG_NAME"
           git push $DRYRUN origin $TAG_NAME
-
-  release-checks:
-    name: Release Checks
-    runs-on: ubuntu-latest
-    if: ${{ always() }}
-    needs:
-      - check-version
-      - run-ci
-      - run-heavy
-    steps:
-      - name: Job outcomes
-        run: |
-          echo "Version job status: ${{ needs.check-version.result }}"
-          echo "CI job status: ${{ needs.ci.result }}"
-          echo "Heavy job status: ${{ needs.heavy.result }}"
-      - if: ${{ needs.check-version.result != 'success' }}
-        run: exit 1
-      - if: ${{ inputs.operation == 'publish' && needs.ci.result != 'success' }}
-        run: exit 1
-      - if: ${{ inputs.operation == 'publish' && needs.heavy.result != 'success' }}
-        run: exit 1
-      - run: echo "${{ github.repository_owner }}"
-      - run: echo "${{ github.ref }}"
 
   run-ci:
     name: CI
