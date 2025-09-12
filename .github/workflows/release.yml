@@ -58,6 +58,8 @@ jobs:
           cargo publish $DRYRUN
           export TAG_NAME=v${{ needs.check-version.outputs.version }}
           [ $(expr "x$TAG_NAME" : "x[0-9\.v]*$") -eq 0 ] && exit 1
+          git config --global user.email "github-actions@users.noreply.github.com"
+          git config --global user.name "Release Action"
           git tag -a $TAG_NAME -m "Release $TAG_NAME"
           git push $DRYRUN origin $TAG_NAME
 
