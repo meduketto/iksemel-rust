@@ -45,6 +45,8 @@ jobs:
         run: exit 1
       - name: Checkout code
         uses: actions/checkout@v5
+        with:
+          persist-credentials: true
       - name: Publish Crate
         run: |
           set -euxo pipefail
