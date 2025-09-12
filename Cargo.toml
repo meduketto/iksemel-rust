@@ -1,6 +1,7 @@
 [package]
 categories = ["parsing", "network-programming"]
 description = "Fast, easy to use XML parser library for Jabber/XMPP and general XML processing"
+documentation = "https://docs.rs/iks"
 edition = "2024"
 keywords = ["xml", "xmpp", "jabber", "parser"]
 license = "LGPL-3.0-or-later"

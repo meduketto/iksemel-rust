@@ -39,14 +39,19 @@ jobs:
     steps:
       - if: ${{ github.repository_owner != 'meduketto' }}
         run: exit 1
+        name: Check repository owner
       - if: ${{ github.ref != 'refs/heads/main' }}
         run: exit 1
+        name: Check branch
       - if: ${{ needs.check-version.result != 'success' }}
         run: exit 1
-      - if: ${{ inputs.operation == 'publish' && needs.ci.result != 'success' }}
+        name: Check version result
+      - if: ${{ inputs.operation == 'publish' && needs.run-ci.result != 'success' }}
         run: exit 1
-      - if: ${{ inputs.operation == 'publish' && needs.heavy.result != 'success' }}
+        name: Check CI result
+      - if: ${{ inputs.operation == 'publish' && needs.run-heavy.result != 'success' }}
         run: exit 1
+        name: Check heavy result
       - name: Checkout code
         uses: actions/checkout@v5
         with:
