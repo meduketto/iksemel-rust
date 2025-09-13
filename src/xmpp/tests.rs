@@ -8,45 +8,31 @@
 ** the License, or (at your option) any later version.
 */
 
+use crate::xmpp::parser::StreamElement;
+
 use super::*;
 
-struct Tester<'a> {
-    expected: &'a [&'a str],
-    current: usize,
-    ended: bool,
-}
+fn check_stream(stream_text: &str, expected: &[&str]) {
+    let mut parser = StreamParser::new();
+    let mut current: usize = 0;
+    let mut ended: bool = false;
 
-impl<'a> Tester<'a> {
-    fn new(expected: &'a [&'a str]) -> Tester<'a> {
-        Tester {
-            expected,
-            current: 0,
-            ended: false,
+    let mut elements = parser.elements(&stream_text.as_bytes());
+    while let Some(element) = elements.next() {
+        assert!(!ended);
+        match element.unwrap() {
+            StreamElement::Element(document) => {
+                assert_eq!(document.to_string(), expected[current]);
+                current += 1;
+            }
+            StreamElement::End => {
+                assert!(!ended);
+                ended = true;
+                assert_eq!(current, expected.len());
+            }
         }
     }
-}
-
-impl<'a> StreamHandler for Tester<'a> {
-    fn handle_stream_element(&mut self, element: Document) {
-        assert!(!self.ended);
-        assert!(self.current < self.expected.len());
-        assert_eq!(element.to_string(), self.expected[self.current]);
-        self.current += 1;
-    }
-
-    fn handle_stream_end(&mut self) {
-        assert!(!self.ended);
-        self.ended = true;
-        assert_eq!(self.current, self.expected.len());
-    }
-}
-
-fn check_stream(stream_text: &str, expected: &[&str]) {
-    let mut tester = Tester::new(expected);
-    let mut parser = StreamParser::new(&mut tester);
-
-    assert_eq!(parser.parse_bytes(&stream_text.as_bytes()), Ok(()));
-    assert!(tester.ended);
+    assert!(ended);
 }
 
 #[test]

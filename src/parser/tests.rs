@@ -18,7 +18,7 @@ struct Tester<'a> {
 }
 
 impl<'a> Tester<'a> {
-    fn new(expected: &'a [SaxElement]) -> Tester<'a> {
+    fn new(expected: &'a [SaxElement<'a>]) -> Self {
         Tester {
             expected,
             current: 0,
@@ -26,36 +26,7 @@ impl<'a> Tester<'a> {
         }
     }
 
-    fn check(&mut self, s: &str) {
-        let nr_lines = s.matches("\n").count();
-        let nr_column = s.lines().last().unwrap().len();
-
-        let mut parser = SaxParser::new();
-        assert_eq!(parser.parse_bytes_finish(self, &s.as_bytes()), Ok(()));
-        assert_eq!(self.current, self.expected.len());
-        let location = parser.location();
-        assert_eq!(location.lines, nr_lines);
-        assert_eq!(location.column, nr_column);
-        assert_eq!(location.bytes, s.len());
-
-        // now try byte by byte
-        parser.reset();
-        self.current = 0;
-        self.cdata_buf.clear();
-        for i in 0..s.len() {
-            assert!(parser.parse_bytes(self, &s.as_bytes()[i..i + 1]).is_ok());
-        }
-        assert!(parser.parse_finish().is_ok());
-        assert_eq!(self.current, self.expected.len());
-        let location = parser.location();
-        assert_eq!(location.lines, nr_lines);
-        assert_eq!(location.column, nr_column);
-        assert_eq!(location.bytes, s.len());
-    }
-}
-
-impl<'a> SaxHandler for Tester<'a> {
-    fn handle_element(&mut self, element: &SaxElement) -> Result<(), SaxError> {
+    fn check_element(&mut self, element: &SaxElement) {
         assert!(self.current < self.expected.len());
         if let SaxElement::CData(cdata) = element {
             if let SaxElement::CData(cdata2) = self.expected[self.current] {
@@ -72,42 +43,82 @@ impl<'a> SaxHandler for Tester<'a> {
             assert_eq!(element, &self.expected[self.current]);
             self.current += 1;
         }
-        Ok(())
+    }
+
+    fn check(&mut self, s: &str) {
+        let nr_lines = s.matches("\n").count();
+        let nr_column = s.lines().last().unwrap().len();
+
+        let mut parser = SaxParser::new();
+        let mut elements = parser.elements(&s.as_bytes());
+        while let Some(element) = elements.next() {
+            let element = element.expect(&format!("Failed to parse {}", s));
+            self.check_element(&element);
+        }
+        assert_eq!(parser.parse_finish(), Ok(()));
+        assert_eq!(self.current, self.expected.len());
+        let location = parser.location();
+        assert_eq!(location.lines, nr_lines);
+        assert_eq!(location.column, nr_column);
+        assert_eq!(location.bytes, s.len());
+
+        // now try byte by byte
+        parser.reset();
+        self.current = 0;
+        self.cdata_buf.clear();
+        for i in 0..s.len() {
+            let mut elements = parser.elements(&s.as_bytes()[i..i + 1]);
+            while let Some(element) = elements.next() {
+                let element = element.expect(&format!("Failed to parse {}", s));
+                self.check_element(&element);
+            }
+        }
+        assert_eq!(parser.parse_finish(), Ok(()));
+        assert_eq!(self.current, self.expected.len());
+        let location = parser.location();
+        assert_eq!(location.lines, nr_lines);
+        assert_eq!(location.column, nr_column);
+        assert_eq!(location.bytes, s.len());
     }
 }
 
 struct BadTester {
     bad_byte: usize,
-    err: SaxError,
+    err: ParseError,
 }
 
 impl BadTester {
     fn new(bad_byte: usize, msg: &'static str) -> BadTester {
         BadTester {
             bad_byte,
-            err: SaxError::BadXml(msg),
+            err: ParseError::BadXml(msg),
         }
     }
 
     fn check(&mut self, s: &str) {
         let mut parser = SaxParser::new();
-        assert_eq!(
-            parser.parse_bytes_finish(self, &s.as_bytes()),
-            Err(self.err)
-        );
-        assert_eq!(parser.location().bytes, self.bad_byte);
+        let mut elements = parser.elements(&s.as_bytes());
+        while let Some(element) = elements.next() {
+            if let Err(err) = element {
+                assert_eq!(err, self.err);
+                assert_eq!(parser.location().bytes, self.bad_byte);
+                return;
+            }
+        }
+        assert_eq!(parser.parse_finish(), Err(self.err));
     }
 
     fn check_bytes(&mut self, bytes: &[u8]) {
         let mut parser = SaxParser::new();
-        assert_eq!(parser.parse_bytes_finish(self, bytes), Err(self.err));
-        assert_eq!(parser.location().bytes, self.bad_byte);
-    }
-}
-
-impl SaxHandler for BadTester {
-    fn handle_element(&mut self, _element: &SaxElement) -> Result<(), SaxError> {
-        Ok(())
+        let mut elements = parser.elements(bytes);
+        while let Some(element) = elements.next() {
+            if let Err(err) = element {
+                assert_eq!(err, self.err);
+                assert_eq!(parser.location().bytes, self.bad_byte);
+                return;
+            }
+        }
+        assert_eq!(parser.parse_finish(), Err(self.err));
     }
 }
 
@@ -488,7 +499,7 @@ fn prints() {
     }
 
     {
-        let e = SaxError::NoMemory;
+        let e = ParseError::NoMemory;
         let s1 = format!("{:?}", e);
         assert!(s1.len() > 0);
         let s2 = format!("{}", e);
@@ -496,15 +507,7 @@ fn prints() {
     }
 
     {
-        let e = SaxError::BadXml("test");
-        let s1 = format!("{:?}", e);
-        assert!(s1.len() > 0);
-        let s2 = format!("{}", e);
-        assert!(s2.len() > 0);
-    }
-
-    {
-        let e = SaxError::HandlerAbort;
+        let e = ParseError::BadXml("test");
         let s1 = format!("{:?}", e);
         assert!(s1.len() > 0);
         let s2 = format!("{}", e);

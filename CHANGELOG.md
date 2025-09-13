@@ -7,12 +7,17 @@
   after receiving any attributes to indicate that the start tag
   is fully processed. This was necessary for `StreamParser` to detect
   the stream start tag.
+* `SaxParser` now returns each `SaxElement` as it is parsed via new
+  `SaxElements` lending iterator instead of the clumsy handler trait.
+  Same pattern is used in Document and Stream parsers as well.
+* Since the handler callback is not used anymore, `SaxError` and
+  `DocumentError` which ended up with exact same error variants are
+  consolidated into the `ParseError` object.
 
 ## New features
 
 * Cursor now provides `following_sibling`, `preceding_sibling` iterators.
-* `StreamParser` which turns an XML stream into a sequence of top level
-  elements for stream control tags and stanzas is implemented.
+* New `StreamParser` produces Documents for each XMPP stream top level.
 
 # 0.1.0 (2025-09-06)
 

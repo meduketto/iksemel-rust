@@ -21,7 +21,7 @@ use std::ptr::null_mut;
 use std::str::FromStr;
 
 use crate::NoMemory;
-use crate::document::error::description;
+pub use crate::ParseError;
 
 use super::arena::Arena;
 use super::arena::ArenaStats;
@@ -29,7 +29,7 @@ use super::entities::escape;
 use super::entities::escape_fmt;
 use super::entities::escaped_size;
 pub use builder::DocumentBuilder;
-pub use error::DocumentError;
+use error::description;
 pub use iterators::Attributes;
 pub use iterators::Children;
 pub use iterators::DescendantOrSelf;
@@ -259,7 +259,7 @@ pub struct Document {
 }
 
 impl Document {
-    pub fn new(root_tag_name: &str) -> Result<Document, DocumentError> {
+    pub fn new(root_tag_name: &str) -> Result<Document, ParseError> {
         let arena = Arena::new()?;
         let tag = arena.alloc_tag(root_tag_name)?.as_ptr();
         let node = arena.alloc_node(NodePayload::Tag(tag))?.as_ptr();
@@ -285,11 +285,11 @@ impl Document {
     // Convenience methods to avoid typing .root() all the time
     //
 
-    pub fn insert_tag<'a>(&'a self, tag_name: &str) -> Result<Cursor<'a>, DocumentError> {
+    pub fn insert_tag<'a>(&'a self, tag_name: &str) -> Result<Cursor<'a>, ParseError> {
         self.root().insert_tag(tag_name)
     }
 
-    pub fn insert_cdata<'a>(&'a self, cdata: &str) -> Result<Cursor<'a>, DocumentError> {
+    pub fn insert_cdata<'a>(&'a self, cdata: &str) -> Result<Cursor<'a>, ParseError> {
         self.root().insert_cdata(cdata)
     }
 
@@ -325,7 +325,7 @@ impl std::fmt::Display for Document {
 }
 
 impl FromStr for Document {
-    type Err = DocumentError;
+    type Err = ParseError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let mut parser = DocumentParser::new();
@@ -354,7 +354,7 @@ macro_rules! cursor_edit_guards {
     ($self:ident) => {{
         let node = $self.get_node_ptr();
         if node.is_null() {
-            return Err(DocumentError::BadXml(description::NULL_CURSOR_EDIT));
+            return Err(ParseError::BadXml(description::NULL_CURSOR_EDIT));
         }
         node
     }};
@@ -385,14 +385,14 @@ impl<'a> Cursor<'a> {
     // Edit methods
     //
 
-    pub fn insert_tag<'b>(self, tag_name: &'b str) -> Result<Cursor<'a>, DocumentError> {
+    pub fn insert_tag<'b>(self, tag_name: &'b str) -> Result<Cursor<'a>, ParseError> {
         let node = cursor_edit_guards!(self);
 
         unsafe {
             match (*node).payload {
                 NodePayload::CData(_) => {
                     // Cannot insert a tag into a cdata element
-                    Err(DocumentError::BadXml(description::CDATA_CHILDREN))
+                    Err(ParseError::BadXml(description::CDATA_CHILDREN))
                 }
                 NodePayload::Tag(tag) => {
                     let new_tag = self.arena.alloc_tag(tag_name)?.as_ptr();
@@ -414,12 +414,12 @@ impl<'a> Cursor<'a> {
         }
     }
 
-    pub fn append_tag<'b>(self, tag_name: &'b str) -> Result<Cursor<'a>, DocumentError> {
+    pub fn append_tag<'b>(self, tag_name: &'b str) -> Result<Cursor<'a>, ParseError> {
         let node = cursor_edit_guards!(self);
 
         unsafe {
             if (*node).parent.is_null() {
-                return Err(DocumentError::BadXml(description::ROOT_SIBLING));
+                return Err(ParseError::BadXml(description::ROOT_SIBLING));
             }
 
             let new_tag = self.arena.alloc_tag(tag_name)?.as_ptr();
@@ -450,12 +450,12 @@ impl<'a> Cursor<'a> {
         }
     }
 
-    pub fn prepend_tag<'b>(self, tag_name: &'b str) -> Result<Cursor<'a>, DocumentError> {
+    pub fn prepend_tag<'b>(self, tag_name: &'b str) -> Result<Cursor<'a>, ParseError> {
         let node = cursor_edit_guards!(self);
 
         unsafe {
             if (*node).parent.is_null() {
-                return Err(DocumentError::BadXml(description::ROOT_SIBLING));
+                return Err(ParseError::BadXml(description::ROOT_SIBLING));
             }
 
             let new_tag = self.arena.alloc_tag(tag_name)?.as_ptr();
@@ -490,18 +490,18 @@ impl<'a> Cursor<'a> {
         &self,
         name: &'b str,
         value: &'b str,
-    ) -> Result<Cursor<'a>, DocumentError> {
+    ) -> Result<Cursor<'a>, ParseError> {
         let node = cursor_edit_guards!(self);
 
         unsafe {
             match (*node).payload {
-                NodePayload::CData(_) => Err(DocumentError::BadXml(description::CDATA_ATTRIBUTE)),
+                NodePayload::CData(_) => Err(ParseError::BadXml(description::CDATA_ATTRIBUTE)),
                 NodePayload::Tag(tag) => {
                     let mut attr = (*tag).attributes;
                     while !attr.is_null() {
                         if name == (*attr).name_as_str() {
                             // Two attributes with the same name
-                            return Err(DocumentError::BadXml(description::DUPLICATE_ATTRIBUTE));
+                            return Err(ParseError::BadXml(description::DUPLICATE_ATTRIBUTE));
                         }
                         attr = (*attr).next;
                     }
@@ -526,12 +526,12 @@ impl<'a> Cursor<'a> {
         &self,
         name: &'b str,
         value: Option<&'b str>,
-    ) -> Result<Cursor<'a>, DocumentError> {
+    ) -> Result<Cursor<'a>, ParseError> {
         let node = cursor_edit_guards!(self);
 
         unsafe {
             match (*node).payload {
-                NodePayload::CData(_) => Err(DocumentError::BadXml(description::CDATA_ATTRIBUTE)),
+                NodePayload::CData(_) => Err(ParseError::BadXml(description::CDATA_ATTRIBUTE)),
                 NodePayload::Tag(tag) => {
                     let mut attr = (*tag).attributes;
                     while !attr.is_null() {
@@ -587,12 +587,12 @@ impl<'a> Cursor<'a> {
         }
     }
 
-    pub fn insert_cdata<'b>(self, cdata: &'b str) -> Result<Cursor<'a>, DocumentError> {
+    pub fn insert_cdata<'b>(self, cdata: &'b str) -> Result<Cursor<'a>, ParseError> {
         let node = cursor_edit_guards!(self);
 
         unsafe {
             match (*node).payload {
-                NodePayload::CData(_) => Err(DocumentError::BadXml(description::CDATA_CHILDREN)),
+                NodePayload::CData(_) => Err(ParseError::BadXml(description::CDATA_CHILDREN)),
                 NodePayload::Tag(tag) => {
                     let last = (*tag).last_child;
                     if !last.is_null()
@@ -628,12 +628,12 @@ impl<'a> Cursor<'a> {
         }
     }
 
-    pub fn append_cdata<'b>(self, cdata: &'b str) -> Result<Cursor<'a>, DocumentError> {
+    pub fn append_cdata<'b>(self, cdata: &'b str) -> Result<Cursor<'a>, ParseError> {
         let node = cursor_edit_guards!(self);
 
         unsafe {
             if (*node).parent.is_null() {
-                return Err(DocumentError::BadXml(description::ROOT_SIBLING));
+                return Err(ParseError::BadXml(description::ROOT_SIBLING));
             }
 
             let new_cdata = self.arena.alloc_cdata(cdata)?.as_ptr();
@@ -666,12 +666,12 @@ impl<'a> Cursor<'a> {
         }
     }
 
-    pub fn prepend_cdata<'b>(self, cdata: &'b str) -> Result<Cursor<'a>, DocumentError> {
+    pub fn prepend_cdata<'b>(self, cdata: &'b str) -> Result<Cursor<'a>, ParseError> {
         let node = cursor_edit_guards!(self);
 
         unsafe {
             if (*node).parent.is_null() {
-                return Err(DocumentError::BadXml(description::ROOT_SIBLING));
+                return Err(ParseError::BadXml(description::ROOT_SIBLING));
             }
 
             let new_cdata = self.arena.alloc_cdata(cdata)?.as_ptr();

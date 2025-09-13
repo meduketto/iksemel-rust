@@ -10,9 +10,8 @@
 
 use std::ptr::null_mut;
 
+use crate::ParseError;
 use crate::SaxElement;
-use crate::SaxError;
-use crate::SaxHandler;
 
 use super::Cursor;
 use super::Document;
@@ -32,27 +31,7 @@ impl DocumentBuilder {
         }
     }
 
-    pub fn peek(&self) -> Option<&Document> {
-        self.doc.as_ref()
-    }
-
-    pub fn take(&mut self) -> Option<Document> {
-        self.doc.take()
-    }
-
-    pub fn replace(&mut self, doc: Document) -> Option<Document> {
-        self.doc.replace(doc)
-    }
-}
-
-impl Default for DocumentBuilder {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl SaxHandler for DocumentBuilder {
-    fn handle_element(&mut self, element: &SaxElement) -> Result<(), SaxError> {
+    pub fn append_element(&mut self, element: &SaxElement) -> Result<(), ParseError> {
         match &self.doc {
             None => match element {
                 SaxElement::StartTag(name) => {
@@ -60,7 +39,7 @@ impl SaxHandler for DocumentBuilder {
                     self.node = doc.root().get_node_ptr();
                     self.doc = Some(doc);
                 }
-                _ => return Err(SaxError::HandlerAbort),
+                _ => return Err(ParseError::BadXml(description::NO_START_TAG)),
             },
             Some(doc) => match element {
                 SaxElement::StartTag(name) => {
@@ -79,12 +58,30 @@ impl SaxHandler for DocumentBuilder {
                 }
                 SaxElement::EndTag(name) => {
                     if name != &Cursor::new(self.node, &doc.arena).name() {
-                        return Err(SaxError::BadXml(description::TAG_MISMATCH));
+                        return Err(ParseError::BadXml(description::TAG_MISMATCH));
                     }
                     self.node = Cursor::new(self.node, &doc.arena).parent().get_node_ptr();
                 }
             },
         }
         Ok(())
+    }
+
+    pub fn peek(&self) -> Option<&Document> {
+        self.doc.as_ref()
+    }
+
+    pub fn take(&mut self) -> Option<Document> {
+        self.doc.take()
+    }
+
+    pub fn replace(&mut self, doc: Document) -> Option<Document> {
+        self.doc.replace(doc)
+    }
+}
+
+impl Default for DocumentBuilder {
+    fn default() -> Self {
+        Self::new()
     }
 }

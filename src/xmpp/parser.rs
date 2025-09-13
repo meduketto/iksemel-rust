@@ -10,94 +10,128 @@
 
 use crate::Document;
 use crate::DocumentBuilder;
+use crate::ParseError;
 use crate::SaxElement;
-use crate::SaxError;
-use crate::SaxHandler;
-use crate::parser::SaxParser;
+use crate::SaxParser;
 
 use super::StreamError;
 use super::constants::*;
 
-struct StreamBuilder<'a> {
+pub enum StreamElement {
+    Element(Document),
+    End,
+}
+
+pub struct StreamElements<'a> {
+    parser: &'a mut StreamParser,
+    bytes: &'a [u8],
+    bytes_parsed: usize,
+}
+
+impl<'a> StreamElements<'a> {
+    pub fn new(parser: &'a mut StreamParser, bytes: &'a [u8]) -> Self {
+        Self {
+            parser,
+            bytes,
+            bytes_parsed: 0,
+        }
+    }
+
+    pub fn next(&mut self) -> Option<Result<StreamElement, StreamError>> {
+        match self.parser.parse_bytes(&self.bytes[self.bytes_parsed..]) {
+            Ok(Some((element, bytes))) => {
+                self.bytes_parsed += bytes;
+                Some(Ok(element))
+            }
+            Ok(None) => {
+                self.bytes_parsed = self.bytes.len();
+                None
+            }
+            Err(err) => Some(Err(err.into())),
+        }
+    }
+}
+
+pub struct StreamParser {
+    sax_parser: SaxParser,
     builder: DocumentBuilder,
     level: usize,
-    handler: &'a mut dyn StreamHandler,
 }
 
-impl<'a> StreamBuilder<'a> {
-    fn new(handler: &'a mut impl StreamHandler) -> Self {
+impl StreamParser {
+    pub fn new() -> Self {
         Self {
+            sax_parser: SaxParser::new(),
             builder: DocumentBuilder::new(),
             level: 0,
-            handler,
-        }
-    }
-}
-
-impl<'a> SaxHandler for StreamBuilder<'a> {
-    fn handle_element(&mut self, element: &SaxElement) -> Result<(), SaxError> {
-        match element {
-            SaxElement::StartTag(_) => {
-                self.level += 1;
-            }
-            SaxElement::StartTagEmpty => {
-                self.level -= 1;
-            }
-            SaxElement::EndTag(name) => {
-                if self.level == 0 && name == &STREAM_TAG {
-                    self.handler.handle_stream_end();
-                    return Ok(());
-                }
-                self.level -= 1;
-            }
-            _ => {}
-        }
-        self.builder.handle_element(element)?;
-        match element {
-            SaxElement::StartTagContent => {
-                if self.level == 1
-                    && self
-                        .builder
-                        .peek()
-                        .is_some_and(|doc| doc.root().name() == STREAM_TAG)
-                    && let Some(doc) = self.builder.take()
-                {
-                    self.handler.handle_stream_element(doc);
-                    self.level = 0;
-                }
-            }
-            SaxElement::EndTag(_) => {
-                if self.level == 0
-                    && let Some(doc) = self.builder.take()
-                {
-                    self.handler.handle_stream_element(doc);
-                }
-            }
-            _ => {}
-        }
-        Ok(())
-    }
-}
-
-pub trait StreamHandler {
-    fn handle_stream_element(&mut self, element: Document);
-    fn handle_stream_end(&mut self);
-}
-
-pub struct StreamParser<'a> {
-    parser: SaxParser,
-    builder: StreamBuilder<'a>,
-}
-
-impl<'a> StreamParser<'a> {
-    pub fn new(handler: &'a mut impl StreamHandler) -> Self {
-        Self {
-            parser: SaxParser::new(),
-            builder: StreamBuilder::new(handler),
         }
     }
 
-    pub fn parse_bytes(&mut self, bytes: &[u8]) -> Result<(), StreamError> {
-        Ok(self.parser.parse_bytes(&mut self.builder, bytes)?)
+    pub fn elements<'a>(&'a mut self, bytes: &'a [u8]) -> StreamElements<'a> {
+        StreamElements::new(self, bytes)
+    }
+
+    pub fn parse_bytes(
+        &mut self,
+        bytes: &[u8],
+    ) -> Result<Option<(StreamElement, usize)>, ParseError> {
+        let mut bytes_parsed = 0;
+        while bytes_parsed < bytes.len() {
+            let sax_element = match self.sax_parser.parse_bytes(&bytes[bytes_parsed..]) {
+                Ok(Some((element, bytes))) => {
+                    bytes_parsed += bytes;
+                    element
+                }
+                Ok(None) => {
+                    return Ok(None);
+                }
+                Err(err) => return Err(err),
+            };
+            match sax_element {
+                SaxElement::StartTag(_) => {
+                    self.level += 1;
+                }
+                SaxElement::StartTagEmpty => {
+                    self.level -= 1;
+                }
+                SaxElement::EndTag(name) => {
+                    if self.level == 0 && name == STREAM_TAG {
+                        return Ok(Some((StreamElement::End, bytes_parsed)));
+                    }
+                    self.level -= 1;
+                }
+                _ => {}
+            }
+            self.builder.append_element(&sax_element)?;
+            match sax_element {
+                SaxElement::StartTagContent => {
+                    if self.level == 1
+                        && self
+                            .builder
+                            .peek()
+                            .is_some_and(|doc| doc.root().name() == STREAM_TAG)
+                        && let Some(doc) = self.builder.take()
+                    {
+                        self.level = 0;
+                        return Ok(Some((StreamElement::Element(doc), bytes_parsed)));
+                    }
+                }
+                SaxElement::EndTag(_) => {
+                    if self.level == 0
+                        && let Some(doc) = self.builder.take()
+                    {
+                        return Ok(Some((StreamElement::Element(doc), bytes_parsed)));
+                    }
+                }
+                _ => {}
+            }
+        }
+        Ok(None)
+    }
+}
+
+impl Default for StreamParser {
+    fn default() -> Self {
+        Self::new()
     }
 }

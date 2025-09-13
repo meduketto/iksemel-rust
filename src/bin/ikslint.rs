@@ -17,17 +17,15 @@ use std::io::stdin;
 use std::process::ExitCode;
 use std::vec::Vec;
 
+use iks::ParseError;
 use iks::SaxElement;
-use iks::SaxError;
-use iks::SaxHandler;
+use iks::SaxElements;
 use iks::SaxParser;
-
-const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 const DEFAULT_BUFFER_SIZE: usize = 64 * 1024;
 
 fn print_version() {
-    println!("ikslint (iksemel) v{}", VERSION);
+    println!("ikslint (iksemel) v{}", iks::VERSION);
 }
 
 fn print_usage() {
@@ -78,6 +76,48 @@ impl Handler {
         }
     }
 
+    fn process_element(&mut self, element: &SaxElement) -> Result<(), ParseError> {
+        match element {
+            SaxElement::StartTag(name) => {
+                self.nr_tags += 1;
+                self.level += 1;
+                self.max_depth = self.max_depth.max(self.level);
+                if self.do_tag_count {
+                    *self.tag_map.entry(name.to_string()).or_insert(0) += 1;
+                }
+                self.tag_stack.push(name.to_string());
+                self.attribute_map.clear();
+            }
+            SaxElement::Attribute(name, _value) => {
+                if self.attribute_map.contains(*name) {
+                    self.error = Some(format!("duplicate attribute: '{}'", name));
+                    return Err(ParseError::BadXml("duplicate attribute"));
+                }
+                self.attribute_map.insert(name.to_string());
+            }
+            SaxElement::StartTagContent => {}
+            SaxElement::StartTagEmpty => {
+                self.nr_empty_tags += 1;
+                self.tag_stack.pop();
+            }
+            SaxElement::CData(cdata) => {
+                self.nr_cdata_size += cdata.len();
+            }
+            SaxElement::EndTag(name) => {
+                self.level -= 1;
+                let start_name = self.tag_stack.pop().unwrap();
+                if &start_name != name {
+                    self.error = Some(format!(
+                        "end tag mismatch: expected '{}', got '{}'",
+                        start_name, name
+                    ));
+                    return Err(ParseError::BadXml("end tag mismatch"));
+                }
+            }
+        }
+        Ok(())
+    }
+
     fn report(&mut self) {
         if self.do_stats {
             println!(
@@ -106,53 +146,9 @@ impl Handler {
     }
 }
 
-impl SaxHandler for Handler {
-    fn handle_element(&mut self, element: &SaxElement) -> Result<(), SaxError> {
-        match element {
-            SaxElement::StartTag(name) => {
-                self.nr_tags += 1;
-                self.level += 1;
-                self.max_depth = self.max_depth.max(self.level);
-                if self.do_tag_count {
-                    *self.tag_map.entry(name.to_string()).or_insert(0) += 1;
-                }
-                self.tag_stack.push(name.to_string());
-                self.attribute_map.clear();
-            }
-            SaxElement::Attribute(name, _value) => {
-                if self.attribute_map.contains(*name) {
-                    self.error = Some(format!("duplicate attribute: '{}'", name));
-                    return Err(SaxError::HandlerAbort);
-                }
-                self.attribute_map.insert(name.to_string());
-            }
-            SaxElement::StartTagContent => {}
-            SaxElement::StartTagEmpty => {
-                self.nr_empty_tags += 1;
-                self.tag_stack.pop();
-            }
-            SaxElement::CData(cdata) => {
-                self.nr_cdata_size += cdata.len();
-            }
-            SaxElement::EndTag(name) => {
-                self.level -= 1;
-                let start_name = self.tag_stack.pop().unwrap();
-                if &start_name != name {
-                    self.error = Some(format!(
-                        "end tag mismatch: expected '{}', got '{}'",
-                        start_name, name
-                    ));
-                    return Err(SaxError::HandlerAbort);
-                }
-            }
-        }
-        Ok(())
-    }
-}
-
 enum LinterError {
     IoError(std::io::Error),
-    SaxError(SaxError),
+    ParseError(ParseError),
 }
 
 impl From<std::io::Error> for LinterError {
@@ -161,9 +157,9 @@ impl From<std::io::Error> for LinterError {
     }
 }
 
-impl From<SaxError> for LinterError {
-    fn from(err: SaxError) -> Self {
-        LinterError::SaxError(err)
+impl From<ParseError> for LinterError {
+    fn from(err: ParseError) -> Self {
+        LinterError::ParseError(err)
     }
 }
 
@@ -194,8 +190,18 @@ impl Linter {
             if bytes_read == 0 {
                 break;
             }
-            self.parser
-                .parse_bytes(&mut self.handler, &buffer[..bytes_read])?;
+            let mut elements = SaxElements::new(&mut self.parser, &buffer[..bytes_read]);
+            loop {
+                match elements.next() {
+                    Some(Ok(element)) => {
+                        self.handler.process_element(&element)?;
+                    }
+                    Some(Err(err)) => return Err(err.into()),
+                    None => {
+                        break;
+                    }
+                }
+            }
         }
         Ok(self.parser.parse_finish()?)
     }
@@ -211,25 +217,16 @@ impl Linter {
                 eprintln!("Error reading file '{}': {}", file, e);
                 false
             }
-            Err(LinterError::SaxError(SaxError::NoMemory)) => {
+            Err(LinterError::ParseError(ParseError::NoMemory)) => {
                 eprintln!("Memory allocation failed while parsing '{}'", file);
                 false
             }
-            Err(LinterError::SaxError(SaxError::BadXml(msg))) => {
+            Err(LinterError::ParseError(ParseError::BadXml(msg))) => {
                 eprintln!(
                     "Syntax error in file '{}' at {}: {}",
                     file,
                     self.parser.location(),
                     msg
-                );
-                false
-            }
-            Err(LinterError::SaxError(SaxError::HandlerAbort)) => {
-                eprintln!(
-                    "Well-formedness error in file '{}' at {}: {}",
-                    file,
-                    self.parser.location(),
-                    self.handler.error.as_ref().unwrap()
                 );
                 false
             }

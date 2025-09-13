@@ -34,10 +34,10 @@
 //! It validates and processes byte streams and generates XML elements.
 //!
 //! See:
-//! [SaxError],
+//! [ParseError],
 //! [SaxParser],
 //! [SaxElement],
-//! [SaxHandler],
+//! [SaxElements],
 //! [Location]
 //!
 //! # Arena
@@ -71,7 +71,7 @@
 //! parse an XML byte stream into an XML element tree structure.
 //!
 //! See:
-//! [DocumentError],
+//! [DocumentBuilder],
 //! [DocumentParser]
 //!
 //! # Stream Parser
@@ -96,14 +96,16 @@ mod parser;
 mod xmpp;
 mod xpath;
 
+pub const VERSION: &str = env!("CARGO_PKG_VERSION");
+
 pub use arena::Arena;
 pub use arena::ArenaStats;
 pub use arena::NoMemory;
 
 pub use parser::Location;
+pub use parser::ParseError;
 pub use parser::SaxElement;
-pub use parser::SaxError;
-pub use parser::SaxHandler;
+pub use parser::SaxElements;
 pub use parser::SaxParser;
 
 pub use document::Attributes;
@@ -112,15 +114,11 @@ pub use document::Cursor;
 pub use document::DescendantOrSelf;
 pub use document::Document;
 pub use document::DocumentBuilder;
-pub use document::DocumentError;
 pub use document::DocumentParser;
 pub use document::FollowingSibling;
 pub use document::PrecedingSibling;
 
-pub use xmpp::ClientStream;
-pub use xmpp::ClientStreamHandler;
 pub use xmpp::StreamError;
-pub use xmpp::StreamHandler;
 pub use xmpp::StreamParser;
 
 pub use xpath::XPath;

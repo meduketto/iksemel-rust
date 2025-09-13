@@ -11,7 +11,7 @@
 use std::error::Error;
 use std::fmt::Display;
 
-/// The error type for the SAX parsing operations.
+/// The error type for the SAX/DOM parsing operations.
 ///
 /// These categories are designed to be as few as possible and correspond to the distinct
 /// actions you might take based on the nature of the problem.
@@ -19,7 +19,7 @@ use std::fmt::Display;
 /// Location of the error is available from [location()](super::SaxParser::location)
 /// method.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum SaxError {
+pub enum ParseError {
     /// Parser could not allocate the memory needed for parsing buffers.
     ///
     /// A character buffer is used to collect the tag names and the attribute key
@@ -34,8 +34,9 @@ pub enum SaxError {
     /// with either a degenarate document with gigabytes long tag name, or
     /// while running under severely memory constrained platforms.
     ///
-    /// Another way to get this error is if your handler returns it after a
-    /// failed memory allocation.
+    /// For DOM parser, the structs and character data of the document is
+    /// allocated within an [Arena](crate::Arena), and any failed allocations
+    /// result in this error.
     ///
     /// Best action is to abort the current operation and release any
     /// other allocated resources.
@@ -59,25 +60,18 @@ pub enum SaxError {
     /// Best action is to abort the current operation and relay the error
     /// details to the user.
     BadXml(&'static str),
-
-    /// Element handler method wants to abort.
-    ///
-    /// This is intended for your handler to be able to abort the parsing while
-    /// signalling that the interruption is not caused by iks itself.
-    HandlerAbort,
 }
 
-impl Display for SaxError {
+impl Display for ParseError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            SaxError::NoMemory => write!(f, "not enough memory"),
-            SaxError::BadXml(msg) => write!(f, "invalid xml syntax: {msg}"),
-            SaxError::HandlerAbort => write!(f, "abort from sax handler"),
+            ParseError::NoMemory => write!(f, "not enough memory"),
+            ParseError::BadXml(msg) => write!(f, "invalid xml syntax: {msg}"),
         }
     }
 }
 
-impl Error for SaxError {}
+impl Error for ParseError {}
 
 pub(super) mod description {
     pub(in super::super) const UTF8_INVALID_CONT_BYTE: &str = "invalid UTF8 continuation byte";
