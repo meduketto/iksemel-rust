@@ -7,14 +7,3 @@
 ** published by the Free Software Foundation, either version 3 of
 ** the License, or (at your option) any later version.
 */
-
-mod client;
-mod constants;
-mod error;
-mod parser;
-
-pub use error::StreamError;
-pub use parser::StreamParser;
-
-#[cfg(test)]
-mod tests;

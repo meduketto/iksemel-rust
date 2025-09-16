@@ -58,16 +58,16 @@ fn attributes() {
     assert!(a.insert_attribute("i", "1").unwrap().is_tag());
     assert_eq!(
         a.insert_attribute("i", "1").unwrap_err(),
-        DocumentError::BadXml(description::DUPLICATE_ATTRIBUTE)
+        ParseError::BadXml(description::DUPLICATE_ATTRIBUTE)
     );
     assert!(a.insert_attribute("j", "2").unwrap().is_tag());
     assert_eq!(
         a.insert_attribute("i", "1").unwrap_err(),
-        DocumentError::BadXml(description::DUPLICATE_ATTRIBUTE)
+        ParseError::BadXml(description::DUPLICATE_ATTRIBUTE)
     );
     assert_eq!(
         a.insert_attribute("j", "1").unwrap_err(),
-        DocumentError::BadXml(description::DUPLICATE_ATTRIBUTE)
+        ParseError::BadXml(description::DUPLICATE_ATTRIBUTE)
     );
     let _ = doc
         .insert_tag("b")
@@ -283,18 +283,18 @@ fn null_checks() {
 fn bad_doc_parser() {
     assert_eq!(
         Document::from_str("<a>lala</b>").err(),
-        Some(DocumentError::BadXml(TAG_MISMATCH))
+        Some(ParseError::BadXml(TAG_MISMATCH))
     );
     assert_eq!(
         Document::from_str("<a><b><c/></d></a>").err(),
-        Some(DocumentError::BadXml(TAG_MISMATCH))
+        Some(ParseError::BadXml(TAG_MISMATCH))
     );
     assert_eq!(
         Document::from_str("<a><b><c/></b><d></d><e></e2></a>").err(),
-        Some(DocumentError::BadXml(TAG_MISMATCH))
+        Some(ParseError::BadXml(TAG_MISMATCH))
     );
     assert_eq!(
         Document::from_str("<a><b x=\"1\" y=\"2\" x=\"abc\"/></a>").err(),
-        Some(DocumentError::BadXml(DUPLICATE_ATTRIBUTE))
+        Some(ParseError::BadXml(DUPLICATE_ATTRIBUTE))
     );
 }

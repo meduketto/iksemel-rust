@@ -11,7 +11,7 @@
 use std::error::Error;
 use std::fmt::Display;
 
-use crate::SaxError;
+use crate::ParseError;
 
 #[derive(Debug, Eq, PartialEq, Copy, Clone)]
 pub enum StreamError {
@@ -32,12 +32,11 @@ impl Display for StreamError {
 
 impl Error for StreamError {}
 
-impl From<SaxError> for StreamError {
-    fn from(err: SaxError) -> Self {
+impl From<ParseError> for StreamError {
+    fn from(err: ParseError) -> Self {
         match err {
-            SaxError::NoMemory => StreamError::NoMemory,
-            SaxError::BadXml(msg) => StreamError::BadXml(msg),
-            SaxError::HandlerAbort => StreamError::BadXml("Unexpected handler abort"),
+            ParseError::NoMemory => StreamError::NoMemory,
+            ParseError::BadXml(msg) => StreamError::BadXml(msg),
         }
     }
 }

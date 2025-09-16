@@ -11,7 +11,7 @@
 mod error;
 mod location;
 
-pub use error::SaxError;
+pub use error::ParseError;
 use error::description;
 pub use location::Location;
 
@@ -23,22 +23,24 @@ pub enum SaxElement<'a> {
     /// The argument is the full name of the tag. This element is sent to
     /// the handler as soon as the name is parsed.
     ///
-    /// This is always followed by zero or more [Attribute] elements, and
-    /// then either a [StartTagContent] or [StartTagEmpty] element.
+    /// This is always followed by zero or more [Attribute](SaxElement::Attribute)
+    /// elements, and then either a [StartTagContent](SaxElement::StartTagContent)
+    /// or [StartTagEmpty](SaxElement::StartTagEmpty) element.
     StartTag(&'a str),
 
     /// A tag attribute for the last StartTag.
     ///
-    /// First argument is the attribute name and the second argument is the attribute value.
-    /// All references in the attribute value are replaced with the actual characters.
-    /// Each attribute is sent as a separate element for efficiency.
+    /// First argument is the attribute name and the second argument is the
+    /// attribute value. All references in the attribute value are replaced
+    /// with the actual characters. Each attribute is sent as a separate
+    /// element for efficiency.
     Attribute(&'a str, &'a str),
 
     /// Indicates that the last StartTag was not an empty element tag.
     ///
-    /// Note that you might still get an [EndTag] immediately after this, as
-    /// `<tag/>` and `<tag></tag>` are distinct in the XML specification, and
-    /// not normalized.
+    /// Note that you might still get an [EndTag](SaxElement::EndTag)
+    /// immediately after this, as `<tag/>` and `<tag></tag>` are
+    /// distinct in the XML specification, and not normalized.
     StartTagContent,
 
     /// Indicates that the last StartTag was an empty element tag and will have no content.
@@ -59,17 +61,42 @@ pub enum SaxElement<'a> {
     CData(&'a str),
 }
 
-/// Handling SAX parser elements.
-///
-/// Since generators are not stabilized in the Rust compiler, you have to
-/// implement this trait to receive the SAX elements from the parser.
-pub trait SaxHandler {
-    /// Handle a SAX element.
-    ///
-    /// Called for each element encountered by the parser. See
-    /// [SaxElement](crate::SaxElement) for each element you can receive,
-    /// and [SaxError](crate::SaxError) for what errors you can return.
-    fn handle_element(&mut self, element: &SaxElement) -> Result<(), SaxError>;
+pub struct SaxElements<'a> {
+    parser: &'a mut SaxParser,
+    bytes: &'a [u8],
+    bytes_parsed: usize,
+}
+
+impl<'a> SaxElements<'a> {
+    pub fn new(parser: &'a mut SaxParser, bytes: &'a [u8]) -> Self {
+        SaxElements {
+            parser,
+            bytes,
+            bytes_parsed: 0,
+        }
+    }
+
+    #[allow(
+        clippy::should_implement_trait,
+        reason = "Iterator trait does not support lending iterator pattern"
+    )]
+    pub fn next(&mut self) -> Option<Result<SaxElement<'_>, ParseError>> {
+        if self.bytes_parsed == self.bytes.len() {
+            None
+        } else {
+            match self.parser.parse_bytes(&self.bytes[self.bytes_parsed..]) {
+                Ok(Some((element, bytes))) => {
+                    self.bytes_parsed += bytes;
+                    Some(Ok(element))
+                }
+                Ok(None) => {
+                    self.bytes_parsed = self.bytes.len();
+                    None
+                }
+                Err(err) => Some(Err(err)),
+            }
+        }
+    }
 }
 
 /// SAX (Simple API for XML) based XML parser.
@@ -108,53 +135,26 @@ pub trait SaxHandler {
 ///
 /// Typical usage:
 /// ```
-/// use iks::{SaxElement, SaxError, SaxHandler, SaxParser};
-///
-/// // Example handler which just prints parsed elements
-/// struct Handler { }
-/// impl SaxHandler for Handler {
-///     fn handle_element(&mut self, element: &SaxElement) -> Result<(), SaxError> {
-///         println!("Element parsed: {:?}", element);
-///         Ok(())
-///     }
-/// }
-/// let mut handler = Handler {};
+/// use iks::{SaxElement, ParseError, SaxParser};
+/// # fn main() -> Result<(), ParseError> {
 ///
 /// let mut parser = SaxParser::new();
 ///
-/// match parser.parse_bytes_finish(&mut handler, b"<doc>example</doc>") {
-///     Ok(()) => (),
-///     Err(SaxError::NoMemory) => {
-///         println!("no memory");
-///         return;
-///     }
-///     Err(SaxError::BadXml(description)) => {
-///         println!("syntax error at {}: {}",
-///             parser.location(),
-///             description,
-///         );
-///         return;
-///     }
-///     Err(SaxError::HandlerAbort) => {
-///         println!("handler returned error");
-///         return;
-///     }
+/// let mut elements = parser.elements(b"<doc>example</doc>");
+/// while let Some(result) = elements.next() {
+///     let element = result?;
+///     println!("Element parsed: {:?}", element);
 /// }
+/// parser.parse_finish()?;
+/// # Ok(())
+/// # }
 /// ```
 ///
 /// Alternatively you can pass the input in multiple blocks:
 /// ```
 /// # use iks::SaxElement;
-/// # use iks::SaxError;
-/// # use iks::SaxHandler;
-/// # fn main() -> Result<(), SaxError> {
-/// # struct Handler { }
-/// # impl SaxHandler for Handler {
-/// #     fn handle_element(&mut self, element: &SaxElement) -> Result<(), SaxError> {
-/// #         Ok(())
-/// #     }
-/// # }
-/// # let mut handler = Handler {};
+/// # use iks::ParseError;
+/// # fn main() -> Result<(), ParseError> {
 /// # use iks::SaxParser;
 /// # let mut parser = SaxParser::new();
 /// # use std::io::Read;
@@ -166,7 +166,11 @@ pub trait SaxHandler {
 ///     if len == 0 {
 ///         break;
 ///     }
-///     parser.parse_bytes_finish(&mut handler, &buffer[0..len])?
+///     let mut elements = parser.elements(&buffer[0..len]);
+///     while let Some(result) = elements.next() {
+///         let element = result?;
+///         println!("Element parsed: {:?}", element);
+///     }
 /// }
 /// // This is to check if there is any incomplete XML construct at the end
 /// parser.parse_finish()?;
@@ -186,6 +190,7 @@ pub struct SaxParser {
     buffer: Vec<u8>,
     ref_buffer: Vec<u8>,
     char_ref_value: u32,
+    char_ref_buffer: [u8; 4],
     is_value_ref: bool,
     location: Location,
 }
@@ -220,14 +225,17 @@ enum State {
     DoctypeSkip,
     DoctypeMarkupDecl,
     TagName,
+    TagNameContinue,
     EndTagWhitespace,
     EmptyTagEnd,
     AttributeWhitespace,
     AttributeName,
     AttributeValueStart,
     AttributeValue,
+    AttributeValueContinue,
     AttributeEq,
     CData,
+    CDataContinue,
     Reference,
     CharReference,
     CharReferenceBody,
@@ -252,7 +260,20 @@ fn is_valid_xml_char(c: u32) -> bool {
 
 macro_rules! xml_error {
     ($a:ident) => {
-        return Err(SaxError::BadXml(description::$a));
+        return Err(ParseError::BadXml(description::$a));
+    };
+}
+
+macro_rules! yield_element {
+    ($self:ident, $c:ident, $pos:ident, $elem:expr) => {
+        $self.location.advance($c);
+        return Ok(Some(($elem, $pos + 1)));
+    };
+}
+
+macro_rules! yield_element_inplace {
+    ($pos:ident, $elem:expr) => {
+        return Ok(Some(($elem, $pos)));
     };
 }
 
@@ -274,6 +295,7 @@ impl SaxParser {
             buffer: Vec::<u8>::with_capacity(INITIAL_BUFFER_CAPACITY),
             ref_buffer: Vec::<u8>::with_capacity(REF_BUFFER_SIZE),
             char_ref_value: 0,
+            char_ref_buffer: [0; 4],
             is_value_ref: false,
             location: Location::new(),
         }
@@ -297,35 +319,31 @@ impl SaxParser {
         self.location = Location::new();
     }
 
-    fn extend_buffer(&mut self, bytes: &[u8]) -> Result<(), SaxError> {
+    fn extend_buffer(&mut self, bytes: &[u8]) -> Result<(), ParseError> {
         let space = self.buffer.capacity() - self.buffer.len();
         if bytes.len() > space {
             let additional = bytes.len() - space;
             let result = self.buffer.try_reserve_exact(additional);
             if result.is_err() {
-                return Err(SaxError::NoMemory);
+                return Err(ParseError::NoMemory);
             }
         }
         self.buffer.extend_from_slice(bytes);
         Ok(())
     }
 
-    fn send_u32_cdata(
-        &mut self,
-        handler: &mut impl SaxHandler,
-        value: u32,
-    ) -> Result<(), SaxError> {
+    fn u32_to_cdata(&mut self) -> usize {
         const DATA_MASK: u32 = 0b0011_1111;
         const DATA_PREFIX: u8 = 0b1000_0000;
 
-        if !is_valid_xml_char(value) {
-            xml_error!(CHAR_INVALID);
-        }
-
-        let mut buf: [u8; 4] = [0; 4];
-        let mut size = 1;
+        let mut size = 0;
+        let value = self.char_ref_value;
+        let buf = &mut self.char_ref_buffer;
         match value {
-            0..=0x7f => buf[0] = value as u8,
+            0..=0x7f => {
+                buf[0] = value as u8;
+                size = 1;
+            }
             0x80..=0x7ff => {
                 buf[0] = 0b1100_0000 | ((value >> 6) as u8);
                 buf[1] = DATA_PREFIX | ((value & DATA_MASK) as u8);
@@ -346,21 +364,14 @@ impl SaxParser {
             }
             _ => (),
         }
-
-        if self.is_value_ref {
-            self.extend_buffer(&buf[0..size])?;
-            Ok(())
-        } else {
-            let s = unsafe { std::str::from_utf8_unchecked(&buf[0..size]) };
-            Ok(handler.handle_element(&SaxElement::CData(s))?)
-        }
+        size
     }
 
     /// Checks if the document is complete.
     ///
     /// A completed document should have a root tag and should not have any
-    /// unfinished XML constructs, such as open comments and markup.
-    pub fn parse_finish(&mut self) -> Result<(), SaxError> {
+    /// unfinished XML constructs, such as open comments or markup.
+    pub fn parse_finish(&self) -> Result<(), ParseError> {
         if !self.seen_content {
             xml_error!(DOC_NO_CONTENT);
         }
@@ -373,25 +384,15 @@ impl SaxParser {
         Ok(())
     }
 
-    /// Parses given XML bytes and checks if the document is complete.
-    ///
-    /// This is a convenience method which calls [parse_bytes()](SaxParser::parse_bytes)
-    /// and [parse_finish()](SaxParser::parse_finish) methods for you.
-    pub fn parse_bytes_finish(
-        &mut self,
-        handler: &mut impl SaxHandler,
-        bytes: &[u8],
-    ) -> Result<(), SaxError> {
-        self.parse_bytes(handler, bytes)?;
-        self.parse_finish()
+    pub fn elements<'a>(&'a mut self, bytes: &'a [u8]) -> SaxElements<'a> {
+        SaxElements::new(self, bytes)
     }
 
     /// Parses given XML bytes.
-    pub fn parse_bytes(
-        &mut self,
-        handler: &mut impl SaxHandler,
-        bytes: &[u8],
-    ) -> Result<(), SaxError> {
+    pub fn parse_bytes<'a>(
+        &'a mut self,
+        bytes: &'a [u8],
+    ) -> Result<Option<(SaxElement<'a>, usize)>, ParseError> {
         let mut pos: usize = 0;
         let mut back: usize = 0;
 
@@ -599,20 +600,19 @@ impl SaxParser {
 
                 State::CDataSectionBody => {
                     if c == b']' {
+                        self.state = State::CDataSectionMaybeEnd;
                         if back < pos {
                             let s = unsafe { std::str::from_utf8_unchecked(&bytes[back..pos]) };
-                            handler.handle_element(&SaxElement::CData(s))?;
+                            yield_element!(self, c, pos, SaxElement::CData(s));
                         }
-                        self.state = State::CDataSectionMaybeEnd;
                     }
                 }
 
                 State::CDataSectionMaybeEnd => match c {
                     b']' => self.state = State::CDataSectionMaybeEnd2,
                     _ => {
-                        handler.handle_element(&SaxElement::CData("]"))?;
-                        back = pos;
                         self.state = State::CDataSectionBody;
+                        yield_element_inplace!(pos, SaxElement::CData("]"));
                     }
                 },
 
@@ -622,12 +622,11 @@ impl SaxParser {
                         self.state = State::CData;
                     }
                     b']' => {
-                        handler.handle_element(&SaxElement::CData("]"))?;
+                        yield_element!(self, c, pos, SaxElement::CData("]"));
                     }
                     _ => {
-                        handler.handle_element(&SaxElement::CData("]]"))?;
-                        back = pos;
                         self.state = State::CDataSectionBody;
+                        yield_element_inplace!(pos, SaxElement::CData("]]"));
                     }
                 },
 
@@ -697,51 +696,54 @@ impl SaxParser {
                                 xml_error!(TAG_EMPTY_NAME);
                             }
                             let s = unsafe { std::str::from_utf8_unchecked(&self.buffer) };
+                            self.state = State::TagNameContinue;
                             if self.is_end_tag {
                                 if c == b'/' {
                                     xml_error!(TAG_DOUBLE_END);
                                 }
-                                handler.handle_element(&SaxElement::EndTag(s))?;
+                                yield_element_inplace!(pos, SaxElement::EndTag(s));
                             } else {
-                                handler.handle_element(&SaxElement::StartTag(s))?;
+                                yield_element_inplace!(pos, SaxElement::StartTag(s));
                             }
-                        }
-                        self.buffer.clear();
-                        match c {
-                            b'/' => {
-                                handler.handle_element(&SaxElement::StartTagEmpty)?;
-                                self.state = State::EmptyTagEnd;
-                            }
-                            b'>' => {
-                                if self.is_end_tag {
-                                    if self.depth == 0 {
-                                        xml_error!(TAG_CLOSE_WITHOUT_OPEN);
-                                    }
-                                    self.depth -= 1;
-                                    if self.depth == 0 {
-                                        self.state = State::Epilog;
-                                    } else {
-                                        back = pos + 1;
-                                        self.state = State::CData;
-                                    }
-                                } else {
-                                    handler.handle_element(&SaxElement::StartTagContent)?;
-                                    back = pos + 1;
-                                    self.state = State::CData;
-                                }
-                            }
-                            whitespace!() => {
-                                if self.is_end_tag {
-                                    self.state = State::EndTagWhitespace;
-                                } else {
-                                    self.state = State::AttributeWhitespace;
-                                }
-                            }
-                            _ => unreachable!(),
                         }
                     }
                     _ => (),
                 },
+
+                State::TagNameContinue => {
+                    self.buffer.clear();
+                    match c {
+                        b'/' => {
+                            self.state = State::EmptyTagEnd;
+                            yield_element!(self, c, pos, SaxElement::StartTagEmpty);
+                        }
+                        b'>' => {
+                            if self.is_end_tag {
+                                if self.depth == 0 {
+                                    xml_error!(TAG_CLOSE_WITHOUT_OPEN);
+                                }
+                                self.depth -= 1;
+                                if self.depth == 0 {
+                                    self.state = State::Epilog;
+                                } else {
+                                    back = pos + 1;
+                                    self.state = State::CData;
+                                }
+                            } else {
+                                self.state = State::CData;
+                                yield_element!(self, c, pos, SaxElement::StartTagContent);
+                            }
+                        }
+                        whitespace!() => {
+                            if self.is_end_tag {
+                                self.state = State::EndTagWhitespace;
+                            } else {
+                                self.state = State::AttributeWhitespace;
+                            }
+                        }
+                        _ => unreachable!(),
+                    }
+                }
 
                 State::EmptyTagEnd => match c {
                     b'>' => {
@@ -786,13 +788,12 @@ impl SaxParser {
                         if self.is_end_tag {
                             xml_error!(TAG_DOUBLE_END);
                         }
-                        handler.handle_element(&SaxElement::StartTagEmpty)?;
                         self.state = State::EmptyTagEnd;
+                        yield_element!(self, c, pos, SaxElement::StartTagEmpty);
                     }
                     b'>' => {
-                        handler.handle_element(&SaxElement::StartTagContent)?;
-                        back = pos + 1;
                         self.state = State::CData;
+                        yield_element!(self, c, pos, SaxElement::StartTagContent);
                     }
                     _ => {
                         back = pos;
@@ -856,9 +857,8 @@ impl SaxParser {
                         let value = unsafe {
                             std::str::from_utf8_unchecked(&self.buffer[self.value_pos..])
                         };
-                        handler.handle_element(&SaxElement::Attribute(attr, value))?;
-                        self.buffer.clear();
-                        self.state = State::AttributeWhitespace;
+                        self.state = State::AttributeValueContinue;
+                        yield_element_inplace!(pos, SaxElement::Attribute(attr, value));
                     } else if c == b'&' {
                         if back < pos {
                             self.extend_buffer(&bytes[back..pos])?;
@@ -871,11 +871,17 @@ impl SaxParser {
                     }
                 }
 
+                State::AttributeValueContinue => {
+                    self.buffer.clear();
+                    self.state = State::AttributeWhitespace;
+                }
+
                 State::CData => match c {
                     b'<' => {
                         if back < pos {
                             let s = unsafe { std::str::from_utf8_unchecked(&bytes[back..pos]) };
-                            handler.handle_element(&SaxElement::CData(s))?;
+                            self.state = State::TagStart;
+                            yield_element!(self, c, pos, SaxElement::CData(s));
                         }
                         back = pos + 1;
                         self.state = State::TagStart;
@@ -883,7 +889,8 @@ impl SaxParser {
                     b'&' => {
                         if back < pos {
                             let s = unsafe { std::str::from_utf8_unchecked(&bytes[back..pos]) };
-                            handler.handle_element(&SaxElement::CData(s))?;
+                            self.state = State::CDataContinue;
+                            yield_element_inplace!(pos, SaxElement::CData(s));
                         }
                         self.ref_buffer.clear();
                         self.is_value_ref = false;
@@ -891,6 +898,12 @@ impl SaxParser {
                     }
                     _ => (),
                 },
+
+                State::CDataContinue => {
+                    self.ref_buffer.clear();
+                    self.is_value_ref = false;
+                    self.state = State::Reference;
+                }
 
                 State::Reference => match c {
                     b'#' => {
@@ -920,9 +933,8 @@ impl SaxParser {
                             back = pos + 1;
                             self.state = State::AttributeValue;
                         } else {
-                            back = pos + 1;
                             self.state = State::CData;
-                            handler.handle_element(&SaxElement::CData(ent))?;
+                            yield_element!(self, c, pos, SaxElement::CData(ent));
                         }
                     }
                     _ => {
@@ -944,12 +956,23 @@ impl SaxParser {
 
                 State::CharReferenceBody => match c {
                     b';' => {
-                        self.send_u32_cdata(handler, self.char_ref_value)?;
-                        back = pos + 1;
+                        if !is_valid_xml_char(self.char_ref_value) {
+                            xml_error!(CHAR_INVALID);
+                        }
                         if self.is_value_ref {
+                            let size = self.u32_to_cdata();
+                            let mut buf = [0u8; 4];
+                            buf.clone_from_slice(&self.char_ref_buffer);
+                            self.extend_buffer(&buf[0..size])?;
+                            back = pos + 1;
                             self.state = State::AttributeValue;
                         } else {
+                            let size = self.u32_to_cdata();
+                            let s = unsafe {
+                                std::str::from_utf8_unchecked(&self.char_ref_buffer[0..size])
+                            };
                             self.state = State::CData;
+                            yield_element!(self, c, pos, SaxElement::CData(s));
                         }
                     }
                     b'0'..=b'9' => {
@@ -963,12 +986,23 @@ impl SaxParser {
 
                 State::HexCharReference => match c {
                     b';' => {
-                        self.send_u32_cdata(handler, self.char_ref_value)?;
-                        back = pos + 1;
+                        if !is_valid_xml_char(self.char_ref_value) {
+                            xml_error!(CHAR_INVALID);
+                        }
                         if self.is_value_ref {
+                            let size = self.u32_to_cdata();
+                            let mut buf = [0u8; 4];
+                            buf.clone_from_slice(&self.char_ref_buffer);
+                            self.extend_buffer(&buf[0..size])?;
+                            back = pos + 1;
                             self.state = State::AttributeValue;
                         } else {
+                            let size = self.u32_to_cdata();
+                            let s = unsafe {
+                                std::str::from_utf8_unchecked(&self.char_ref_buffer[0..size])
+                            };
                             self.state = State::CData;
+                            yield_element!(self, c, pos, SaxElement::CData(s));
                         }
                     }
                     b'0'..=b'9' => {
@@ -1010,13 +1044,13 @@ impl SaxParser {
                 }
                 State::CData | State::CDataSectionBody => {
                     let s = unsafe { std::str::from_utf8_unchecked(&bytes[back..pos]) };
-                    handler.handle_element(&SaxElement::CData(s))?;
+                    yield_element_inplace!(pos, SaxElement::CData(s));
                 }
                 _ => (),
             }
         }
 
-        Ok(())
+        Ok(None)
     }
 
     pub fn location(&self) -> Location {

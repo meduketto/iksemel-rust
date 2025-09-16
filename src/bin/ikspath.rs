@@ -14,12 +14,10 @@ use std::io::Read;
 use std::io::stdin;
 use std::process::ExitCode;
 
-use iks::{Document, DocumentError, DocumentParser, XPath};
-
-const VERSION: &str = env!("CARGO_PKG_VERSION");
+use iks::{Document, DocumentParser, ParseError, XPath};
 
 fn print_version() {
-    println!("ikspath (iksemel) v{}", VERSION);
+    println!("ikspath (iksemel) v{}", iks::VERSION);
 }
 
 fn print_usage() {
@@ -46,11 +44,11 @@ impl From<std::io::Error> for IkspathError {
     }
 }
 
-impl From<DocumentError> for IkspathError {
-    fn from(err: DocumentError) -> Self {
+impl From<ParseError> for IkspathError {
+    fn from(err: ParseError) -> Self {
         match err {
-            DocumentError::NoMemory => IkspathError::NoMemory,
-            DocumentError::BadXml(msg) => IkspathError::BadXml(msg),
+            ParseError::NoMemory => IkspathError::NoMemory,
+            ParseError::BadXml(msg) => IkspathError::BadXml(msg),
         }
     }
 }

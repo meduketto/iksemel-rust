@@ -9,11 +9,12 @@
 */
 
 use crate::Location;
+use crate::ParseError;
+use crate::SaxElements;
 use crate::SaxParser;
 
 use super::Document;
 use super::DocumentBuilder;
-use super::error::DocumentError;
 use super::error::description;
 
 pub struct DocumentParser {
@@ -29,24 +30,36 @@ impl DocumentParser {
         }
     }
 
-    pub fn parse_bytes(&mut self, bytes: &[u8]) -> Result<(), DocumentError> {
-        Ok(self.parser.parse_bytes(&mut self.builder, bytes)?)
+    pub fn parse_bytes(&mut self, bytes: &[u8]) -> Result<(), ParseError> {
+        let mut elements = SaxElements::new(&mut self.parser, bytes);
+        loop {
+            match elements.next() {
+                Some(Ok(element)) => {
+                    self.builder.append_element(&element)?;
+                }
+                Some(Err(err)) => return Err(err),
+                None => {
+                    break;
+                }
+            }
+        }
+        Ok(())
     }
 
-    pub fn into_document(mut self) -> Result<Document, DocumentError> {
+    pub fn into_document(mut self) -> Result<Document, ParseError> {
         self.parser.parse_finish()?;
         let doc = self.builder.take();
         match doc {
-            None => Err(DocumentError::BadXml(description::NO_DOCUMENT)),
+            None => Err(ParseError::BadXml(description::NO_DOCUMENT)),
             Some(doc) => Ok(doc),
         }
     }
 
-    pub fn take_document(&mut self) -> Result<Document, DocumentError> {
+    pub fn take_document(&mut self) -> Result<Document, ParseError> {
         self.parser.parse_finish()?;
         let doc = self.builder.take();
         match doc {
-            None => Err(DocumentError::BadXml(description::NO_DOCUMENT)),
+            None => Err(ParseError::BadXml(description::NO_DOCUMENT)),
             Some(doc) => Ok(doc),
         }
     }
