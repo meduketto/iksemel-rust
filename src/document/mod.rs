@@ -30,6 +30,7 @@ use super::entities::escape_fmt;
 use super::entities::escaped_size;
 pub use builder::DocumentBuilder;
 use error::description;
+pub use iterators::Ancestor;
 pub use iterators::Attributes;
 pub use iterators::Children;
 pub use iterators::DescendantOrSelf;
@@ -887,6 +888,10 @@ impl<'a> Cursor<'a> {
 
     pub fn descendant_or_self(self) -> DescendantOrSelf<'a> {
         DescendantOrSelf::new(self)
+    }
+
+    pub fn ancestor(self) -> Ancestor<'a> {
+        Ancestor::new(self)
     }
 
     pub fn preceding_sibling(self) -> PrecedingSibling<'a> {

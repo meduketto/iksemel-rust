@@ -16,7 +16,8 @@
 
 ## New features
 
-* Cursor now provides `following_sibling`, `preceding_sibling` iterators.
+* Cursor now provides `following_sibling`, `preceding_sibling`,
+  `ancestor` iterators.
 * New `StreamParser` produces Documents for each XMPP stream top level.
 
 # 0.1.0 (2025-09-06)

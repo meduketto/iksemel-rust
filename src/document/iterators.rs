@@ -163,6 +163,31 @@ impl<'a> Iterator for DescendantOrSelf<'a> {
     }
 }
 
+pub struct Ancestor<'a> {
+    current: Cursor<'a>,
+}
+
+impl<'a> Ancestor<'a> {
+    pub fn new(cursor: Cursor<'a>) -> Self {
+        Ancestor {
+            current: cursor.parent(),
+        }
+    }
+}
+
+impl<'a> Iterator for Ancestor<'a> {
+    type Item = Cursor<'a>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.current.is_null() {
+            return None;
+        }
+        let result = self.current.clone();
+        self.current = self.current.clone().parent();
+        Some(result)
+    }
+}
+
 pub struct PrecedingSibling<'a> {
     current: Cursor<'a>,
 }
