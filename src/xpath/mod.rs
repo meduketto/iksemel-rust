@@ -236,6 +236,13 @@ impl XPath {
                     }
                 }
             }
+            Axis::Ancestor => {
+                for ancestor in cursor.clone().ancestor() {
+                    if step.name == "*" || step.name == ancestor.name() {
+                        new_context.items.push(XPathValue::Node(ancestor.clone()));
+                    }
+                }
+            }
             Axis::PrecedingSibling => {
                 for sibling in cursor.clone().preceding_sibling() {
                     if step.name == "*" || step.name == sibling.name() {

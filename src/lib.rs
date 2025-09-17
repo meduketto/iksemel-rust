@@ -59,6 +59,7 @@
 //! See:
 //! [Document],
 //! [Cursor],
+//! [Ancestor],
 //! [Children],
 //! [Attributes],
 //! [DescendantOrSelf],
@@ -108,6 +109,7 @@ pub use parser::SaxElement;
 pub use parser::SaxElements;
 pub use parser::SaxParser;
 
+pub use document::Ancestor;
 pub use document::Attributes;
 pub use document::Children;
 pub use document::Cursor;

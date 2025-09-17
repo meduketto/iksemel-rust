@@ -221,6 +221,11 @@ fn iterators() {
     assert_eq!(iter.next().unwrap().cdata(), "456");
     assert!(iter.next().is_none());
 
+    let mut iter = doc.find_tag("b").find_tag("d").ancestor();
+    assert_eq!(iter.next().unwrap().name(), "b");
+    assert_eq!(iter.next().unwrap().name(), "a");
+    assert!(iter.next().is_none());
+
     let doc = Document::from_str("<a>lala<b/>123<c>101</c>456<d/>abc<e><f/></e></a>").unwrap();
     let mut iter = doc.find_tag("d").following_sibling();
     assert_eq!(iter.next().unwrap().cdata(), "abc");
