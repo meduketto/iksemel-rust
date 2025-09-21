@@ -120,6 +120,9 @@ pub use document::DocumentParser;
 pub use document::FollowingSibling;
 pub use document::PrecedingSibling;
 
+pub use xmpp::BadJid;
+pub use xmpp::Jid;
+pub use xmpp::StreamElement;
 pub use xmpp::StreamError;
 pub use xmpp::StreamParser;
 

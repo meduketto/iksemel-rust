@@ -40,3 +40,23 @@ impl From<ParseError> for StreamError {
         }
     }
 }
+
+#[derive(Debug, Eq, PartialEq, Copy, Clone)]
+pub struct BadJid(pub &'static str);
+
+impl Display for BadJid {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "invalid JabberID: {}", self.0)
+    }
+}
+
+impl Error for BadJid {}
+
+pub(super) mod description {
+    pub(in super::super) const DOMAIN_EMPTY: &str = "domainpart is empty";
+    pub(in super::super) const DOMAIN_TOO_LONG: &str = "domainpart is longer than 1023 octets";
+    pub(in super::super) const LOCAL_EMPTY: &str = "localpart is empty";
+    pub(in super::super) const LOCAL_TOO_LONG: &str = "localpart is longer than 1023 octets";
+    pub(in super::super) const RESOURCE_EMPTY: &str = "resourcepart is empty";
+    pub(in super::super) const RESOURCE_TOO_LONG: &str = "resourcepart is longer than 1023 octets";
+}
