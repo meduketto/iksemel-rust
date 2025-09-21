@@ -8,8 +8,9 @@
 ** the License, or (at your option) any later version.
 */
 
-use crate::xmpp::parser::StreamElement;
+use crate::StreamElement;
 
+use super::error::description;
 use super::*;
 
 fn check_stream(stream_text: &str, expected: &[&str]) {
@@ -50,5 +51,97 @@ fn stream_elements() {
             "<stream:stream xmlns:stream=\"http://etherx.jabber.org/streams\" version=\"1.0\" from=\"example.com\" to=\"user@example.com\"/>",
             "<message to=\"user@example.com\"><body>Hello!</body></message>",
         ],
+    );
+}
+
+fn check_jid(
+    jid: &str,
+    full: &str,
+    bare: &str,
+    local: Option<&str>,
+    domain: &str,
+    resource: Option<&str>,
+) {
+    let jid = Jid::new(jid).unwrap();
+    assert_eq!(jid.full(), full);
+    assert_eq!(jid.bare(), bare);
+    assert_eq!(jid.localpart(), local);
+    assert_eq!(jid.domainpart(), domain);
+    assert_eq!(jid.resourcepart(), resource);
+}
+
+#[test]
+fn good_jids() {
+    check_jid(
+        "juliet@example.com",
+        "juliet@example.com",
+        "juliet@example.com",
+        Some("juliet"),
+        "example.com",
+        None,
+    );
+    check_jid(
+        "juliet@example.com/foo",
+        "juliet@example.com/foo",
+        "juliet@example.com",
+        Some("juliet"),
+        "example.com",
+        Some("foo"),
+    );
+    check_jid(
+        "juliet@example.com/foo@bar",
+        "juliet@example.com/foo@bar",
+        "juliet@example.com",
+        Some("juliet"),
+        "example.com",
+        Some("foo@bar"),
+    );
+    check_jid(
+        "example.com",
+        "example.com",
+        "example.com",
+        None,
+        "example.com",
+        None,
+    );
+    check_jid(
+        "example.com/foobar",
+        "example.com/foobar",
+        "example.com",
+        None,
+        "example.com",
+        Some("foobar"),
+    );
+    check_jid(
+        "a.example.com/b@example.net",
+        "a.example.com/b@example.net",
+        "a.example.com",
+        None,
+        "a.example.com",
+        Some("b@example.net"),
+    );
+}
+
+#[test]
+fn bad_jids() {
+    assert_eq!(Jid::new(""), Err(BadJid(description::DOMAIN_EMPTY)));
+    assert_eq!(
+        Jid::new("/resource"),
+        Err(BadJid(description::DOMAIN_EMPTY))
+    );
+    assert_eq!(
+        Jid::new("local@/resource"),
+        Err(BadJid(description::DOMAIN_EMPTY))
+    );
+    assert_eq!(Jid::new("local@"), Err(BadJid(description::DOMAIN_EMPTY)));
+
+    assert_eq!(
+        Jid::new("@example.com"),
+        Err(BadJid(description::LOCAL_EMPTY))
+    );
+
+    assert_eq!(
+        Jid::new("example.com/"),
+        Err(BadJid(description::RESOURCE_EMPTY))
     );
 }

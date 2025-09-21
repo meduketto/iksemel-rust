@@ -11,9 +11,13 @@
 mod client;
 mod constants;
 mod error;
+mod jid;
 mod parser;
 
+pub use error::BadJid;
 pub use error::StreamError;
+pub use jid::Jid;
+pub use parser::StreamElement;
 pub use parser::StreamParser;
 
 #[cfg(test)]

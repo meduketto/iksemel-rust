@@ -11,6 +11,8 @@
 use std::env;
 use std::process::ExitCode;
 
+use iks::Jid;
+
 fn print_version() {
     println!("iksjab (iksemel) v{}", iks::VERSION);
 }
@@ -29,7 +31,7 @@ fn print_usage() {
 
 fn main() -> ExitCode {
     let mut args = env::args();
-    let mut _jid: Option<String> = None;
+    let mut _jid: Option<Jid> = None;
 
     // Skip the first argument (program name)
     args.next();
@@ -37,7 +39,13 @@ fn main() -> ExitCode {
         match arg.as_str() {
             "-j" | "--jid" => {
                 if let Some(value) = args.next() {
-                    _jid = Some(value);
+                    _jid = match Jid::new(&value) {
+                        Ok(jid) => Some(jid),
+                        Err(err) => {
+                            eprintln!("Error: {}", err);
+                            return ExitCode::FAILURE;
+                        }
+                    };
                 } else {
                     eprintln!("Error: Jabber ID expected after {arg}");
                     return ExitCode::FAILURE;
