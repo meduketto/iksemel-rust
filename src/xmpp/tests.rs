@@ -55,14 +55,13 @@ fn stream_elements() {
 }
 
 fn check_jid(
-    jid: &str,
+    jid: Jid,
     full: &str,
     bare: &str,
     local: Option<&str>,
     domain: &str,
     resource: Option<&str>,
 ) {
-    let jid = Jid::new(jid).unwrap();
     assert_eq!(jid.full(), full);
     assert_eq!(jid.bare(), bare);
     assert_eq!(jid.localpart(), local);
@@ -73,7 +72,7 @@ fn check_jid(
 #[test]
 fn good_jids() {
     check_jid(
-        "juliet@example.com",
+        Jid::new("juliet@example.com").unwrap(),
         "juliet@example.com",
         "juliet@example.com",
         Some("juliet"),
@@ -81,7 +80,7 @@ fn good_jids() {
         None,
     );
     check_jid(
-        "juliet@example.com/foo",
+        Jid::new("juliet@example.com/foo").unwrap(),
         "juliet@example.com/foo",
         "juliet@example.com",
         Some("juliet"),
@@ -89,7 +88,7 @@ fn good_jids() {
         Some("foo"),
     );
     check_jid(
-        "juliet@example.com/foo@bar",
+        Jid::new("juliet@example.com/foo@bar").unwrap(),
         "juliet@example.com/foo@bar",
         "juliet@example.com",
         Some("juliet"),
@@ -97,7 +96,7 @@ fn good_jids() {
         Some("foo@bar"),
     );
     check_jid(
-        "example.com",
+        Jid::new("example.com").unwrap(),
         "example.com",
         "example.com",
         None,
@@ -105,7 +104,7 @@ fn good_jids() {
         None,
     );
     check_jid(
-        "example.com/foobar",
+        Jid::new("example.com/foobar").unwrap(),
         "example.com/foobar",
         "example.com",
         None,
@@ -113,12 +112,35 @@ fn good_jids() {
         Some("foobar"),
     );
     check_jid(
-        "a.example.com/b@example.net",
+        Jid::new("a.example.com/b@example.net").unwrap(),
         "a.example.com/b@example.net",
         "a.example.com",
         None,
         "a.example.com",
         Some("b@example.net"),
+    );
+}
+
+#[test]
+fn resource_change() {
+    let jid = Jid::new("juliet@example.com/balcony").unwrap();
+    check_jid(
+        jid.with_resource("orchard").unwrap(),
+        "juliet@example.com/orchard",
+        "juliet@example.com",
+        Some("juliet"),
+        "example.com",
+        Some("orchard"),
+    );
+
+    let jid = Jid::new("juliet@example.com").unwrap();
+    check_jid(
+        jid.with_resource("street").unwrap(),
+        "juliet@example.com/street",
+        "juliet@example.com",
+        Some("juliet"),
+        "example.com",
+        Some("street"),
     );
 }
 

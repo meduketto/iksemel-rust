@@ -23,6 +23,7 @@
 #![deny(clippy::partial_pub_fields)]
 #![deny(clippy::redundant_test_prefix)]
 //#![deny(clippy::undocumented_unsafe_blocks)]
+//#![deny(missing_docs)]
 
 //! This library is made up from layered modules which build upon each
 //! other to give applications a lot of flexibility and control while

@@ -8,6 +8,9 @@
 ** the License, or (at your option) any later version.
 */
 
+use std::fmt::Display;
+use std::hash::Hash;
+use std::hash::Hasher;
 use std::num::NonZero;
 
 use super::error::BadJid;
@@ -75,7 +78,7 @@ impl<'a> JidParts<'a> {
     }
 }
 
-#[derive(Debug, Clone, Eq, PartialEq)]
+#[derive(Debug, Clone, Eq)]
 pub struct Jid {
     full: String,
     slash_pos: Option<NonZero<u16>>,
@@ -158,5 +161,67 @@ impl Jid {
             Some(pos) => self.full.get(pos.get() as usize + 1..),
             None => None,
         }
+    }
+
+    pub fn is_bare(&self) -> bool {
+        self.slash_pos.is_none()
+    }
+
+    pub fn with_resource(self, resource: &str) -> Result<Jid, BadJid> {
+        if resource.is_empty() {
+            return Err(BadJid(description::RESOURCE_EMPTY));
+        }
+        if resource.len() > 1023 {
+            return Err(BadJid(description::RESOURCE_TOO_LONG));
+        }
+        let slash_pos = match self.slash_pos {
+            Some(pos) => pos.get() as usize,
+            None => self.full.len(),
+        };
+        let size = slash_pos + 1 + resource.len();
+        let mut full = String::with_capacity(size);
+        full.push_str(self.bare());
+        full.push('/');
+        full.push_str(resource);
+        Ok(Jid {
+            full,
+            slash_pos: Some(unsafe {
+                // SAFETY: slash_pos cannot be shorter that current full
+                // which was checked to contain at least the non-empty domain
+                NonZero::new_unchecked(slash_pos as u16)
+            }),
+            at_pos: self.at_pos,
+        })
+    }
+}
+
+impl Display for Jid {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.full)?;
+        Ok(())
+    }
+}
+
+impl PartialEq for Jid {
+    fn eq(&self, other: &Jid) -> bool {
+        self.full == other.full
+    }
+}
+
+impl PartialOrd for Jid {
+    fn partial_cmp(&self, other: &Jid) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for Jid {
+    fn cmp(&self, other: &Jid) -> std::cmp::Ordering {
+        self.full.cmp(&other.full)
+    }
+}
+
+impl Hash for Jid {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.full.hash(state)
     }
 }

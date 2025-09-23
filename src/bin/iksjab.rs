@@ -40,7 +40,13 @@ fn main() -> ExitCode {
             "-j" | "--jid" => {
                 if let Some(value) = args.next() {
                     _jid = match Jid::new(&value) {
-                        Ok(jid) => Some(jid),
+                        Ok(jid) => {
+                            if jid.is_bare() {
+                                Some(jid.with_resource("iksjab").unwrap())
+                            } else {
+                                Some(jid)
+                            }
+                        }
                         Err(err) => {
                             eprintln!("Error: {}", err);
                             return ExitCode::FAILURE;

@@ -103,3 +103,9 @@ by adding it to the file header.
   publishing the release and tagging the source.
 * Create a release record on the Github releases page.
 * Update the version number for the next development cycle.
+
+#### Roadmap
+
+1. Finish XMPP client
+2. Complete documentation
+3. Python bindings
