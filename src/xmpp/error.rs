@@ -13,6 +13,35 @@ use std::fmt::Display;
 
 use crate::ParseError;
 
+#[derive(Debug)]
+pub enum XmppClientError {
+    StreamError(StreamError),
+    IOError(std::io::Error),
+}
+
+impl Display for XmppClientError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            XmppClientError::StreamError(err) => err.fmt(f),
+            XmppClientError::IOError(err) => err.fmt(f),
+        }
+    }
+}
+
+impl Error for XmppClientError {}
+
+impl From<StreamError> for XmppClientError {
+    fn from(err: StreamError) -> Self {
+        XmppClientError::StreamError(err)
+    }
+}
+
+impl From<std::io::Error> for XmppClientError {
+    fn from(err: std::io::Error) -> Self {
+        XmppClientError::IOError(err)
+    }
+}
+
 #[derive(Debug, Eq, PartialEq, Copy, Clone)]
 pub enum StreamError {
     NoMemory,

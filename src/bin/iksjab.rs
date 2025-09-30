@@ -12,6 +12,8 @@ use std::env;
 use std::process::ExitCode;
 
 use iks::Jid;
+use iks::XMPP_CLIENT_PORT;
+use iks::XmppClient;
 
 fn print_version() {
     println!("iksjab (iksemel) v{}", iks::VERSION);
@@ -23,15 +25,31 @@ fn print_usage() {
         "This tool can communicate over XMPP.\n",
         "Options:\n",
         "  -j, --jid <JID>        Jabber ID\n",
+        "  -s, --server <SERVER>  XMPP server override\n",
+        "  -d, --debug            Print XMPP traffic\n",
         "  -h, --help             Display this help message and exit\n",
         "  -v, --version          Display the version and exit\n",
         "Report issues at https://github.com/meduketto/iksemel-rust/issues"
     ));
 }
 
+fn run(jid: Jid, server: Option<String>, debug: bool) {
+    println!("lala");
+    let mut client = XmppClient::build(jid)
+        .server(server)
+        .debug(debug)
+        .connect()
+        .unwrap();
+    loop {
+        let _stanza = client.wait_for_stanza();
+    }
+}
+
 fn main() -> ExitCode {
     let mut args = env::args();
-    let mut _jid: Option<Jid> = None;
+    let mut jid: Option<Jid> = None;
+    let mut server: Option<String> = None;
+    let mut debug = false;
 
     // Skip the first argument (program name)
     args.next();
@@ -39,7 +57,7 @@ fn main() -> ExitCode {
         match arg.as_str() {
             "-j" | "--jid" => {
                 if let Some(value) = args.next() {
-                    _jid = match Jid::new(&value) {
+                    jid = match Jid::new(&value) {
                         Ok(jid) => {
                             if jid.is_bare() {
                                 Some(jid.with_resource("iksjab").unwrap())
@@ -57,6 +75,21 @@ fn main() -> ExitCode {
                     return ExitCode::FAILURE;
                 }
             }
+            "-s" | "--server" => {
+                if let Some(value) = args.next() {
+                    if value.contains(':') {
+                        server = Some(value);
+                    } else {
+                        server = Some(format!("{}:{}", value, XMPP_CLIENT_PORT));
+                    }
+                } else {
+                    eprintln!("Error: Server address expected after {arg}");
+                    return ExitCode::FAILURE;
+                }
+            }
+            "-d" | "--debug" => {
+                debug = true;
+            }
             "-h" | "--help" => {
                 print_usage();
                 return ExitCode::SUCCESS;
@@ -67,6 +100,13 @@ fn main() -> ExitCode {
             }
             _ => {}
         }
+    }
+
+    if let Some(jid) = jid {
+        run(jid, server, debug);
+    } else {
+        eprintln!("Error: Jabber ID not provided");
+        return ExitCode::FAILURE;
     }
 
     ExitCode::SUCCESS
