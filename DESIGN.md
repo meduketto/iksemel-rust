@@ -61,7 +61,7 @@ UTF-16 was created as a simple to decode alternative to UTF-8, but
 still suffered from complexity because of endianness issues, and
 still requiring complex decoding for the full Unicode set.
 
-UTF-32 can encode the entire Unicode set which no multi-byte
+UTF-32 can encode the entire Unicode set with no multi-byte
 decoding but incredibly wasteful in terms of memory and CPU.
 
 Furthermore, people realized that even for non Latin languages
@@ -91,8 +91,8 @@ supported. This kind of text substitution should not be needed
 in a markup language which can refer to shared data in million
 other ways.
 
-Rather than returning an unintended output, Iksemel will abort
-with an error if it encounters them in a CData element.
+Rather than returning an unintended output, Iksemel will return
+an error if it encounters them in a CData element.
 
 ### Processing Instructions
 

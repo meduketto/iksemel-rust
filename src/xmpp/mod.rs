@@ -9,16 +9,20 @@
 */
 
 mod client;
-mod constants;
+pub(crate) mod constants;
 mod error;
 mod jid;
 mod parser;
+mod protocol;
 
+pub use client::XmppClient;
 pub use error::BadJid;
 pub use error::StreamError;
+pub use error::XmppClientError;
 pub use jid::Jid;
 pub use parser::StreamElement;
 pub use parser::StreamParser;
+pub use protocol::XmppClientProtocol;
 
 #[cfg(test)]
 mod tests;

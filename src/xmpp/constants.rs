@@ -8,4 +8,16 @@
 ** the License, or (at your option) any later version.
 */
 
+pub const CLIENT_PORT: u16 = 5222;
+
+pub const SERVER_PORT: u16 = 5269;
+
 pub const STREAM_TAG: &str = "stream:stream";
+
+pub const FEATURES_TAG: &str = "stream:features";
+
+//pub const SASL_NS: &str = "urn:ietf:params:xml:ns:xmpp-sasl";
+
+//pub const STREAM_NS: &str = "http://etherx.jabber.org/streams";
+
+//pub const CLIENT_NS: &str = "jabber:client";

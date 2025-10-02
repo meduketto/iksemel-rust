@@ -126,5 +126,10 @@ pub use xmpp::Jid;
 pub use xmpp::StreamElement;
 pub use xmpp::StreamError;
 pub use xmpp::StreamParser;
+pub use xmpp::XmppClient;
+pub use xmpp::XmppClientError;
+pub use xmpp::XmppClientProtocol;
+pub use xmpp::constants::CLIENT_PORT as XMPP_CLIENT_PORT;
+pub use xmpp::constants::SERVER_PORT as XMPP_SERVER_PORT;
 
 pub use xpath::XPath;
