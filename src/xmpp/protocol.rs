@@ -126,9 +126,7 @@ impl XmppClientProtocol {
                 };
                 Ok(Some((result, bytes)))
             }
-            Ok(None) => {
-                Ok(None)
-            }
+            Ok(None) => Ok(None),
             Err(err) => Err(err.into()),
         }
     }
