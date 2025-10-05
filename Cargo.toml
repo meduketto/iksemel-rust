@@ -10,6 +10,8 @@ repository = "https://github.com/meduketto/iksemel-rust"
 version = "0.2.0"
 
 [dependencies]
+rustls = "0.23.32"
+webpki-roots = "1.0.2"
 
 [profile.release]
 lto = true

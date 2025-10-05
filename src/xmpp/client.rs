@@ -12,7 +12,11 @@ use std::io::Read;
 use std::io::Write;
 use std::net::TcpStream;
 use std::net::ToSocketAddrs;
+use std::sync::Arc;
 use std::time::Duration;
+
+use rustls::RootCertStore;
+use webpki_roots::TLS_SERVER_ROOTS;
 
 use crate::Document;
 use crate::Jid;
@@ -67,30 +71,99 @@ impl XmppClientBuilder {
             (Some(_), None) => false,
             (Some(column), Some(bracket)) => column < bracket,
         };
-        let mut result = if need_port {
+        let result = if need_port {
             (host, XMPP_CLIENT_PORT).to_socket_addrs()
         } else {
             host.to_socket_addrs()
         }?;
-        if self.debug {
-            println!("Connecting to: {result:?}");
+        for addr in result {
+            if self.debug {
+                println!("Connecting to: {addr:?}");
+            }
+            match TcpStream::connect_timeout(&addr, self.connection_timeout) {
+                Ok(tcp_stream) => {
+                    return Ok(XmppClient {
+                        protocol: XmppClientProtocol::new(self.jid),
+                        stream: XmppStream::new(tcp_stream),
+                        read_buffer: [0; 4096],
+                        consumed: 0,
+                        read: 0,
+                        debug: self.debug,
+                    });
+                }
+                Err(err) => {
+                    if self.debug {
+                        println!("Failed to connect to {addr:?}: {err}");
+                    }
+                }
+            }
         }
-        let tcp_stream =
-            TcpStream::connect_timeout(&result.next().unwrap(), self.connection_timeout)?;
-        Ok(XmppClient {
-            protocol: XmppClientProtocol::new(self.jid),
-            tcp_stream,
-            read_buffer: [0; 4096],
-            consumed: 0,
-            read: 0,
-            debug: self.debug,
-        })
+        Err(XmppClientError::BadStream("cannot connect"))
+    }
+}
+
+struct XmppStream {
+    tcp_stream: Option<TcpStream>,
+    tls_stream: Option<rustls::StreamOwned<rustls::ClientConnection, TcpStream>>,
+}
+
+impl XmppStream {
+    fn new(tcp_stream: TcpStream) -> Self {
+        XmppStream {
+            tcp_stream: Some(tcp_stream),
+            tls_stream: None,
+        }
+    }
+
+    fn read(&mut self, buf: &mut [u8]) -> Result<usize, std::io::Error> {
+        if let Some(tcp) = &mut self.tcp_stream {
+            Ok(tcp.read(buf)?)
+        } else if let Some(tls) = &mut self.tls_stream {
+            println!("Secure read");
+            Ok(tls.read(buf)?)
+        } else {
+            Err(std::io::Error::other("No stream"))
+        }
+    }
+
+    fn write_all(&mut self, buf: &[u8]) -> Result<(), std::io::Error> {
+        if let Some(tcp) = &mut self.tcp_stream {
+            Ok(tcp.write_all(buf)?)
+        } else if let Some(tls) = &mut self.tls_stream {
+            println!("Secure write");
+            Ok(tls.write_all(buf)?)
+        } else {
+            Err(std::io::Error::other("No stream"))
+        }
+    }
+
+    fn upgrade(&mut self, jid: &Jid) -> Result<(), XmppClientError> {
+        let root_store = RootCertStore {
+            roots: TLS_SERVER_ROOTS.into(),
+        };
+        let config = rustls::ClientConfig::builder_with_provider(
+            rustls::crypto::aws_lc_rs::default_provider().into(),
+        )
+        .with_safe_default_protocol_versions()?
+        .with_root_certificates(root_store)
+        .with_no_client_auth();
+
+        let server_name = jid.domainpart().to_owned().try_into()?;
+        let conn = rustls::ClientConnection::new(Arc::new(config), server_name)?;
+        match self.tcp_stream.take() {
+            Some(tcp_stream) => {
+                let tls = rustls::StreamOwned::new(conn, tcp_stream);
+                self.tls_stream = Some(tls);
+                Ok(())
+            }
+            None => Err(XmppClientError::BadStream("not possible")),
+        }
     }
 }
 
 pub struct XmppClient {
     protocol: XmppClientProtocol,
-    tcp_stream: TcpStream,
+    stream: XmppStream,
     read_buffer: [u8; 4096],
     consumed: usize,
     read: usize,
@@ -106,19 +179,19 @@ impl XmppClient {
         if self.debug {
             println!("Sending bytes: {}", String::from_utf8_lossy(&bytes));
         }
-        self.tcp_stream.write_all(bytes.as_slice())?;
+        self.stream.write_all(bytes.as_slice())?;
         Ok(())
     }
 
     pub fn wait_for_stanza(&mut self) -> Result<Document, XmppClientError> {
-        if let Some(bytes) = self.protocol.send_bytes() {
-            self.send_bytes(bytes)?;
-        }
         loop {
+            if let Some(bytes) = self.protocol.send_bytes() {
+                self.send_bytes(bytes)?;
+            }
             let bytes = if self.read > self.consumed {
                 &self.read_buffer[self.consumed..self.read]
             } else {
-                let nr_read = self.tcp_stream.read(&mut self.read_buffer)?;
+                let nr_read = self.stream.read(&mut self.read_buffer)?;
                 if self.debug {
                     println!(
                         "Received bytes: {}",
@@ -133,7 +206,12 @@ impl XmppClient {
                 Ok(Some((event, processed))) => {
                     match event {
                         XmppClientProtocolEvent::Send(bytes) => self.send_bytes(bytes)?,
-                        XmppClientProtocolEvent::StartTls => {}
+                        XmppClientProtocolEvent::StartTls => {
+                            println!("Secure start sent");
+                            self.stream.upgrade(self.protocol.jid())?;
+                            self.consumed = self.read;
+                        }
+                        XmppClientProtocolEvent::Continue => {}
                         XmppClientProtocolEvent::Stanza(doc) => {
                             return Ok(doc);
                         }
@@ -142,7 +220,7 @@ impl XmppClient {
                     self.consumed += processed;
                 }
                 Ok(None) => self.consumed = self.read,
-                Err(err) => return Err(XmppClientError::StreamError(err)),
+                Err(err) => return Err(err.into()),
             }
         }
     }
