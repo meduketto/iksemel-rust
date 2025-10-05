@@ -13,6 +13,7 @@ use crate::Jid;
 use crate::StreamElement;
 use crate::StreamError;
 use crate::StreamParser;
+use crate::xmpp::constants::PROCEED_TAG;
 
 use super::constants::FEATURES_TAG;
 use super::constants::STREAM_TAG;
@@ -20,6 +21,7 @@ use super::constants::STREAM_TAG;
 pub enum XmppClientProtocolEvent {
     Send(Vec<u8>),
     StartTls,
+    Continue,
     Stanza(Document),
     End,
 }
@@ -60,8 +62,10 @@ impl<'a> XmppClientProtocolEvents<'a> {
 enum StreamState {
     Connected,
     StartSent,
-    //    StartReceived,
-    //    FeaturesReceived,
+    StartReceived,
+    FeaturesReceived,
+    Handshake,
+    SecureStartSent,
     //    Established,
     //    Error,
 }
@@ -81,19 +85,37 @@ impl XmppClientProtocol {
         }
     }
 
+    pub fn jid(&self) -> &Jid {
+        &self.jid
+    }
+
     pub fn events<'a>(&'a mut self, bytes: &'a [u8]) -> XmppClientProtocolEvents<'a> {
         XmppClientProtocolEvents::new(self, bytes)
     }
 
-    pub fn receive_element(&mut self, element: Document) {
+    pub fn receive_element(
+        &mut self,
+        element: Document,
+    ) -> Result<XmppClientProtocolEvent, StreamError> {
+        println!("Received element: {:?}", element.root().name());
         match element.root().name() {
             STREAM_TAG => {
-                // Handle stream received
+                self.state = StreamState::StartReceived;
+                Ok(XmppClientProtocolEvent::Continue)
             }
             FEATURES_TAG => {
-                // Handle features received
+                self.state = StreamState::FeaturesReceived;
+                let mut bytes = Vec::new();
+                bytes.extend_from_slice(b"<starttls xmlns='urn:ietf:params:xml:ns:xmpp-tls'/>");
+                Ok(XmppClientProtocolEvent::Send(bytes))
             }
-            _ => {}
+            PROCEED_TAG => {
+                self.state = StreamState::Handshake;
+                self.stream_parser.reset();
+                println!("Start tls");
+                Ok(XmppClientProtocolEvent::StartTls)
+            }
+            _ => Err(StreamError::BadStream("Unknown tag")),
         }
     }
 
@@ -110,6 +132,16 @@ impl XmppClientProtocol {
                 self.state = StreamState::StartSent;
                 Some(bytes)
             }
+            StreamState::Handshake => {
+                let mut bytes = Vec::new();
+                bytes.extend_from_slice(b"<stream:stream xmlns='jabber:client' xmlns:stream='http://etherx.jabber.org/streams' version='1.0' xmllang='en' from='");
+                bytes.extend_from_slice(self.jid.full().as_bytes());
+                bytes.extend_from_slice(b"' to='");
+                bytes.extend_from_slice(self.jid.domainpart().as_bytes());
+                bytes.extend_from_slice(b"'>");
+                self.state = StreamState::SecureStartSent;
+                Some(bytes)
+            }
             _ => None,
         }
     }
@@ -121,7 +153,7 @@ impl XmppClientProtocol {
         match self.stream_parser.parse_bytes(bytes) {
             Ok(Some((element, bytes))) => {
                 let result = match element {
-                    StreamElement::Element(doc) => XmppClientProtocolEvent::Stanza(doc),
+                    StreamElement::Element(doc) => self.receive_element(doc)?,
                     StreamElement::End => XmppClientProtocolEvent::End,
                 };
                 Ok(Some((result, bytes)))

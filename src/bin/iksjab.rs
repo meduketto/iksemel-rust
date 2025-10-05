@@ -34,12 +34,13 @@ fn print_usage() {
 }
 
 fn run(jid: Jid, server: Option<String>, debug: bool) {
-    println!("lala");
-    let mut client = XmppClient::build(jid)
-        .server(server)
-        .debug(debug)
-        .connect()
-        .unwrap();
+    let mut client = match XmppClient::build(jid).server(server).debug(debug).connect() {
+        Ok(client) => client,
+        Err(err) => {
+            eprintln!("error: {}", err);
+            std::process::exit(1);
+        }
+    };
     loop {
         let _stanza = client.wait_for_stanza();
     }

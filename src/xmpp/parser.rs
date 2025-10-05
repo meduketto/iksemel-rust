@@ -38,6 +38,9 @@ impl<'a> StreamElements<'a> {
     }
 
     pub fn next(&mut self) -> Option<Result<StreamElement, StreamError>> {
+        if self.bytes_parsed >= self.bytes.len() {
+            return None;
+        }
         match self.parser.parse_bytes(&self.bytes[self.bytes_parsed..]) {
             Ok(Some((element, bytes))) => {
                 self.bytes_parsed += bytes;
@@ -65,6 +68,12 @@ impl StreamParser {
             builder: DocumentBuilder::new(),
             level: 0,
         }
+    }
+
+    pub fn reset(&mut self) {
+        self.sax_parser.reset();
+        self.builder.take();
+        self.level = 0;
     }
 
     pub fn elements<'a>(&'a mut self, bytes: &'a [u8]) -> StreamElements<'a> {
@@ -116,7 +125,7 @@ impl StreamParser {
                         return Ok(Some((StreamElement::Element(doc), bytes_parsed)));
                     }
                 }
-                SaxElement::EndTag(_) => {
+                SaxElement::EndTag(_) | SaxElement::StartTagEmpty => {
                     if self.level == 0
                         && let Some(doc) = self.builder.take()
                     {
