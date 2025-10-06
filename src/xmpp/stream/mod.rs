@@ -8,14 +8,16 @@
 ** the License, or (at your option) any later version.
 */
 
+mod error;
+
 use crate::Document;
 use crate::DocumentBuilder;
 use crate::ParseError;
 use crate::SaxElement;
 use crate::SaxParser;
 
-use super::StreamError;
 use super::constants::*;
+pub use error::StreamError;
 
 pub enum StreamElement {
     Element(Document),
@@ -144,3 +146,6 @@ impl Default for StreamParser {
         Self::new()
     }
 }
+
+#[cfg(test)]
+mod tests;

@@ -12,17 +12,17 @@ mod client;
 pub(crate) mod constants;
 mod error;
 mod jid;
-mod parser;
 mod protocol;
+mod stream;
 
 pub use client::XmppClient;
-pub use error::BadJid;
-pub use error::StreamError;
 pub use error::XmppClientError;
+pub use jid::BadJid;
 pub use jid::Jid;
-pub use parser::StreamElement;
-pub use parser::StreamParser;
 pub use protocol::XmppClientProtocol;
+pub use stream::StreamElement;
+pub use stream::StreamError;
+pub use stream::StreamParser;
 
 #[cfg(test)]
 mod tests;
