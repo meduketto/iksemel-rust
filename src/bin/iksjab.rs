@@ -33,8 +33,12 @@ fn print_usage() {
     ));
 }
 
-fn run(jid: Jid, server: Option<String>, debug: bool) {
-    let mut client = match XmppClient::build(jid).server(server).debug(debug).connect() {
+fn run(jid: Jid, server: Option<String>, password: String, debug: bool) {
+    let mut client = match XmppClient::build(jid, password)
+        .server(server)
+        .debug(debug)
+        .connect()
+    {
         Ok(client) => client,
         Err(err) => {
             eprintln!("error: {}", err);
@@ -42,7 +46,22 @@ fn run(jid: Jid, server: Option<String>, debug: bool) {
         }
     };
     loop {
-        let _stanza = client.wait_for_stanza();
+        match client.wait_for_stanza() {
+            Ok(stanza) => {
+                println!("{}", stanza);
+                if stanza.root().name() == "iq" {
+                    let mut bytes = Vec::new();
+                    bytes.extend_from_slice(
+                        b"<message to='jabber.org/echo' id='x'><body>hello</body></message>",
+                    );
+                    let _ = client.send_bytes(bytes);
+                }
+            }
+            Err(err) => {
+                eprintln!("error: {}", err);
+                std::process::exit(1);
+            }
+        }
     }
 }
 
@@ -104,7 +123,13 @@ fn main() -> ExitCode {
     }
 
     if let Some(jid) = jid {
-        run(jid, server, debug);
+        match env::var("IKSJAB_PASSWORD") {
+            Ok(password) => run(jid, server, password, debug),
+            Err(err) => {
+                eprintln!("Error: {}", err);
+                return ExitCode::FAILURE;
+            }
+        }
     } else {
         eprintln!("Error: Jabber ID not provided");
         return ExitCode::FAILURE;

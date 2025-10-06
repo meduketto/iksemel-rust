@@ -28,15 +28,17 @@ use crate::xmpp::protocol::XmppClientProtocolEvent;
 pub struct XmppClientBuilder {
     jid: Jid,
     server: Option<String>,
+    password: String,
     connection_timeout: Duration,
     debug: bool,
 }
 
 impl XmppClientBuilder {
-    pub fn new(jid: Jid) -> Self {
+    pub fn new(jid: Jid, password: String) -> Self {
         XmppClientBuilder {
             jid,
             server: None,
+            password,
             connection_timeout: Duration::from_secs(30),
             debug: false,
         }
@@ -83,7 +85,7 @@ impl XmppClientBuilder {
             match TcpStream::connect_timeout(&addr, self.connection_timeout) {
                 Ok(tcp_stream) => {
                     return Ok(XmppClient {
-                        protocol: XmppClientProtocol::new(self.jid),
+                        protocol: XmppClientProtocol::new(self.jid, self.password),
                         stream: XmppStream::new(tcp_stream),
                         read_buffer: [0; 4096],
                         consumed: 0,
@@ -171,8 +173,8 @@ pub struct XmppClient {
 }
 
 impl XmppClient {
-    pub fn build(jid: Jid) -> XmppClientBuilder {
-        XmppClientBuilder::new(jid)
+    pub fn build(jid: Jid, password: String) -> XmppClientBuilder {
+        XmppClientBuilder::new(jid, password)
     }
 
     pub fn send_bytes(&mut self, bytes: Vec<u8>) -> Result<(), XmppClientError> {
@@ -204,12 +206,12 @@ impl XmppClient {
             };
             match self.protocol.receive_bytes(bytes) {
                 Ok(Some((event, processed))) => {
+                    self.consumed += processed;
                     match event {
                         XmppClientProtocolEvent::Send(bytes) => self.send_bytes(bytes)?,
                         XmppClientProtocolEvent::StartTls => {
                             println!("Secure start sent");
                             self.stream.upgrade(self.protocol.jid())?;
-                            self.consumed = self.read;
                         }
                         XmppClientProtocolEvent::Continue => {}
                         XmppClientProtocolEvent::Stanza(doc) => {
@@ -217,7 +219,6 @@ impl XmppClient {
                         }
                         XmppClientProtocolEvent::End => {}
                     }
-                    self.consumed += processed;
                 }
                 Ok(None) => self.consumed = self.read,
                 Err(err) => return Err(err.into()),
