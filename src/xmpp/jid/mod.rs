@@ -8,13 +8,15 @@
 ** the License, or (at your option) any later version.
 */
 
+mod error;
+
 use std::fmt::Display;
 use std::hash::Hash;
 use std::hash::Hasher;
 use std::num::NonZero;
 
-use super::error::BadJid;
-use super::error::description;
+pub use error::BadJid;
+use error::description;
 
 struct JidParts<'a> {
     local: Option<&'a str>,
@@ -225,3 +227,6 @@ impl Hash for Jid {
         self.full.hash(state)
     }
 }
+
+#[cfg(test)]
+mod tests;

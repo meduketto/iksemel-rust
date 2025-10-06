@@ -11,7 +11,7 @@
 use std::error::Error;
 use std::fmt::Display;
 
-use crate::ParseError;
+use super::stream::StreamError;
 
 #[derive(Debug)]
 pub enum XmppClientError {
@@ -62,52 +62,4 @@ impl From<rustls::pki_types::InvalidDnsNameError> for XmppClientError {
     fn from(_err: rustls::pki_types::InvalidDnsNameError) -> Self {
         XmppClientError::BadStream("Invalid dns name")
     }
-}
-
-#[derive(Debug, Eq, PartialEq, Copy, Clone)]
-pub enum StreamError {
-    NoMemory,
-    BadXml(&'static str),
-    BadStream(&'static str),
-}
-
-impl Display for StreamError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            StreamError::NoMemory => write!(f, "not enough memory"),
-            StreamError::BadXml(msg) => write!(f, "invalid XML syntax: {msg}"),
-            StreamError::BadStream(msg) => write!(f, "invalid stream protocol: {msg}"),
-        }
-    }
-}
-
-impl Error for StreamError {}
-
-impl From<ParseError> for StreamError {
-    fn from(err: ParseError) -> Self {
-        match err {
-            ParseError::NoMemory => StreamError::NoMemory,
-            ParseError::BadXml(msg) => StreamError::BadXml(msg),
-        }
-    }
-}
-
-#[derive(Debug, Eq, PartialEq, Copy, Clone)]
-pub struct BadJid(pub &'static str);
-
-impl Display for BadJid {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "invalid JabberID: {}", self.0)
-    }
-}
-
-impl Error for BadJid {}
-
-pub(super) mod description {
-    pub(in super::super) const DOMAIN_EMPTY: &str = "domainpart is empty";
-    pub(in super::super) const DOMAIN_TOO_LONG: &str = "domainpart is longer than 1023 octets";
-    pub(in super::super) const LOCAL_EMPTY: &str = "localpart is empty";
-    pub(in super::super) const LOCAL_TOO_LONG: &str = "localpart is longer than 1023 octets";
-    pub(in super::super) const RESOURCE_EMPTY: &str = "resourcepart is empty";
-    pub(in super::super) const RESOURCE_TOO_LONG: &str = "resourcepart is longer than 1023 octets";
 }
