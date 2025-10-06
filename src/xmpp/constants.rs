@@ -18,6 +18,14 @@ pub const FEATURES_TAG: &str = "stream:features";
 
 pub const PROCEED_TAG: &str = "proceed";
 
+pub const SUCCESS_TAG: &str = "success";
+
+pub const MESSAGE_TAG: &str = "message";
+
+pub const PRESENCE_TAG: &str = "presence";
+
+pub const IQ_TAG: &str = "iq";
+
 //pub const SASL_NS: &str = "urn:ietf:params:xml:ns:xmpp-sasl";
 
 //pub const STREAM_NS: &str = "http://etherx.jabber.org/streams";
