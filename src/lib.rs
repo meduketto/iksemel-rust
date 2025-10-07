@@ -25,70 +25,48 @@
 //#![deny(clippy::undocumented_unsafe_blocks)]
 //#![deny(missing_docs)]
 
-//! This library is made up from layered modules which build upon each
-//! other to give applications a lot of flexibility and control while
-//! providing interfaces at every level.
+//! # Introduction
 //!
-//! # Sax Parser
+//! Iks is an XML parser library for [Jabber/XMPP](https://xmpp.org/)
+//! and general XML processing applications. It aims to be easy to use,
+//! fast, and usable in resource-constrained environments.
 //!
-//! This fast and memory efficient parser is the core of the Iksemel.
-//! It validates and processes byte streams and generates XML elements.
+//! Module architecture:
+//! ```text
+//!           +---------+
+//!           |SaxParser|--\
+//!           +---------+   \    +--------+    +------+    +--------+    +------+
+//!                          \-->|Document|--->|Stream|--->|Xmpp    |--->|Xmpp  |
+//! +-----+    +--------+        |Builder |    |Parser|    |Client  |    |Client|
+//! |Arena|--->|Document|<------>|& Parser|    +------+    |Protocol|    +------+
+//! +-----+    |& Cursor|        +--------+                +--------+
+//!            +--------+
+//!                 |             +-----+
+//!                 v------------>|XPath|
+//!                               +-----+
+//! ```
 //!
-//! See:
-//! [ParseError],
-//! [SaxParser],
-//! [SaxElement],
-//! [SaxElements],
-//! [Location]
+//! Arena: A compact and fast memory allocation arena for storing XML
+//! element tree structs and character data. Not used directly by
+//! the applications.
 //!
-//! # Arena
+//! Sax Parser: This fast and memory efficient parser is the core of
+//! the Iksemel. Validates and processes byte streams and generates
+//! XML elements.
 //!
-//! This module provides a compact and fast memory allocation arena
-//! for storing XML element tree structs and character data. It is
-//! generally not used directly by applications.
+//! Document: Builds and queries XML element trees inside Arenas.
 //!
-//! See:
-//! [Arena],
-//! [ArenaStats],
-//! [NoMemory]
+//! Document Parser: Parses an XML byte stream into an XML element
+//! tree structure.
 //!
-//! # Document
+//! Stream Parser: Parses an XML byte stream into an XMPP Stream
+//! with individual top level elements.
 //!
-//! This module builds upon the Arena module to create and query
-//! XML element trees.
+//! XmppClientProtocol: A sans-io implementation of the XMPP client
+//! stream protocol, including authentication and stanza handling.
 //!
-//! See:
-//! [Document],
-//! [Cursor],
-//! [Ancestor],
-//! [Children],
-//! [Attributes],
-//! [DescendantOrSelf],
-//! [FollowingSibling],
-//! [PrecedingSibling]
-//!
-//! # Document Parser
-//!
-//! This module builds upon the Document and Sax Parser modules to
-//! parse an XML byte stream into an XML element tree structure.
-//!
-//! See:
-//! [DocumentBuilder],
-//! [DocumentParser]
-//!
-//! # Stream Parser
-//!
-//! This module builds upon the Document and Sax Parser modules to
-//! parse an XML byte stream into an XMPP Stream.
-//!
-//! See:
-//! [StreamError],
-//! [StreamParser]
-//!
-//! # Client Stream
-//!
-//! This module builds upon the Stream Parser module to handle XMPP
-//! client stream protocol, including authentication and stanza handling.
+//! XmppClient: A complete client implementation using blocking-io
+//! operations on top of the XmppClientProtocol.
 //!
 
 mod arena;
