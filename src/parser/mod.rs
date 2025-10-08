@@ -1066,3 +1066,5 @@ impl Default for SaxParser {
 
 #[cfg(test)]
 mod tests;
+
+mod nocompile;

@@ -310,7 +310,7 @@ impl Document {
         self.root().str_size()
     }
 
-    #[allow(
+    #[expect(
         clippy::inherent_to_string_shadow_display,
         reason = "prereserving exact capacity makes this method significantly faster"
     )]
@@ -1023,7 +1023,7 @@ impl<'a> Cursor<'a> {
         size
     }
 
-    #[allow(
+    #[expect(
         clippy::inherent_to_string_shadow_display,
         reason = "prereserving exact capacity makes this method significantly faster"
     )]
