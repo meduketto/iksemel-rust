@@ -16,13 +16,15 @@ fast, and usable in resource-constrained environments.
 * SAX API for minimal memory usage.
 * DOM API for flexible and powerful document querying and editing.
 * Stream API for efficient XMPP stream processing.
+* [Sans-IO][SANSIO] XMPP client protocol.
+* A simple blocking IO XMPP client API.
 * Experimental basic XPath support.
 
 # XMPP Compliance
 
 | Document | Title               | Status       |
 |----------|---------------------|--------------|
-| RFC 6120 | XMPP Core           | In progress
+| RFC 6120 | XMPP Core           | Mostly done
 | RFC 6121 | XMPP IM             | In progress
 | RFC 7622 | XMPP Address Format | In progress
 
@@ -31,7 +33,7 @@ fast, and usable in resource-constrained environments.
 * Only accepts UTF-8 encoded XML.
 * Document Type Definitions (DTD, the DOCTYPE element basically) are
   syntactically parsed but not used for validation or custom entity
-  definition.
+  substitution.
 * Processing instructions and comments are parsed but not passed to
   the application.
 
@@ -91,6 +93,7 @@ Iksemel provides a few command line tools for quick XML processing:
 
 * ikslint: validates XML files
 * ikspath: loads XML files into a DOM tree and runs XPath queries on them
+* iksjab: send messages and manage your roster over XMPP
 
 # Contributing
 
@@ -124,6 +127,7 @@ along with Iksemel. If not, see <https://www.gnu.org/licenses/>.
 [iks]: https://github.com/meduketto/iksemel-rust
 [IKSAPI]: https://docs.rs/iks/latest/iks/
 [XMPP]: https://xmpp.org
+[SANSIO]: https://sans-io.readthedocs.io/how-to-sans-io.html
 [MUTANTS]: https://github.com/sourcefrog/cargo-mutants
 [MIRI]: https://github.com/rust-lang/miri
 [SEMVER]: https://github.com/obi1kenobi/cargo-semver-checks

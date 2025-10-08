@@ -135,10 +135,24 @@ to crash and take down all when one request tries to make a big
 allocation.
 
 It can be argued that, this is not going to help when the allocation
-is tiny, as something else will inevitable fail anyway.
+is tiny, as something else will inevitably fail anyway.
 
-Whether small or not, Iksemel always checks allocations and returns
-a NoMemory error when they fail.
+Whether small or not, Iksemel tries to always check allocations
+and return a NoMemory error when they fail. This does not extend
+into XPath and XMPP client implementations where the used library
+functions would just panic for failed allocations anyway.
+
+### Sans-IO with Event Returning APIs
+
+All the parsers and the protocol implementation are chained through
+methods which take incoming bytes as input and return an element
+meaningful at the level of the parser with an usize about how much
+of the input is processed so far.
+
+This allows much better composition than passing callbacks either
+as closures or trait objects. It also plays well with the borrow
+checker since the outer parser's state is not passed to the inner
+parser as part of the callbacks.
 
 ### Null Cursors
 
@@ -154,7 +168,7 @@ writing bunch of extra `.or(...)` and `.and_then(...)`s etc.
 
 This is a remnant of how it was working in the C version, and I am
 not very happy about it. Once the `try` block is stabilized in the
-Rust language, I will switch to it.
+Rust language, I might change to a more idiomatic approach.
 
 Note that the cursor editing functions have a idiomatic `Result` return
 type as their failures almost always require short cutting the chain,
