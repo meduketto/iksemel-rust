@@ -121,7 +121,6 @@ impl XmppStream {
         if let Some(tcp) = &mut self.tcp_stream {
             Ok(tcp.read(buf)?)
         } else if let Some(tls) = &mut self.tls_stream {
-            println!("Secure read");
             Ok(tls.read(buf)?)
         } else {
             Err(std::io::Error::other("No stream"))
@@ -132,7 +131,6 @@ impl XmppStream {
         if let Some(tcp) = &mut self.tcp_stream {
             Ok(tcp.write_all(buf)?)
         } else if let Some(tls) = &mut self.tls_stream {
-            println!("Secure write");
             Ok(tls.write_all(buf)?)
         } else {
             Err(std::io::Error::other("No stream"))
@@ -185,6 +183,32 @@ impl XmppClient {
         Ok(())
     }
 
+    pub fn send_stanza(&mut self, stanza: Document) -> Result<(), XmppClientError> {
+        self.send_bytes(stanza.to_string().into_bytes())
+    }
+
+    pub fn send_message(&mut self, jid: Jid, body: &str) -> Result<(), XmppClientError> {
+        let stanza = Document::new("message")?;
+        stanza
+            .root()
+            .set_attribute("to", Some(jid.full()))?
+            .insert_tag("body")?
+            .insert_cdata(body)?;
+        self.send_stanza(stanza)
+    }
+
+    pub fn request_roster(&mut self) -> Result<(), XmppClientError> {
+        let stanza = Document::new("iq")?;
+        stanza
+            .root()
+            .set_attribute("type", Some("get"))?
+            .set_attribute("from", Some(self.protocol.jid().full()))?
+            .set_attribute("id", Some("roster"))?
+            .insert_tag("query")?
+            .set_attribute("xmlns", Some("jabber:iq:roster"))?;
+        self.send_stanza(stanza)
+    }
+
     pub fn wait_for_stanza(&mut self) -> Result<Document, XmppClientError> {
         loop {
             if let Some(bytes) = self.protocol.send_bytes() {
@@ -210,7 +234,6 @@ impl XmppClient {
                     match event {
                         XmppClientProtocolEvent::Send(bytes) => self.send_bytes(bytes)?,
                         XmppClientProtocolEvent::StartTls => {
-                            println!("Secure start sent");
                             self.stream.upgrade(self.protocol.jid())?;
                         }
                         XmppClientProtocolEvent::Continue => {}

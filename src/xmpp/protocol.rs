@@ -107,11 +107,18 @@ impl XmppClientProtocol {
         XmppClientProtocolEvents::new(self, bytes)
     }
 
+    fn extend_with_header(&mut self, bytes: &mut Vec<u8>) {
+        bytes.extend_from_slice(b"<stream:stream xmlns='jabber:client' xmlns:stream='http://etherx.jabber.org/streams' version='1.0' xmllang='en' from='");
+        bytes.extend_from_slice(self.jid.full().as_bytes());
+        bytes.extend_from_slice(b"' to='");
+        bytes.extend_from_slice(self.jid.domainpart().as_bytes());
+        bytes.extend_from_slice(b"'>");
+    }
+
     pub fn receive_element(
         &mut self,
         element: Document,
     ) -> Result<(XmppClientProtocolEvent, bool), StreamError> {
-        println!("Received element: {:?}", element.root().name());
         match element.root().name() {
             STREAM_TAG => match self.state {
                 StreamState::StartSent => {
@@ -179,18 +186,13 @@ impl XmppClientProtocol {
             PROCEED_TAG => {
                 self.state = StreamState::Handshake;
                 self.stream_parser.reset();
-                println!("Start tls");
                 Ok((XmppClientProtocolEvent::StartTls, true))
             }
             SUCCESS_TAG => {
                 self.state = StreamState::AuthStartSent;
                 self.stream_parser.reset();
                 let mut bytes = Vec::new();
-                bytes.extend_from_slice(b"<stream:stream xmlns='jabber:client' xmlns:stream='http://etherx.jabber.org/streams' version='1.0' xmllang='en' from='");
-                bytes.extend_from_slice(self.jid.full().as_bytes());
-                bytes.extend_from_slice(b"' to='");
-                bytes.extend_from_slice(self.jid.domainpart().as_bytes());
-                bytes.extend_from_slice(b"'>");
+                self.extend_with_header(&mut bytes);
                 Ok((XmppClientProtocolEvent::Send(bytes), true))
             }
             MESSAGE_TAG | PRESENCE_TAG | IQ_TAG => {
@@ -208,21 +210,13 @@ impl XmppClientProtocol {
             StreamState::Connected => {
                 let mut bytes = Vec::new();
                 bytes.extend_from_slice(b"<?xml version='1.0'?>");
-                bytes.extend_from_slice(b"<stream:stream xmlns='jabber:client' xmlns:stream='http://etherx.jabber.org/streams' version='1.0' xmllang='en' from='");
-                bytes.extend_from_slice(self.jid.full().as_bytes());
-                bytes.extend_from_slice(b"' to='");
-                bytes.extend_from_slice(self.jid.domainpart().as_bytes());
-                bytes.extend_from_slice(b"'>");
+                self.extend_with_header(&mut bytes);
                 self.state = StreamState::StartSent;
                 Some(bytes)
             }
             StreamState::Handshake => {
                 let mut bytes = Vec::new();
-                bytes.extend_from_slice(b"<stream:stream xmlns='jabber:client' xmlns:stream='http://etherx.jabber.org/streams' version='1.0' xmllang='en' from='");
-                bytes.extend_from_slice(self.jid.full().as_bytes());
-                bytes.extend_from_slice(b"' to='");
-                bytes.extend_from_slice(self.jid.domainpart().as_bytes());
-                bytes.extend_from_slice(b"'>");
+                self.extend_with_header(&mut bytes);
                 self.state = StreamState::SecureStartSent;
                 Some(bytes)
             }

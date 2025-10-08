@@ -9,11 +9,16 @@
 */
 
 use std::env;
+use std::fs::File;
+use std::io::Write;
 use std::process::ExitCode;
+
+use rpassword::prompt_password;
 
 use iks::Jid;
 use iks::XMPP_CLIENT_PORT;
 use iks::XmppClient;
+use iks::XmppClientError;
 
 fn print_version() {
     println!("iksjab (iksemel) v{}", iks::VERSION);
@@ -24,44 +29,88 @@ fn print_usage() {
         "Usage: iksjab [OPTIONS]\n",
         "This tool can communicate over XMPP.\n",
         "Options:\n",
-        "  -j, --jid <JID>        Jabber ID\n",
-        "  -s, --server <SERVER>  XMPP server override\n",
-        "  -d, --debug            Print XMPP traffic\n",
-        "  -h, --help             Display this help message and exit\n",
-        "  -v, --version          Display the version and exit\n",
+        "  -j, --jid <JID>             Jabber ID\n",
+        "  -s, --server <SERVER>       XMPP server override\n",
+        "  -p, --password <ENVVARNAME> Environment variable with the password\n",
+        "  -b, --backup <FILENAME>     Backup roster to the given file\n",
+        "  -m, --message <JID> <BODY>  Send a message\n",
+        "  -w, --watch                 Listen and print stanzas forever\n",
+        "  -d, --debug                 Print XMPP traffic\n",
+        "  -h, --help                  Display this help message and exit\n",
+        "  -v, --version               Display the version and exit\n",
         "Report issues at https://github.com/meduketto/iksemel-rust/issues"
     ));
 }
 
-fn run(jid: Jid, server: Option<String>, password: String, debug: bool) {
-    let mut client = match XmppClient::build(jid, password)
-        .server(server)
-        .debug(debug)
-        .connect()
-    {
-        Ok(client) => client,
-        Err(err) => {
-            eprintln!("error: {}", err);
-            std::process::exit(1);
-        }
-    };
-    loop {
-        match client.wait_for_stanza() {
-            Ok(stanza) => {
-                println!("{}", stanza);
-                if stanza.root().name() == "iq" {
-                    let mut bytes = Vec::new();
-                    bytes.extend_from_slice(
-                        b"<message to='jabber.org/echo' id='x'><body>hello</body></message>",
-                    );
-                    let _ = client.send_bytes(bytes);
-                }
+struct LoginOptions {
+    jid: Jid,
+    server: Option<String>,
+    password: String,
+    debug: bool,
+}
+
+struct MessageOptions {
+    jid: Jid,
+    body: String,
+}
+
+fn login(options: LoginOptions) -> Result<XmppClient, XmppClientError> {
+    let mut client = XmppClient::build(options.jid, options.password)
+        .server(options.server)
+        .debug(options.debug)
+        .connect()?;
+    let _iq_bind_stanza = client.wait_for_stanza()?;
+    Ok(client)
+}
+
+fn run(
+    options: LoginOptions,
+    backup_file: Option<String>,
+    messages: Vec<MessageOptions>,
+    watch_mode: bool,
+) -> Result<(), XmppClientError> {
+    let mut client = login(options)?;
+
+    if let Some(file) = backup_file {
+        client.request_roster()?;
+        loop {
+            let stanza = client.wait_for_stanza()?;
+            if stanza.root().attribute("id") == Some("roster") {
+                let mut f = File::create(file)?;
+                f.write_all(stanza.to_string().as_bytes())?;
+                break;
             }
-            Err(err) => {
-                eprintln!("error: {}", err);
-                std::process::exit(1);
-            }
         }
+    }
+
+    for message in messages {
+        client.send_message(message.jid, &message.body)?
+    }
+
+    if watch_mode {
+        loop {
+            let stanza = client.wait_for_stanza()?;
+            println!("Stanza:{}", stanza);
+        }
+    }
+
+    Ok(())
+}
+
+fn get_password(var_name: Option<String>) -> Result<String, String> {
+    if let Some(name) = &var_name {
+        return match env::var(name) {
+            Ok(value) => Ok(value),
+            Err(err) => Err(format!(
+                "Failed to get password from environment variable {}: {}",
+                name, err
+            )),
+        };
+    }
+    if let Ok(password) = prompt_password("Jabber password: ") {
+        Ok(password)
+    } else {
+        Err("Password not provided".to_string())
     }
 }
 
@@ -69,7 +118,11 @@ fn main() -> ExitCode {
     let mut args = env::args();
     let mut jid: Option<Jid> = None;
     let mut server: Option<String> = None;
+    let mut password_var: Option<String> = None;
+    let mut messages: Vec<MessageOptions> = Vec::new();
+    let mut backup_file: Option<String> = None;
     let mut debug = false;
+    let mut watch_mode = false;
 
     // Skip the first argument (program name)
     args.next();
@@ -107,6 +160,45 @@ fn main() -> ExitCode {
                     return ExitCode::FAILURE;
                 }
             }
+            "-p" | "--password" => {
+                if let Some(value) = args.next() {
+                    password_var = Some(value);
+                } else {
+                    eprintln!("Error: Password environment variable expected after {arg}");
+                    return ExitCode::FAILURE;
+                }
+            }
+            "-b" | "--backup" => {
+                if let Some(value) = args.next() {
+                    backup_file = Some(value);
+                } else {
+                    eprintln!("Error: Backup file expected after {arg}");
+                    return ExitCode::FAILURE;
+                }
+            }
+            "-m" | "--message" => {
+                if let Some(jid_str) = args.next() {
+                    let jid = match Jid::new(&jid_str) {
+                        Ok(jid) => jid,
+                        Err(err) => {
+                            eprintln!("Error: Invalid JID: {}", err);
+                            return ExitCode::FAILURE;
+                        }
+                    };
+                    if let Some(body) = args.next() {
+                        messages.push(MessageOptions { jid, body });
+                    } else {
+                        eprintln!("Error: Message body expected after {arg} <JID>");
+                        return ExitCode::FAILURE;
+                    }
+                } else {
+                    eprintln!("Error: Jid expected after {arg}");
+                    return ExitCode::FAILURE;
+                }
+            }
+            "-w" | "--watch" => {
+                watch_mode = true;
+            }
             "-d" | "--debug" => {
                 debug = true;
             }
@@ -122,9 +214,17 @@ fn main() -> ExitCode {
         }
     }
 
+    let options: LoginOptions;
     if let Some(jid) = jid {
-        match env::var("IKSJAB_PASSWORD") {
-            Ok(password) => run(jid, server, password, debug),
+        match get_password(password_var) {
+            Ok(password) => {
+                options = LoginOptions {
+                    jid,
+                    server,
+                    password,
+                    debug,
+                };
+            }
             Err(err) => {
                 eprintln!("Error: {}", err);
                 return ExitCode::FAILURE;
@@ -132,6 +232,11 @@ fn main() -> ExitCode {
         }
     } else {
         eprintln!("Error: Jabber ID not provided");
+        return ExitCode::FAILURE;
+    }
+
+    if let Err(err) = run(options, backup_file, messages, watch_mode) {
+        eprintln!("Error: {}", err);
         return ExitCode::FAILURE;
     }
 
