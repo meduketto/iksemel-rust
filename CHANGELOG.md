@@ -1,4 +1,4 @@
-# 0.2.0 (TBD)
+# 0.2.0 (2025-10-08)
 
 ## Breaking changes
 
@@ -19,6 +19,11 @@
 * Cursor now provides `following_sibling`, `preceding_sibling`,
   `ancestor` iterators.
 * New `StreamParser` produces Documents for each XMPP stream top level.
+* New sans-io `XmppClientProtocol` protocol handler.
+* New `XmppClient` blocking-io client library.
+* iksjab cmdline tool to send messages or backup roster (replacement
+  for the old iksroster tool).
+* CI and release processes automated with GH actions.
 
 # 0.1.0 (2025-09-06)
 

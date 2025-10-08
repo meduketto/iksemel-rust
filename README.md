@@ -47,7 +47,7 @@ You can use it in your rust projects by adding the following to your `Cargo.toml
 
 ```toml
 [dependencies]
-iks = "0.1.0"
+iks = "0.2.0"
 ```
 
 You can install the command line tools with:
