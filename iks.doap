@@ -36,6 +36,10 @@
 
 		<release>
 			<Version>
+				<revision>0.2.0</revision>
+				<created>2025-10-08</created>
+			</Version>
+			<Version>
 				<revision>0.1.0</revision>
 				<created>2025-09-06</created>
 			</Version>
