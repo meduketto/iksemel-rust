@@ -11,6 +11,8 @@
 use std::error::Error;
 use std::fmt::Display;
 
+use crate::ParseError;
+
 use super::stream::StreamError;
 
 #[derive(Debug)]
@@ -42,6 +44,15 @@ impl From<StreamError> for XmppClientError {
             StreamError::NoMemory => XmppClientError::NoMemory,
             StreamError::BadXml(msg) => XmppClientError::BadXml(msg),
             StreamError::BadStream(msg) => XmppClientError::BadStream(msg),
+        }
+    }
+}
+
+impl From<ParseError> for XmppClientError {
+    fn from(err: ParseError) -> Self {
+        match err {
+            ParseError::NoMemory => XmppClientError::NoMemory,
+            ParseError::BadXml(msg) => XmppClientError::BadXml(msg),
         }
     }
 }

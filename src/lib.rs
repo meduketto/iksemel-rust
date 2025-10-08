@@ -24,6 +24,7 @@
 #![deny(clippy::redundant_test_prefix)]
 //#![deny(clippy::undocumented_unsafe_blocks)]
 //#![deny(missing_docs)]
+#![allow(clippy::multiple_crate_versions, reason = "rpassword problem")]
 
 //! # Introduction
 //!
