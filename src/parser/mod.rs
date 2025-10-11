@@ -741,7 +741,9 @@ impl SaxParser {
                                 self.state = State::AttributeWhitespace;
                             }
                         }
-                        _ => unreachable!(),
+                        _ => {
+                            xml_error!(TAG_YIELD_MISMATCH);
+                        }
                     }
                 }
 

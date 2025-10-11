@@ -120,4 +120,6 @@ pub(super) mod description {
         "markup is not a comment, character data section, or document type declaration";
     pub(in super::super) const PI_MISSING_END: &str =
         "processing instruction must end after closing the '?'";
+    pub(in super::super) const TAG_YIELD_MISMATCH: &str =
+        "parser was on /, > or whitespace before yielding the tag name";
 }
