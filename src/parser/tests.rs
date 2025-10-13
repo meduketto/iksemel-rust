@@ -8,6 +8,8 @@
 ** the License, or (at your option) any later version.
 */
 
+use std::str::from_utf8;
+
 use super::error::description::*;
 use super::*;
 
@@ -29,6 +31,8 @@ impl<'a> Tester<'a> {
     fn check_element(&mut self, element: &SaxElement) {
         assert!(self.current < self.expected.len());
         if let SaxElement::CData(cdata) = element {
+            // Validate that the parser does not give incomplete utf8 sequences
+            from_utf8(cdata.as_bytes()).unwrap();
             if let SaxElement::CData(cdata2) = self.expected[self.current] {
                 self.cdata_buf.push_str(cdata);
                 if self.cdata_buf.len() >= cdata2.len() {
