@@ -419,6 +419,18 @@ impl SaxParser {
                     if !is_valid_xml_char(self.uni_char) {
                         xml_error!(CHAR_INVALID);
                     }
+                    if pos < (self.uni_len as usize)
+                        && (self.state == State::CData || self.state == State::CDataSectionBody)
+                    {
+                        // Previously unsent at the end of the buffer
+                        self.char_ref_value = self.uni_char;
+                        let size = self.u32_to_cdata();
+                        let s = unsafe {
+                            std::str::from_utf8_unchecked(&self.char_ref_buffer[0..size])
+                        };
+                        self.state = State::CData;
+                        yield_element!(self, c, pos, SaxElement::CData(s));
+                    }
                 }
             } else if c & 0x80 == 0x80 {
                 if c & 0x60 == 0x40 {
@@ -1045,8 +1057,18 @@ impl SaxParser {
                     self.extend_buffer(&bytes[back..pos])?;
                 }
                 State::CData | State::CDataSectionBody => {
-                    let s = unsafe { std::str::from_utf8_unchecked(&bytes[back..pos]) };
-                    yield_element_inplace!(pos, SaxElement::CData(s));
+                    if self.uni_left > 0 {
+                        let diff = (self.uni_len - self.uni_left) as usize;
+                        if diff > pos {
+                            pos = 0;
+                        } else {
+                            pos -= diff;
+                        }
+                    }
+                    if back < pos {
+                        let s = unsafe { std::str::from_utf8_unchecked(&bytes[back..pos]) };
+                        yield_element_inplace!(pos, SaxElement::CData(s));
+                    }
                 }
                 _ => (),
             }
