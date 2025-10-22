@@ -12,22 +12,25 @@ mod builder;
 mod error;
 mod iterators;
 mod parser;
+mod sync_cursor;
 
 use std::cell::UnsafeCell;
 use std::fmt::Debug;
 use std::marker::PhantomPinned;
+use std::marker::Send;
 use std::ptr::NonNull;
 use std::ptr::null_mut;
 use std::str::FromStr;
 
+use crate::Arena;
+use crate::ArenaStats;
 use crate::NoMemory;
 pub use crate::ParseError;
 
-use super::arena::Arena;
-use super::arena::ArenaStats;
 use super::entities::escape;
 use super::entities::escape_fmt;
 use super::entities::escaped_size;
+
 pub use builder::DocumentBuilder;
 use error::description;
 pub use iterators::Ancestor;
@@ -37,6 +40,7 @@ pub use iterators::DescendantOrSelf;
 pub use iterators::FollowingSibling;
 pub use iterators::PrecedingSibling;
 pub use parser::DocumentParser;
+pub use sync_cursor::SyncCursor;
 
 enum NodePayload {
     Tag(*mut Tag),
@@ -335,6 +339,8 @@ impl FromStr for Document {
     }
 }
 
+unsafe impl Send for Document {}
+
 macro_rules! null_cursor {
     ($x:expr) => {
         Cursor::new(null_mut() as *mut Node, $x.arena)
@@ -380,6 +386,10 @@ impl<'a> Cursor<'a> {
 
     fn visitor(&self) -> Visitor {
         unsafe { Visitor::new(*self.node.get()) }
+    }
+
+    fn clear(&mut self) {
+        self.node = null_mut::<Node>().into();
     }
 
     //
@@ -746,10 +756,6 @@ impl<'a> Cursor<'a> {
     //
     // Navigation methods
     //
-
-    fn clear(&mut self) {
-        self.node = null_mut::<Node>().into();
-    }
 
     pub fn next(self) -> Cursor<'a> {
         null_cursor_guard!(self);

@@ -1,5 +1,12 @@
 # 0.3.0 (TBD)
 
+* New SyncCursor allows thread-safe multiple cursors to the same
+  document with reference counting. Useful for long-living
+  separately stored cursors into same XML tree.
+* Fixed a bug where the SaxParser was returning &str references
+  to incomplete UTF8 sequences at the end. Parser now buffers the
+  last sequence (4 bytes max) and sends it as a whole.
+
 # 0.2.0 (2025-10-08)
 
 ## Breaking changes

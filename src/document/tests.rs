@@ -303,3 +303,17 @@ fn bad_doc_parser() {
         Some(ParseError::BadXml(DUPLICATE_ATTRIBUTE))
     );
 }
+
+#[test]
+fn test_arc_cursor() {
+    let document = Document::from_str("<a>lala<b>bibi</b></a>").unwrap();
+    let cursor = SyncCursor::new(document);
+    let c2 = cursor.clone();
+    cursor
+        .insert_tag("e")
+        .unwrap()
+        .insert_tag("f")
+        .unwrap()
+        .next();
+    assert_eq!(c2.to_string(), "<a>lala<b>bibi</b><e><f/></e></a>");
+}
