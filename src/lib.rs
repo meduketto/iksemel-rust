@@ -99,6 +99,7 @@ pub use document::DocumentBuilder;
 pub use document::DocumentParser;
 pub use document::FollowingSibling;
 pub use document::PrecedingSibling;
+pub use document::SyncCursor;
 
 pub use xmpp::BadJid;
 pub use xmpp::Jid;
