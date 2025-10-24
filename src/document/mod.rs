@@ -13,6 +13,7 @@ mod error;
 mod iterators;
 mod parser;
 mod sync_cursor;
+mod sync_iterators;
 
 use std::cell::UnsafeCell;
 use std::fmt::Debug;

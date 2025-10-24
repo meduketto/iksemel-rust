@@ -9,14 +9,61 @@
 */
 
 use std::marker::Send;
+use std::ptr::null_mut;
 use std::sync::Arc;
 use std::sync::Mutex;
 
+use super::Attribute;
 use super::Node;
 use super::NodePayload;
+use super::sync_iterators::SyncChildren;
 use crate::Cursor;
 use crate::Document;
 use crate::ParseError;
+
+pub struct SyncAttributes {
+    sync_cursor: SyncCursor,
+    current: *mut Attribute,
+}
+
+impl SyncAttributes {
+    pub fn new(sync_cursor: &SyncCursor) -> Self {
+        let _document = sync_cursor.document.lock().unwrap();
+        unsafe {
+            let attr = if sync_cursor.node.is_null() {
+                null_mut::<Attribute>()
+            } else {
+                match (*sync_cursor.node).payload {
+                    NodePayload::Tag(tag) => (*tag).attributes,
+                    NodePayload::CData(_) => null_mut::<Attribute>(),
+                }
+            };
+            SyncAttributes {
+                sync_cursor: sync_cursor.clone(),
+                current: attr,
+            }
+        }
+    }
+}
+
+impl Iterator for SyncAttributes {
+    type Item = (String, String);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.current.is_null() {
+            return None;
+        }
+        let _document = self.sync_cursor.document.lock().unwrap();
+        unsafe {
+            let result = Some((
+                (*self.current).name_as_str().to_string(),
+                (*self.current).value_as_str().to_string(),
+            ));
+            self.current = (*self.current).next;
+            result
+        }
+    }
+}
 
 pub struct SyncCursor {
     document: Arc<Mutex<Document>>,
@@ -151,6 +198,18 @@ impl SyncCursor {
     navigation_method!(first_child);
     navigation_method!(last_child);
     navigation_method!(first_tag);
+
+    //
+    // Iterators
+    //
+
+    pub fn attributes(self) -> SyncAttributes {
+        SyncAttributes::new(&self)
+    }
+
+    pub fn children(&self) -> SyncChildren {
+        SyncChildren::new(self)
+    }
 
     /// Returns the first child tag element with the given name.
     ///
