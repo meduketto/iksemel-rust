@@ -1,4 +1,4 @@
-# 0.3.0 (TBD)
+# 0.3.0 (2025-10-24)
 
 * New SyncCursor allows thread-safe multiple cursors to the same
   document with reference counting. Useful for long-living
