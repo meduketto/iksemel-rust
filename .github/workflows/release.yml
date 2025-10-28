@@ -74,6 +74,8 @@ jobs:
 
   run-ci:
     name: CI
+    permissions:
+      contents: read
     uses: ./.github/workflows/ci.yml
     if: inputs.operation == 'publish' && github.repository_owner == 'meduketto' && github.ref == 'refs/heads/main'
     needs:
@@ -81,6 +83,8 @@ jobs:
 
   run-heavy:
     name: Heavy Tests
+    permissions:
+      contents: read
     uses: ./.github/workflows/heavy.yml
     if: inputs.operation == 'publish' && github.repository_owner == 'meduketto' && github.ref == 'refs/heads/main'
     needs:
@@ -88,6 +92,8 @@ jobs:
 
   check-version:
     name: Version Checks
+    permissions:
+      contents: read
     runs-on: ubuntu-latest
     if: github.repository_owner == 'meduketto' && github.ref == 'refs/heads/main'
     outputs:
