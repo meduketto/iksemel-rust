@@ -1,4 +1,6 @@
 name: Heavy Tests
+permissions:
+  contents: read
 
 on:
   workflow_call:
