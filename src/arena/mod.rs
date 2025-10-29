@@ -696,14 +696,17 @@ impl Drop for Arena {
             let head = &mut **self.head_ptr.get_mut();
             for chunk in (*head).extra_struct_chunks() {
                 test_allocated_sub((*chunk).alloc_layout.size());
-                dealloc(chunk as *mut u8, (*chunk).alloc_layout);
+                let layout = (*chunk).alloc_layout;
+                dealloc(chunk as *mut u8, layout);
             }
             for chunk in (*head).extra_cdata_chunks() {
                 test_allocated_sub((*chunk).alloc_layout.size());
-                dealloc(chunk as *mut u8, (*chunk).alloc_layout);
+                let layout = (*chunk).alloc_layout;
+                dealloc(chunk as *mut u8, layout);
             }
             test_allocated_sub(head.alloc_layout.size());
-            dealloc(*self.head_ptr.get_mut() as *mut u8, head.alloc_layout);
+            let layout = head.alloc_layout;
+            dealloc(*self.head_ptr.get_mut() as *mut u8, layout);
         }
     }
 }
