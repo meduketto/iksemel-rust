@@ -21,6 +21,7 @@ use super::error::description;
 pub struct DocumentBuilder {
     doc: Option<Document>,
     node: *mut Node,
+    size_hint: Option<usize>,
 }
 
 impl DocumentBuilder {
@@ -28,6 +29,15 @@ impl DocumentBuilder {
         DocumentBuilder {
             doc: None,
             node: null_mut(),
+            size_hint: None,
+        }
+    }
+
+    pub fn with_size_hint(size_hint: usize) -> Self {
+        DocumentBuilder {
+            doc: None,
+            node: null_mut(),
+            size_hint: Some(size_hint),
         }
     }
 
@@ -35,7 +45,10 @@ impl DocumentBuilder {
         match &self.doc {
             None => match element {
                 SaxElement::StartTag(name) => {
-                    let doc = Document::new(name)?;
+                    let doc = match self.size_hint {
+                        Some(size_hint) => Document::with_size_hint(name, size_hint)?,
+                        None => Document::new(name)?,
+                    };
                     self.node = doc.root().get_node_ptr();
                     self.doc = Some(doc);
                 }

@@ -276,6 +276,20 @@ impl Document {
         })
     }
 
+    pub fn with_size_hint(
+        root_tag_name: &str,
+        xml_str_size: usize,
+    ) -> Result<Document, ParseError> {
+        let arena = Arena::with_chunk_sizes(xml_str_size, xml_str_size)?;
+        let tag = arena.alloc_tag(root_tag_name)?.as_ptr();
+        let node = arena.alloc_node(NodePayload::Tag(tag))?.as_ptr();
+
+        Ok(Document {
+            arena,
+            root_node: node.into(),
+        })
+    }
+
     pub fn root<'a>(&'a self) -> Cursor<'a> {
         unsafe {
             let node = *self.root_node.get();
@@ -334,7 +348,7 @@ impl FromStr for Document {
     type Err = ParseError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let mut parser = DocumentParser::new();
+        let mut parser = DocumentParser::with_size_hint(s.len());
         parser.parse_bytes(s.as_bytes())?;
         parser.into_document()
     }

@@ -10,6 +10,7 @@
 
 use std::env;
 use std::fs::File;
+use std::fs::metadata;
 use std::io::Read;
 use std::io::stdin;
 use std::process::ExitCode;
@@ -115,7 +116,19 @@ fn main() -> ExitCode {
         }
     }
 
-    let mut parser = DocumentParser::new();
+    let mut parser = match file.as_deref() {
+        None => DocumentParser::new(),
+        Some(file_name) => {
+            let attr = match metadata(file_name) {
+                Ok(metadata) => metadata,
+                Err(err) => {
+                    eprintln!("Error: io error in {}: {}", file_name, err);
+                    return ExitCode::FAILURE;
+                }
+            };
+            DocumentParser::with_size_hint(attr.len() as usize)
+        }
+    };
     let file_desc = match file.as_deref() {
         None => "input stream".to_string(),
         Some(file_name) => format!("file '{}'", file_name),
