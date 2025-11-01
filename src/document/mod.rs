@@ -280,7 +280,7 @@ impl Document {
         root_tag_name: &str,
         xml_str_size: usize,
     ) -> Result<Document, ParseError> {
-        let arena = Arena::with_chunk_sizes(xml_str_size, xml_str_size)?;
+        let arena = Arena::with_chunk_sizes((xml_str_size * 20) / 100, (xml_str_size * 95) / 100)?;
         let tag = arena.alloc_tag(root_tag_name)?.as_ptr();
         let node = arena.alloc_node(NodePayload::Tag(tag))?.as_ptr();
 
