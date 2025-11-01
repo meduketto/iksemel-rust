@@ -30,6 +30,13 @@ impl DocumentParser {
         }
     }
 
+    pub fn with_size_hint(size_hint: usize) -> DocumentParser {
+        DocumentParser {
+            builder: DocumentBuilder::with_size_hint(size_hint),
+            parser: SaxParser::new(),
+        }
+    }
+
     pub fn parse_bytes(&mut self, bytes: &[u8]) -> Result<(), ParseError> {
         let mut elements = SaxElements::new(&mut self.parser, bytes);
         loop {

@@ -8,6 +8,8 @@
 ** the License, or (at your option) any later version.
 */
 
+use std::thread;
+
 use super::error::description::*;
 use super::*;
 
@@ -305,7 +307,7 @@ fn bad_doc_parser() {
 }
 
 #[test]
-fn test_arc_cursor() {
+fn sync_cursor_works() {
     let document = Document::from_str("<a>lala<b>bibi</b></a>").unwrap();
     let cursor = SyncCursor::new(document);
     let c2 = cursor.clone();
@@ -316,4 +318,25 @@ fn test_arc_cursor() {
         .unwrap()
         .next();
     assert_eq!(c2.to_string(), "<a>lala<b>bibi</b><e><f/></e></a>");
+}
+
+#[test]
+fn sync_cursor_multi() {
+    let document = Document::with_size_hint("a", 10000).unwrap();
+    let cursor = SyncCursor::new(document);
+
+    let mut handles = vec![];
+    for _ in 0..10 {
+        let cursor = cursor.clone();
+        handles.push(thread::spawn(move || {
+            cursor.insert_tag("e").unwrap().insert_tag("f").unwrap();
+        }));
+    }
+    for handle in handles {
+        handle.join().unwrap();
+    }
+    assert_eq!(
+        cursor.to_string(),
+        "<a><e><f/></e><e><f/></e><e><f/></e><e><f/></e><e><f/></e><e><f/></e><e><f/></e><e><f/></e><e><f/></e><e><f/></e></a>"
+    );
 }

@@ -1057,16 +1057,17 @@ impl SaxParser {
                     self.extend_buffer(&bytes[back..pos])?;
                 }
                 State::CData | State::CDataSectionBody => {
+                    let mut valid_end = pos;
                     if self.uni_left > 0 {
-                        let diff = (self.uni_len - self.uni_left) as usize;
-                        if diff > pos {
-                            pos = 0;
+                        let seen = (self.uni_len - self.uni_left) as usize;
+                        if seen > valid_end {
+                            valid_end = 0;
                         } else {
-                            pos -= diff;
+                            valid_end -= seen;
                         }
                     }
-                    if back < pos {
-                        let s = unsafe { std::str::from_utf8_unchecked(&bytes[back..pos]) };
+                    if back < valid_end {
+                        let s = unsafe { std::str::from_utf8_unchecked(&bytes[back..valid_end]) };
                         yield_element_inplace!(pos, SaxElement::CData(s));
                     }
                 }

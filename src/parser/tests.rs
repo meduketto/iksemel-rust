@@ -288,6 +288,53 @@ fn cdatas() {
     .check("<a>[[bg:Чингис хан]][[bn:চেঙ্গিজ খান]]</a>");
 }
 
+fn check_parts(parts: &[&[u8]]) {
+    let mut parser = SaxParser::new();
+    for part in parts {
+        let mut elements = parser.elements(part);
+        while let Some(element) = elements.next() {
+            let x = element.unwrap();
+        }
+    }
+}
+
+#[test]
+fn utf8_boundaries() {
+    check_parts(&[b"<a>", b"\xc2", b"\xa3", b"</a>"]);
+    check_parts(&[b"<a>\xc2", b"\xa3", b"</a>"]);
+    check_parts(&[b"<a>\xc2", b"\xa3</a>"]);
+
+    check_parts(&[b"<a>b", b"\xe0", b"\xa0", b"\x80", b"\xd0\xb8</a>"]);
+    check_parts(&[b"<a>b", b"\xe0\xa0", b"\x80", b"</a>"]);
+    check_parts(&[b"<a>b", b"\xe0", b"\xa0\x80", b"</a>"]);
+    check_parts(&[b"<a>b", b"\xe0", b"\xa0\x80</a>"]);
+    check_parts(&[b"<a>\xe0", b"\xa0", b"\x80", b"</a>"]);
+    check_parts(&[b"<a>\xe0", b"\xa0", b"\x80</a>"]);
+    check_parts(&[b"<a>\xe0", b"\xa0\x80", b"</a>"]);
+    check_parts(&[b"<a>\xe0\xa0", b"\x80", b"</a>"]);
+    check_parts(&[b"<a>\xe0\xa0", b"\x80</a>"]);
+    check_parts(&[b"<a>\xe0\xa0\x80", b"\xd0\xb8</a>"]);
+
+    check_parts(&[b"<a>", b"\xf0", b"\x96", b"\xbf", b"\xa2", b"</a>"]);
+    check_parts(&[b"<a>\xf0", b"\x96", b"\xbf", b"\xa2", b"</a>"]);
+    check_parts(&[b"<a>\xf0", b"\x96", b"\xbf", b"\xa2</a>"]);
+    check_parts(&[b"<a>\xf0", b"\x96\xbf", b"\xa2", b"</a>"]);
+    check_parts(&[b"<a>\xf0\x96", b"\xbf", b"\xa2", b"</a>"]);
+    check_parts(&[b"<a>\xf0", b"\x96", b"\xbf\xa2</a>"]);
+    check_parts(&[b"<a>\xf0", b"\x96\xbf\xa2", b"</a>"]);
+    check_parts(&[b"<a>\xf0\x96\xbf", b"\xa2", b"</a>"]);
+    check_parts(&[b"<a>\xf0", b"\x96\xbf\xa2</a>"]);
+    check_parts(&[b"<a>\xf0\x96\xbf", b"\xa2</a>"]);
+
+    check_parts(&[b"<a>e\xd0", b"\xbd\xd1\x81\xd0\xba</a>"]);
+    check_parts(&[b"<a>e\xd0\xbd", b"\xd1\x81\xd0\xba\xd0\xb8aa</a>"]);
+    check_parts(&[b"<a>e\xd0\xbd\xd1", b"\x81\xd0\xba\xd0\xb8aa</a>"]);
+    check_parts(&[b"<a>e\xd0\xbd\xd1\x81", b"\xd0\xba\xd0\xb8aa</a>"]);
+    check_parts(&[b"<a>e\xd0\xbd\xd1\x81\xd0", b"\xba\xd0\xb8aa</a>"]);
+    check_parts(&[b"<a>e\xd0\xbd\xd1\x81\xd0\xba", b"\xd0\xb8aa</a>"]);
+    check_parts(&[b"<a>e\xd0\xbd\xd1\x81\xd0\xba\xd0", b"\xb8aa</a>"]);
+}
+
 #[test]
 fn dtds() {
     Tester::new(&[

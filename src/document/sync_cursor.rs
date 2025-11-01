@@ -352,3 +352,5 @@ impl std::fmt::Display for SyncCursor {
 }
 
 unsafe impl Send for SyncCursor {}
+
+unsafe impl Sync for SyncCursor {}
