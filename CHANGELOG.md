@@ -1,3 +1,5 @@
+# 0.5.0 (TBD)
+
 # 0.4.0 (2025-11-02)
 
 * SyncCursor is now properly Send&Sync.
