@@ -80,6 +80,7 @@ impl<'a> JidParts<'a> {
     }
 }
 
+/// The address of an entity in the XMPP protocol.
 #[derive(Debug, Clone, Eq)]
 pub struct Jid {
     full: String,

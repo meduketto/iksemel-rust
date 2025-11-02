@@ -259,12 +259,29 @@ impl Visitor {
 /// This struct contains all structs and character data of an XML
 /// document allocated within a memory [Arena](crate::Arena).
 ///
+/// There are a few ways to create a document:
+/// - Parsing a string with the [from_str](Document::from_str) method.
+/// - Parsing a stream of bytes with the [DocumentParser](crate::DocumentParser).
+/// - Creating with the [new](Document::new) method, and adding more elements
+///   with a [Cursor](crate::Cursor).
+/// - The [XmppClient](crate::XmppClient) and [StreamParser](crate::StreamParser)
+///   returns XMPP stanzas as Document intances.
+///
+/// Editing and queries are done with cursors which point to the
+/// elements in the tree. There are two types of cursors:
+/// - [Cursor](crate::Cursor) is a lifetime-bound reference to an element
+///   of the document. It cannot outlive the document and cannot be used
+///   across threads, but it doesn't have any overhead.
+/// - [SyncCursor](crate::SyncCursor) is the mutex synchronized and
+///   reference counted version which takes the ownership of the document.
+///
 pub struct Document {
     arena: Arena,
     root_node: UnsafeCell<*mut Node>,
 }
 
 impl Document {
+    /// Creates a new document with the given root tag name.
     pub fn new(root_tag_name: &str) -> Result<Document, ParseError> {
         let arena = Arena::new()?;
         let tag = arena.alloc_tag(root_tag_name)?.as_ptr();
@@ -276,6 +293,11 @@ impl Document {
         })
     }
 
+    /// Creates a new document with the given root tag name.
+    ///
+    /// This method also takes a size hint about the length of the
+    /// total XML string in bytes. The hint is used to optimize the
+    /// memory arena of the document for the minimal number of chunks.
     pub fn with_size_hint(
         root_tag_name: &str,
         xml_str_size: usize,
@@ -290,6 +312,7 @@ impl Document {
         })
     }
 
+    /// Returns a cursor to the root element of the document.
     pub fn root<'a>(&'a self) -> Cursor<'a> {
         unsafe {
             let node = *self.root_node.get();
@@ -382,6 +405,7 @@ macro_rules! cursor_edit_guards {
     }};
 }
 
+/// Reference to an element in a document.
 pub struct Cursor<'a> {
     node: UnsafeCell<*mut Node>,
     arena: &'a Arena,
