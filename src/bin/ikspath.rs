@@ -27,6 +27,7 @@ fn print_usage() {
         "This tool applies XPATH expression to an XML document.\n",
         "Options:\n",
         "  -f, --file <FILE.xml>  Specify the XML file to process\n",
+        "  -m, --memory           Display document memory usage\n",
         "  -h, --help             Display this help message and exit\n",
         "  -v, --version          Display the version and exit\n",
         "Report issues at https://github.com/meduketto/iksemel-rust/issues"
@@ -78,6 +79,7 @@ fn main() -> ExitCode {
 
     let mut file: Option<String> = None;
     let mut expression: Option<XPath> = None;
+    let mut memory_usage = false;
 
     // Skip the first argument (program name)
     args.next();
@@ -90,6 +92,9 @@ fn main() -> ExitCode {
                     eprintln!("Error: file name expected after -f/--file");
                     return ExitCode::FAILURE;
                 }
+            }
+            "-m" | "--memory" => {
+                memory_usage = true;
             }
             "-h" | "--help" => {
                 print_usage();
@@ -154,7 +159,9 @@ fn main() -> ExitCode {
         }
     };
 
-    println!("{:?}", document.arena_stats());
+    if memory_usage {
+        println!("{:?}", document.arena_stats());
+    }
 
     if let Some(xpath) = expression {
         let sequence = xpath.apply(&document).unwrap();
