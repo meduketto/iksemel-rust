@@ -1,4 +1,4 @@
-# 0.4.0 (2025-11-01)
+# 0.4.0 (2025-11-02)
 
 * SyncCursor is now properly Send&Sync.
 * Document parser adjusts arena size according to size hints.
