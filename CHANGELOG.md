@@ -1,4 +1,9 @@
-# 0.4.0 (TBD)
+# 0.4.0 (2025-11-01)
+
+* SyncCursor is now properly Send&Sync.
+* Document parser adjusts arena size according to size hints.
+* Fixed a bug which was causing valid UTF8 to be rejected at
+  the parsing boundaries.
 
 # 0.3.0 (2025-10-24)
 
