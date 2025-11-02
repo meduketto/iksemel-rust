@@ -293,7 +293,7 @@ fn check_parts(parts: &[&[u8]]) {
     for part in parts {
         let mut elements = parser.elements(part);
         while let Some(element) = elements.next() {
-            let x = element.unwrap();
+            element.unwrap();
         }
     }
 }
