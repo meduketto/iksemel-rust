@@ -10,7 +10,7 @@ repository = "https://github.com/meduketto/iksemel-rust"
 version = "0.5.0"
 
 [dependencies]
-rustls = "0.23.34"
+rustls = "0.23.35"
 webpki-roots = "1.0.4"
 base64 = "0.22.1"
 rpassword = "7.4.0"
