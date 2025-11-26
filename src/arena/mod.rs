@@ -11,7 +11,6 @@
 mod error;
 
 use std::alloc::{Layout, alloc, dealloc};
-use std::cell::UnsafeCell;
 use std::cmp;
 use std::fmt::Debug;
 use std::fmt::Display;
@@ -130,7 +129,7 @@ impl Display for ArenaStats {
 ///
 #[repr(transparent)]
 pub struct Arena {
-    head_ptr: UnsafeCell<*mut Head>,
+    head_ptr: *mut Head,
 }
 
 struct Head {
@@ -382,23 +381,23 @@ impl Arena {
         // Necessary to align the whole block to pointer/usize alignment
         let head_layout = head_layout.pad_to_align();
 
-        let head;
+        let head_ptr;
         unsafe {
             let ptr = alloc(head_layout);
             if ptr.is_null() {
                 return Err(NoMemory);
             }
             test_allocated_add(head_layout.size());
-            head = ptr as *mut Head;
-            (*head).alloc_layout = head_layout;
+            head_ptr = ptr as *mut Head;
+            (*head_ptr).alloc_layout = head_layout;
 
             let struct_ptr = ptr.byte_add(struct_offset);
             let struct_chunk = struct_ptr as *mut Chunk;
-            (*head).struct_chunk = struct_chunk;
+            (*head_ptr).struct_chunk = struct_chunk;
 
             let cdata_ptr = ptr.byte_add(cdata_offset);
             let cdata_chunk = cdata_ptr as *mut Chunk;
-            (*head).cdata_chunk = cdata_chunk;
+            (*head_ptr).cdata_chunk = cdata_chunk;
 
             let struct_buf_ptr = ptr.byte_add(struct_buf_offset);
             (*struct_chunk).raw_init(struct_buf_ptr, struct_buf_layout.size(), head_layout);
@@ -407,9 +406,7 @@ impl Arena {
             (*cdata_chunk).raw_init(cdata_buf_ptr, cdata_buf_layout.size(), head_layout);
         }
 
-        Ok(Arena {
-            head_ptr: head.into(),
-        })
+        Ok(Arena { head_ptr })
     }
 
     /// Allocate memory for a struct in the arena.
@@ -522,7 +519,7 @@ impl Arena {
     /// ```
     pub fn alloc_struct<T>(&self) -> Result<NonNull<T>, NoMemory> {
         unsafe {
-            let head = &mut **self.head_ptr.get();
+            let head = &mut *self.head_ptr;
             let layout = Layout::new::<T>();
             let ptr = (*head.struct_chunk).make_aligned_space(layout)?;
             Ok(NonNull::new_unchecked(ptr.as_ptr() as *mut T))
@@ -548,7 +545,7 @@ impl Arena {
     pub fn push_str<'a>(&'a self, s: &str) -> Result<&'a str, NoMemory> {
         let size = s.len();
         unsafe {
-            let head = &mut **self.head_ptr.get();
+            let head = &mut *self.head_ptr;
             let ptr = (*head.cdata_chunk).make_space(size)?.as_ptr();
             std::ptr::copy_nonoverlapping(s.as_ptr(), ptr, size);
             let slice = std::slice::from_raw_parts(ptr, size);
@@ -585,7 +582,7 @@ impl Arena {
     /// ```
     pub fn concat_str<'a>(&'a self, old_s: &str, s: &str) -> Result<&'a str, NoMemory> {
         unsafe {
-            let head = &mut **self.head_ptr.get();
+            let head = &mut *self.head_ptr;
             let data_chunk = head.cdata_chunk;
             let slice;
             if let Some(chunk) =
@@ -622,7 +619,7 @@ impl Arena {
             used_bytes: 0,
         };
         unsafe {
-            let head = &mut **self.head_ptr.get();
+            let head = &mut *self.head_ptr;
             stats.allocated_bytes += head.alloc_layout.size();
             stats.used_bytes += (*head.struct_chunk).used;
             stats.used_bytes += (*head.cdata_chunk).used;
@@ -676,9 +673,9 @@ impl Arena {
     /// # }
     /// ```
     ///
-    pub fn into_empty_arena(mut self) -> Arena {
+    pub fn into_empty_arena(self) -> Arena {
         unsafe {
-            let head = &mut **self.head_ptr.get_mut();
+            let head = &mut *self.head_ptr;
             for chunk in (*head).struct_chunks() {
                 (*chunk).clear();
             }
@@ -693,7 +690,7 @@ impl Arena {
 impl Drop for Arena {
     fn drop(&mut self) {
         unsafe {
-            let head = &mut **self.head_ptr.get_mut();
+            let head = &mut *self.head_ptr;
             for chunk in (*head).extra_struct_chunks() {
                 test_allocated_sub((*chunk).alloc_layout.size());
                 let layout = (*chunk).alloc_layout;
@@ -706,7 +703,7 @@ impl Drop for Arena {
             }
             test_allocated_sub(head.alloc_layout.size());
             let layout = head.alloc_layout;
-            dealloc(*self.head_ptr.get_mut() as *mut u8, layout);
+            dealloc(self.head_ptr as *mut u8, layout);
         }
     }
 }
@@ -720,7 +717,7 @@ impl Display for Arena {
 impl Debug for Arena {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         unsafe {
-            let head = &mut **self.head_ptr.get();
+            let head = &mut *self.head_ptr;
             write!(f, "Arena (head[alloc: {}]", head.alloc_layout.size())?;
             for chunk in (*head).struct_chunks() {
                 write!(

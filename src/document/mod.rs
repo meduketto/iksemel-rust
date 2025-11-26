@@ -15,7 +15,6 @@ mod parser;
 mod sync_cursor;
 mod sync_iterators;
 
-use std::cell::UnsafeCell;
 use std::fmt::Debug;
 use std::marker::PhantomPinned;
 use std::marker::Send;
@@ -277,7 +276,7 @@ impl Visitor {
 ///
 pub struct Document {
     arena: Arena,
-    root_node: UnsafeCell<*mut Node>,
+    root_node: *mut Node,
 }
 
 impl Document {
@@ -289,7 +288,7 @@ impl Document {
 
         Ok(Document {
             arena,
-            root_node: node.into(),
+            root_node: node,
         })
     }
 
@@ -308,16 +307,13 @@ impl Document {
 
         Ok(Document {
             arena,
-            root_node: node.into(),
+            root_node: node,
         })
     }
 
     /// Returns a cursor to the root element of the document.
     pub fn root<'a>(&'a self) -> Cursor<'a> {
-        unsafe {
-            let node = *self.root_node.get();
-            Cursor::new(node, &self.arena)
-        }
+        Cursor::new(self.root_node, &self.arena)
     }
 
     pub fn arena_stats(&self) -> ArenaStats {
@@ -387,10 +383,8 @@ macro_rules! null_cursor {
 
 macro_rules! null_cursor_guard {
     ($x:expr) => {
-        unsafe {
-            if (*$x.node.get()).is_null() {
-                return null_cursor!($x);
-            }
+        if ($x.node).is_null() {
+            return null_cursor!($x);
         }
     };
 }
@@ -407,28 +401,25 @@ macro_rules! cursor_edit_guards {
 
 /// Reference to an element in a document.
 pub struct Cursor<'a> {
-    node: UnsafeCell<*mut Node>,
+    node: *mut Node,
     arena: &'a Arena,
 }
 
 impl<'a> Cursor<'a> {
     fn new(node: *mut Node, arena: &'a Arena) -> Cursor<'a> {
-        Cursor {
-            node: node.into(),
-            arena,
-        }
+        Cursor { node, arena }
     }
 
     fn get_node_ptr(&self) -> *mut Node {
-        unsafe { *self.node.get() }
+        self.node
     }
 
     fn visitor(&self) -> Visitor {
-        unsafe { Visitor::new(*self.node.get()) }
+        Visitor::new(self.node)
     }
 
     fn clear(&mut self) {
-        self.node = null_mut::<Node>().into();
+        self.node = null_mut::<Node>();
     }
 
     //
@@ -800,7 +791,7 @@ impl<'a> Cursor<'a> {
         null_cursor_guard!(self);
 
         unsafe {
-            let node = *self.node.get();
+            let node = self.node;
             Cursor::new((*node).next, self.arena)
         }
     }
@@ -822,7 +813,7 @@ impl<'a> Cursor<'a> {
         null_cursor_guard!(self);
 
         unsafe {
-            let node = *self.node.get();
+            let node = self.node;
             Cursor::new((*node).previous, self.arena)
         }
     }
@@ -844,7 +835,7 @@ impl<'a> Cursor<'a> {
         null_cursor_guard!(self);
 
         unsafe {
-            let node = *self.node.get();
+            let node = self.node;
             Cursor::new((*node).parent, self.arena)
         }
     }
@@ -867,7 +858,7 @@ impl<'a> Cursor<'a> {
         null_cursor_guard!(self);
 
         unsafe {
-            let node = *self.node.get();
+            let node = self.node;
             match (*node).payload {
                 NodePayload::CData(_) => {
                     null_cursor!(self)
@@ -881,7 +872,7 @@ impl<'a> Cursor<'a> {
         null_cursor_guard!(self);
 
         unsafe {
-            let node = *self.node.get();
+            let node = self.node;
             match (*node).payload {
                 NodePayload::CData(_) => {
                     null_cursor!(self)
@@ -948,15 +939,12 @@ impl<'a> Cursor<'a> {
     //
 
     pub fn is_null(&self) -> bool {
-        unsafe {
-            let node = *self.node.get();
-            node.is_null()
-        }
+        self.node.is_null()
     }
 
     pub fn is_tag(&self) -> bool {
         unsafe {
-            let node = *self.node.get();
+            let node = self.node;
             if node.is_null() {
                 return false;
             }
@@ -969,7 +957,7 @@ impl<'a> Cursor<'a> {
 
     pub fn name(&self) -> &str {
         unsafe {
-            let node = *self.node.get();
+            let node = self.node;
             if node.is_null() {
                 return "";
             }
@@ -1005,7 +993,7 @@ impl<'a> Cursor<'a> {
 
     pub fn cdata(&self) -> &str {
         unsafe {
-            let node = *self.node.get();
+            let node = self.node;
             if node.is_null() {
                 return "";
             }
@@ -1020,10 +1008,8 @@ impl<'a> Cursor<'a> {
     }
 
     pub fn str_size(&self) -> usize {
-        unsafe {
-            if (*self.node.get()).is_null() {
-                return 0;
-            }
+        if self.node.is_null() {
+            return 0;
         }
 
         let mut size = 0;
@@ -1120,7 +1106,7 @@ impl<'a> Cursor<'a> {
 impl Clone for Cursor<'_> {
     fn clone(&self) -> Self {
         Cursor {
-            node: self.get_node_ptr().into(),
+            node: self.get_node_ptr(),
             arena: self.arena,
         }
     }
@@ -1134,10 +1120,8 @@ impl Debug for Cursor<'_> {
 
 impl<'a> std::fmt::Display for Cursor<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        unsafe {
-            if (*self.node.get()).is_null() {
-                return Result::Ok(());
-            }
+        if self.node.is_null() {
+            return Result::Ok(());
         }
 
         let mut visitor = self.visitor();
