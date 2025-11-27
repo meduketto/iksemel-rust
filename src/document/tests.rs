@@ -150,6 +150,28 @@ fn navigation() {
 }
 
 #[test]
+fn properties() {
+    let doc = Document::from_str("<doc><a></a><b/><c>lala</c></doc>").unwrap();
+    let a = doc.find_tag("a");
+    assert_eq!(a.has_children(), false);
+    assert_eq!(a.name(), "a");
+    assert_eq!(a.is_tag(), true);
+    assert_eq!(a.is_null(), false);
+
+    let b = doc.find_tag("b");
+    assert_eq!(b.has_children(), false);
+
+    let c = doc.find_tag("c");
+    assert_eq!(c.has_children(), true);
+
+    let cc = c.first_child();
+    assert_eq!(cc.has_children(), false);
+    assert_eq!(cc.cdata(), "lala");
+    assert_eq!(cc.is_tag(), false);
+    assert_eq!(cc.is_null(), false);
+}
+
+#[test]
 fn doc_parser() {
     let doc = Document::from_str("<a><b>123<c/>456</b><d x='1' y='2'>lala</d></a>");
     println!("{}", doc.unwrap());
@@ -251,6 +273,7 @@ fn null_checks() {
     // property
     assert_eq!(doc.root().next().is_null(), true);
     assert_eq!(doc.root().next().is_tag(), false);
+    assert_eq!(doc.root().next().has_children(), false);
     assert_eq!(doc.root().next().name(), "");
     assert_eq!(doc.root().next().attribute("lala"), None);
     assert_eq!(doc.root().next().cdata(), "");
@@ -283,7 +306,25 @@ fn null_checks() {
     assert!(doc.root().next().insert_cdata("k").is_err());
     assert!(doc.root().next().append_cdata("k").is_err());
     assert!(doc.root().next().prepend_cdata("k").is_err());
+    assert!(doc.root().next().to_document().is_err());
+    assert!(doc.root().next().insert_document(doc.root()).is_err());
+    assert!(doc.root().insert_document(doc.root().next()).is_err());
     doc.root().next().remove();
+}
+
+#[test]
+fn cursor_tofrom_doc() {
+    let doc = Document::from_str("<a>456<b><e></e><f/>&amp;<d/>abc<d2 t=\"1\"></d2></b><c/></a>")
+        .unwrap();
+    let doc2 = doc.find_tag("b").to_document().unwrap();
+    assert_eq!(doc2.to_string(), "<b><e/><f/>&amp;<d/>abc<d2 t=\"1\"/></b>");
+
+    let doc3 = Document::from_str("<a>xxx<h/></a>").unwrap();
+    doc3.find_tag("h").insert_document(doc2.root()).unwrap();
+    assert_eq!(
+        doc3.to_string(),
+        "<a>xxx<h><b><e/><f/>&amp;<d/>abc<d2 t=\"1\"/></b></h></a>"
+    )
 }
 
 #[test]
