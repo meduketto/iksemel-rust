@@ -955,6 +955,19 @@ impl<'a> Cursor<'a> {
         }
     }
 
+    pub fn has_children(&self) -> bool {
+        unsafe {
+            let node = self.node;
+            if node.is_null() {
+                return false;
+            }
+            match (*node).payload {
+                NodePayload::CData(_) => false,
+                NodePayload::Tag(tag) => !(*tag).children.is_null(),
+            }
+        }
+    }
+
     pub fn name(&self) -> &str {
         unsafe {
             let node = self.node;
@@ -1006,6 +1019,10 @@ impl<'a> Cursor<'a> {
             }
         }
     }
+
+    //
+    // Serialization methods
+    //
 
     pub fn str_size(&self) -> usize {
         if self.node.is_null() {
@@ -1100,6 +1117,79 @@ impl<'a> Cursor<'a> {
         }
 
         buf
+    }
+
+    pub fn insert_document<'b>(self, cursor: Cursor<'b>) -> Result<Cursor<'a>, ParseError> {
+        if self.node.is_null() || cursor.is_null() {
+            return Err(ParseError::BadXml(description::NULL_CURSOR_EDIT));
+        }
+
+        let mut visitor = cursor.visitor();
+        let mut current = self.clone();
+        while let Some(step) = visitor.next() {
+            match step {
+                VisitorStep::StartTag(tag) => {
+                    current = current.clone().insert_tag(tag.as_str())?;
+                    let mut attr = tag.attributes;
+                    while !attr.is_null() {
+                        unsafe {
+                            current
+                                .insert_attribute((*attr).name_as_str(), (*attr).value_as_str())?;
+                            attr = (*attr).next;
+                        }
+                    }
+                    if tag.children.is_null() {
+                        current = current.clone().parent();
+                    }
+                }
+                VisitorStep::EndTag(_tag) => {
+                    current = current.clone().parent();
+                }
+                VisitorStep::CData(cdata) => {
+                    current.clone().insert_cdata(cdata.as_str())?;
+                }
+            }
+        }
+
+        Ok(self.clone())
+    }
+
+    pub fn to_document(&self) -> Result<Document, ParseError> {
+        if self.node.is_null() {
+            return Err(ParseError::BadXml(description::NULL_CURSOR_EDIT));
+        }
+        if !self.is_tag() {
+            return Err(ParseError::BadXml(description::CDATA_TO_DOCUMENT));
+        }
+        let doc = Document::with_size_hint(self.name(), self.str_size())?;
+        let mut visitor = self.visitor();
+        let _ = visitor.next(); // Current tag already in the document
+        let mut cursor = doc.root();
+        while let Some(step) = visitor.next() {
+            match step {
+                VisitorStep::StartTag(tag) => {
+                    cursor = cursor.clone().insert_tag(tag.as_str())?;
+                    let mut attr = tag.attributes;
+                    while !attr.is_null() {
+                        unsafe {
+                            cursor
+                                .insert_attribute((*attr).name_as_str(), (*attr).value_as_str())?;
+                            attr = (*attr).next;
+                        }
+                    }
+                    if tag.children.is_null() {
+                        cursor = cursor.clone().parent();
+                    }
+                }
+                VisitorStep::EndTag(_tag) => {
+                    cursor = cursor.clone().parent();
+                }
+                VisitorStep::CData(cdata) => {
+                    cursor.clone().insert_cdata(cdata.as_str())?;
+                }
+            }
+        }
+        Ok(doc)
     }
 }
 

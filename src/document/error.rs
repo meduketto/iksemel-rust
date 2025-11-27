@@ -27,4 +27,6 @@ pub(super) mod description {
         "child elements cannot be added on CDATA elements";
     pub(in super::super) const NULL_CURSOR_EDIT: &str = "null cursor cannot edit the document";
     pub(in super::super) const ROOT_SIBLING: &str = "root element cannot have siblings";
+    pub(in super::super) const CDATA_TO_DOCUMENT: &str =
+        "cannot make a document out of a CDATA element";
 }
