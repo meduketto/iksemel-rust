@@ -10,6 +10,7 @@
 
 use std::io::Read;
 use std::io::Write;
+use std::net::SocketAddr;
 use std::net::TcpStream;
 use std::net::ToSocketAddrs;
 use std::sync::Arc;
@@ -24,6 +25,29 @@ use crate::XMPP_CLIENT_PORT;
 use crate::XmppClientError;
 use crate::XmppClientProtocol;
 use crate::xmpp::protocol::XmppClientProtocolEvent;
+
+pub(super) fn need_port(host: &str) -> bool {
+    // Rust resolver does require a port number but does NOT provide
+    // a way to provide a default one :(
+    let column_pos = host.rfind(':');
+    let bracket_pos = host.find(']');
+    match (column_pos, bracket_pos) {
+        (None, None) | (None, Some(_)) => true,
+        (Some(_), None) => false,
+        (Some(column), Some(bracket)) => column < bracket,
+    }
+}
+
+fn resolve_host_with_default_port(
+    host: &str,
+    default_port: u16,
+) -> std::io::Result<std::vec::IntoIter<SocketAddr>> {
+    if need_port(host) {
+        (host, default_port).to_socket_addrs()
+    } else {
+        host.to_socket_addrs()
+    }
+}
 
 pub struct XmppClientBuilder {
     jid: Jid,
@@ -64,20 +88,7 @@ impl XmppClientBuilder {
             Some(server) => server,
             None => self.jid.domainpart(),
         };
-        // Rust resolver does require a port number but does NOT provide
-        // a way to provide a default one :(
-        let column_pos = host.find(':');
-        let bracket_pos = host.find(']');
-        let need_port = match (column_pos, bracket_pos) {
-            (None, None) | (None, Some(_)) => true,
-            (Some(_), None) => false,
-            (Some(column), Some(bracket)) => column < bracket,
-        };
-        let result = if need_port {
-            (host, XMPP_CLIENT_PORT).to_socket_addrs()
-        } else {
-            host.to_socket_addrs()
-        }?;
+        let result = resolve_host_with_default_port(host, XMPP_CLIENT_PORT)?;
         for addr in result {
             if self.debug {
                 println!("Connecting to: {addr:?}");

@@ -7,3 +7,13 @@
 ** published by the Free Software Foundation, either version 3 of
 ** the License, or (at your option) any later version.
 */
+
+use super::client::need_port;
+
+#[test]
+fn host_port_checking() {
+    assert!(need_port("example.com"));
+    assert!(!need_port("example.com:5222"));
+    assert!(need_port("[::1]"));
+    assert!(!need_port("[::1]:5222"));
+}
