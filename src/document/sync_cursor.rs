@@ -226,6 +226,38 @@ impl SyncCursor {
         self
     }
 
+    /// Returns the first child tag element with the given attribute.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the mutex is poisoned.
+    ///
+    pub fn find_tag_with_attribute(mut self, attribute_name: &str) -> Self {
+        {
+            let document = self.document.lock().unwrap();
+            let next =
+                Cursor::new(self.node, &document.arena).find_tag_with_attribute(attribute_name);
+            self.node = next.get_node_ptr();
+        }
+        self
+    }
+
+    /// Returns the first child tag element with the given attribute.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the mutex is poisoned.
+    ///
+    pub fn find_tag_with_attribute_value(mut self, attribute_name: &str, value: &str) -> Self {
+        {
+            let document = self.document.lock().unwrap();
+            let next = Cursor::new(self.node, &document.arena)
+                .find_tag_with_attribute_value(attribute_name, value);
+            self.node = next.get_node_ptr();
+        }
+        self
+    }
+
     //
     // Properties
     //
@@ -244,6 +276,17 @@ impl SyncCursor {
                 NodePayload::Tag(_) => true,
             }
         }
+    }
+
+    /// Returns true if the node has children.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the mutex is poisoned.
+    ///
+    pub fn has_children(&self) -> bool {
+        let document = self.document.lock().unwrap();
+        Cursor::new(self.node, &document.arena).has_children()
     }
 
     pub fn name(&self) -> &str {
@@ -305,6 +348,35 @@ impl SyncCursor {
                 }
             }
         }
+    }
+
+    /// Returns the currently pointer subdocument as a new Document.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the mutex is poisoned.
+    ///
+    pub fn to_document(&self) -> Result<Self, ParseError> {
+        let document = self.document.lock().unwrap();
+        let new_document = Cursor::new(self.node, &document.arena).to_document()?;
+        Ok(SyncCursor::new(new_document))
+    }
+
+    /// Inserts the given document into this document.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the mutex is poisoned.
+    ///
+    pub fn insert_document(mut self, document: &Self) -> Result<Self, ParseError> {
+        {
+            let self_document = self.document.lock().unwrap();
+            let other_document = document.document.lock().unwrap();
+            let new_document = Cursor::new(self.node, &self_document.arena)
+                .insert_document(Cursor::new(document.node, &other_document.arena))?;
+            self.node = new_document.node;
+        }
+        Ok(self)
     }
 
     /// Returns the length of the XML string representation.
