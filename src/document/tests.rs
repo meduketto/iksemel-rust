@@ -101,6 +101,15 @@ fn attributes() {
     check_doc_xml(&doc, "<doc><a j=\"2\"/><b i=\"2\"/></doc>");
     let _ = doc.find_tag("a").set_attribute("j", None);
     check_doc_xml(&doc, "<doc><a/><b i=\"2\"/></doc>");
+
+    let tag = doc.find_tag("b");
+    tag.set_attribute("j", Some("3")).unwrap();
+    tag.set_attribute("k", Some("4")).unwrap();
+    check_doc_xml(&doc, "<doc><a/><b i=\"2\" j=\"3\" k=\"4\"/></doc>");
+    tag.set_attribute("k", None).unwrap();
+    check_doc_xml(&doc, "<doc><a/><b i=\"2\" j=\"3\"/></doc>");
+    tag.set_attribute("k", Some("b")).unwrap();
+    check_doc_xml(&doc, "<doc><a/><b i=\"2\" j=\"3\" k=\"b\"/></doc>");
 }
 
 #[test]
@@ -173,9 +182,9 @@ fn properties() {
 
 #[test]
 fn doc_parser() {
-    let doc = Document::from_str("<a><b>123<c/>456</b><d x='1' y='2'>lala</d></a>");
-    println!("{}", doc.unwrap());
-    // FIXME:
+    let doc = Document::from_str("<a><b>123<c/>456</b><d x='1' y='2'>lala</d></a>").unwrap();
+    check_doc_xml(&doc, "<a><b>123<c/>456</b><d x=\"1\" y=\"2\">lala</d></a>");
+    assert_eq!(doc.str_size(), doc.root().str_size());
 }
 
 #[test]
@@ -264,6 +273,25 @@ fn iterators() {
     assert_eq!(iter.next().unwrap().name(), "b");
     assert_eq!(iter.next().unwrap().cdata(), "lala");
     assert!(iter.next().is_none());
+}
+
+#[test]
+fn cdata_merges() {
+    let doc = Document::new("m").unwrap();
+
+    let _ = doc.insert_cdata("hello").unwrap();
+    let bytes = doc.arena_stats().used_bytes;
+    let c = doc.insert_cdata(" world").unwrap();
+    let bytes2 = doc.arena_stats().used_bytes;
+    assert_eq!(doc.to_string(), "<m>hello world</m>");
+    // string is extended without extra space
+    assert_eq!(bytes2, bytes + 6);
+
+    let _ = c.append_cdata("!");
+    assert_eq!(doc.to_string(), "<m>hello world!</m>");
+    let bytes3 = doc.arena_stats().used_bytes;
+    // string is extended without extra space
+    assert_eq!(bytes3, bytes2 + 1);
 }
 
 #[test]
@@ -380,4 +408,19 @@ fn sync_cursor_multi() {
         cursor.to_string(),
         "<a><e><f/></e><e><f/></e><e><f/></e><e><f/></e><e><f/></e><e><f/></e><e><f/></e><e><f/></e><e><f/></e><e><f/></e></a>"
     );
+}
+
+#[test]
+fn prints() {
+    let doc = Document::new("lala").unwrap();
+    let s1 = format!("{:?}", doc);
+    assert!(s1.len() > 0);
+    let s2 = format!("{}", doc);
+    assert!(s2.len() > 0);
+
+    let c = doc.insert_tag("x").unwrap();
+    let s3 = format!("{:?}", c);
+    assert!(s3.len() > 0);
+    let s4 = format!("{}", c);
+    assert!(s4.len() > 0);
 }

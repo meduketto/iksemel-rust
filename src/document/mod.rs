@@ -357,6 +357,12 @@ impl Document {
     }
 }
 
+impl Debug for Document {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Document ({:?})", self.arena_stats())
+    }
+}
+
 impl std::fmt::Display for Document {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         std::fmt::Display::fmt(&self.root(), f)
@@ -675,6 +681,15 @@ impl<'a> Cursor<'a> {
         unsafe {
             if (*node).parent.is_null() {
                 return Err(ParseError::BadXml(description::ROOT_SIBLING));
+            }
+
+            if let NodePayload::CData(old_cdata) = (*node).payload {
+                let old_s = (*old_cdata).as_str();
+                let s = self.arena.concat_str(old_s, cdata)?;
+                (*old_cdata).value = s.as_ptr();
+                (*old_cdata).value_size = s.len();
+
+                return Ok(Cursor::new(node, self.arena));
             }
 
             let new_cdata = self.arena.alloc_cdata(cdata)?.as_ptr();
