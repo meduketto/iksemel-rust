@@ -136,8 +136,6 @@ struct Head {
     struct_chunk: *mut Chunk,
     cdata_chunk: *mut Chunk,
     alloc_layout: Layout,
-
-    // Arena has a raw pointer to this struct
     _pin: PhantomPinned,
 }
 
@@ -192,8 +190,6 @@ struct Chunk {
     last: *mut u8,
     mem: *mut u8,
     alloc_layout: Layout,
-
-    // Head and previous Chunk have raw pointers to this struct
     _pin: PhantomPinned,
 }
 
