@@ -209,10 +209,10 @@ impl Chunk {
     }
 
     fn add_chunk(self: &mut Chunk, size: usize) -> Result<NonNull<Chunk>, NoMemory> {
-        let data_layout = Layout::array::<u8>(size).unwrap();
+        let data_layout = Layout::array::<u8>(size)?;
 
         let chunk_layout = Layout::new::<Chunk>();
-        let (chunk_layout, data_offset) = chunk_layout.extend(data_layout).unwrap();
+        let (chunk_layout, data_offset) = chunk_layout.extend(data_layout)?;
         let chunk_layout = chunk_layout.pad_to_align();
 
         unsafe {
@@ -255,7 +255,7 @@ impl Chunk {
                 current = next;
             }
 
-            let used_layout = Layout::from_size_align((*current).used, layout.align()).unwrap();
+            let used_layout = Layout::from_size_align((*current).used, layout.align())?;
             let used_layout = used_layout.pad_to_align();
             let offset = used_layout.size() - (*current).used;
             let ptr = (*current).mem.byte_add((*current).used + offset);
@@ -356,24 +356,20 @@ impl Arena {
     /// # }
     /// ```
     ///
-    #[allow(
-        clippy::missing_panics_doc,
-        reason = "None of these Layout unwraps can fail"
-    )]
     pub fn with_chunk_sizes(struct_words: usize, cdata_bytes: usize) -> Result<Arena, NoMemory> {
         // First node chunk should have capacity for this many pointer words.
         let struct_words = cmp::max(struct_words, MIN_STRUCT_WORDS);
-        let struct_buf_layout = Layout::array::<*const usize>(struct_words).unwrap();
+        let struct_buf_layout = Layout::array::<*const usize>(struct_words)?;
 
         // First data chunk should have capacity for this many bytes.
         let cdata_bytes = cmp::max(cdata_bytes, MIN_CDATA_BYTES);
-        let cdata_buf_layout = Layout::array::<u8>(cdata_bytes).unwrap();
+        let cdata_buf_layout = Layout::array::<u8>(cdata_bytes)?;
 
         let head_layout = Layout::new::<Head>();
-        let (head_layout, struct_offset) = head_layout.extend(Layout::new::<Chunk>()).unwrap();
-        let (head_layout, cdata_offset) = head_layout.extend(Layout::new::<Chunk>()).unwrap();
-        let (head_layout, struct_buf_offset) = head_layout.extend(struct_buf_layout).unwrap();
-        let (head_layout, cdata_buf_offset) = head_layout.extend(cdata_buf_layout).unwrap();
+        let (head_layout, struct_offset) = head_layout.extend(Layout::new::<Chunk>())?;
+        let (head_layout, cdata_offset) = head_layout.extend(Layout::new::<Chunk>())?;
+        let (head_layout, struct_buf_offset) = head_layout.extend(struct_buf_layout)?;
+        let (head_layout, cdata_buf_offset) = head_layout.extend(cdata_buf_layout)?;
         // Necessary to align the whole block to pointer/usize alignment
         let head_layout = head_layout.pad_to_align();
 
