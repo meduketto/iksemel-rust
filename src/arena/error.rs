@@ -8,6 +8,7 @@
 ** the License, or (at your option) any later version.
 */
 
+use std::alloc::LayoutError;
 use std::error::Error;
 use std::fmt::Display;
 
@@ -35,3 +36,9 @@ impl Display for NoMemory {
 }
 
 impl Error for NoMemory {}
+
+impl From<LayoutError> for NoMemory {
+    fn from(_: LayoutError) -> Self {
+        NoMemory
+    }
+}
