@@ -937,7 +937,7 @@ impl<'a> Cursor<'a> {
     pub fn find_tag_with_attribute(self, attribute_name: &str) -> Cursor<'a> {
         let mut child = self.first_child();
         while !child.is_null() {
-            if let Some(_) = child.attribute(attribute_name) {
+            if child.attribute(attribute_name).is_some() {
                 break;
             }
             child = child.next();
@@ -948,10 +948,10 @@ impl<'a> Cursor<'a> {
     pub fn find_tag_with_attribute_value(self, attribute_name: &str, value: &str) -> Cursor<'a> {
         let mut child = self.first_child();
         while !child.is_null() {
-            if let Some(actual_value) = child.attribute(attribute_name) {
-                if actual_value == value {
-                    break;
-                }
+            if let Some(actual_value) = child.attribute(attribute_name)
+                && actual_value == value
+            {
+                break;
             }
             child = child.next();
         }
