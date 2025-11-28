@@ -113,6 +113,19 @@ fn attributes() {
 }
 
 #[test]
+fn attribute_finds() {
+    let doc = Document::from_str("<t><a/><b x='1'/><c y='1'/><d/><e x='2'/></t>").unwrap();
+
+    assert!(doc.find_tag_with_attribute("z").is_null());
+    assert!(doc.find_tag_with_attribute_value("x", "3").is_null());
+    assert_eq!(doc.find_tag_with_attribute("y").to_string(), "<c y=\"1\"/>");
+    assert_eq!(
+        doc.find_tag_with_attribute_value("x", "2").to_string(),
+        "<e x=\"2\"/>"
+    );
+}
+
+#[test]
 fn navigation() {
     let doc = Document::from_str("<a><b>123<c/>456</b>.,;<d/> <e x='1' y='2'> lala<f/></e>789</a>")
         .unwrap();

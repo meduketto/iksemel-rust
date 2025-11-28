@@ -1,6 +1,7 @@
 # 0.5.0 (TBD)
 
-* New Cursor methods: has_children(), to_document(), insert_document()
+* New Cursor methods: has_children(), to_document(), insert_document(),
+  find_tag_with_attribute(), find_tag_with_attribute_value().
 
 # 0.4.0 (2025-11-02)
 

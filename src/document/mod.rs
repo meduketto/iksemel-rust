@@ -344,6 +344,19 @@ impl Document {
         self.root().find_tag(name)
     }
 
+    pub fn find_tag_with_attribute<'a>(&'a self, attribute_name: &str) -> Cursor<'a> {
+        self.root().find_tag_with_attribute(attribute_name)
+    }
+
+    pub fn find_tag_with_attribute_value<'a>(
+        &'a self,
+        attribute_name: &str,
+        value: &str,
+    ) -> Cursor<'a> {
+        self.root()
+            .find_tag_with_attribute_value(attribute_name, value)
+    }
+
     pub fn str_size(&self) -> usize {
         self.root().str_size()
     }
@@ -914,6 +927,30 @@ impl<'a> Cursor<'a> {
         let mut child = self.first_child();
         while !child.is_null() {
             if child.name() == name {
+                break;
+            }
+            child = child.next();
+        }
+        child
+    }
+
+    pub fn find_tag_with_attribute(self, attribute_name: &str) -> Cursor<'a> {
+        let mut child = self.first_child();
+        while !child.is_null() {
+            if child.attribute(attribute_name).is_some() {
+                break;
+            }
+            child = child.next();
+        }
+        child
+    }
+
+    pub fn find_tag_with_attribute_value(self, attribute_name: &str, value: &str) -> Cursor<'a> {
+        let mut child = self.first_child();
+        while !child.is_null() {
+            if let Some(actual_value) = child.attribute(attribute_name)
+                && actual_value == value
+            {
                 break;
             }
             child = child.next();
