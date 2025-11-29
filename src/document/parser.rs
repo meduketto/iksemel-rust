@@ -17,12 +17,48 @@ use super::Document;
 use super::DocumentBuilder;
 use super::error::description;
 
+/// A DOM (Document Object Model) parser.
+///
+/// This parser uses a SAX parser to parse XML input text,
+/// and builds a document tree. Such a tree can be used to
+/// run queries or make manipulations on the content.
+///
+/// # Examples
+///
+/// ```
+/// use iks::{DocumentParser, ParseError};
+/// # fn main() -> Result<(), ParseError> {
+///
+/// let xml_text = "<a><b>abc</b></a>";
+///
+/// let mut parser = DocumentParser::new();
+/// parser.parse_bytes(xml_text.as_bytes())?;
+/// let document = parser.into_document()?;
+///
+/// assert_eq!(document.find_tag("b").first_child().cdata(), "abc");
+/// # Ok(())
+/// # }
+/// ```
+///
+/// You can also use the `From` trait if you want to parse
+/// a complete XML text inside a slice.
+/// ```
+/// # use iks::ParseError;
+/// use std::str::FromStr;
+/// use iks::Document;
+/// # fn main() -> Result<(), ParseError> {
+/// let document = Document::from_str("<a><b>abc</b></a>")?;
+/// # Ok(())
+/// # }
+/// ```
+///
 pub struct DocumentParser {
     builder: DocumentBuilder,
     parser: SaxParser,
 }
 
 impl DocumentParser {
+    /// Creates a new `DocumentParser`.
     pub fn new() -> DocumentParser {
         DocumentParser {
             builder: DocumentBuilder::new(),
@@ -30,6 +66,12 @@ impl DocumentParser {
         }
     }
 
+    /// Creates a new `DocumentParser` optimized for the given XML text size.
+    ///
+    /// The size hint is the approximate number of bytes in the
+    /// XML text which is going to be parsed. This number is used
+    /// to finetune the backing memory arena for the document
+    /// structures, so a fewer allocations are made.
     pub fn with_size_hint(size_hint: usize) -> DocumentParser {
         DocumentParser {
             builder: DocumentBuilder::with_size_hint(size_hint),
