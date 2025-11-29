@@ -70,8 +70,11 @@ pub(self) fn test_allocated() -> usize {
 /// allocations as few as possible with the minimal waste.
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub struct ArenaStats {
+    /// The number of chunks allocated from the system allocator.
     pub chunks: u32,
+    /// The total number of bytes allocated from the system allocator.
     pub allocated_bytes: usize,
+    /// The total number of bytes used by the content and control structures.
     pub used_bytes: usize,
 }
 
