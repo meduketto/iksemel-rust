@@ -291,11 +291,21 @@ impl SyncCursor {
 
     pub fn name(&self) -> &str {
         unsafe {
-            // SAFETY: Arc guarantees the node memory is not dropped.
-            // Since the edits can only unlink a node, and can never change
-            // the tag name of the node, it is safe to access without
-            // locking the mutex. Leaked reference is also pointing
-            // to an immutable memory as long as self is alive.
+            // SAFETY:
+            // Invariants:
+            // 1. Returned reference must not outlive the pointed memory.
+            // 2. Pointed string must be valid UTF-8.
+            // 3. Pointed string must not change while the reference is alive.
+            // 4. Dereferenced members must be immutable as there is no lock taken.
+            // Guards:
+            // a. Elided lifetime ensures the liveness of self while reference is alive.
+            // b. While self is alive, Arc keeps a reference count on the backing Arena (1).
+            // c. Document constructors ensure UTF-8 validity (2):
+            // c.1. SaxParser validates input bytes.
+            // c.2. Edit methods only accept &str.
+            // d. Arena strings are immutable, never moved or changed until Arena is dropped (3).
+            // e. Only the link members of a tag node are mutated after the construction,
+            // and they are not accessed here.
             if self.node.is_null() {
                 return "";
             }
@@ -335,7 +345,14 @@ impl SyncCursor {
         None
     }
 
+    /// Returns the character data of the current element.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the mutex is poisoned.
+    ///
     pub fn cdata(&self) -> &str {
+        let _document = self.document.lock().unwrap();
         unsafe {
             if self.node.is_null() {
                 return "";

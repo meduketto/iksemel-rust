@@ -61,6 +61,7 @@ pub enum SaxElement<'a> {
     CData(&'a str),
 }
 
+/// An iterator over the elements of an XML text.
 pub struct SaxElements<'a> {
     parser: &'a mut SaxParser,
     bytes: &'a [u8],
@@ -68,6 +69,10 @@ pub struct SaxElements<'a> {
 }
 
 impl<'a> SaxElements<'a> {
+    /// Constructs an iterator with a parser over the elements of an XML text.
+    ///
+    /// While this method is publicly provided, it is more convenient
+    /// to use the [elements](SaxParser::elements) method of the parser.
     pub fn new(parser: &'a mut SaxParser, bytes: &'a [u8]) -> Self {
         SaxElements {
             parser,
@@ -76,6 +81,7 @@ impl<'a> SaxElements<'a> {
         }
     }
 
+    /// Returns the next element parsed from the XML text.
     #[allow(
         clippy::should_implement_trait,
         reason = "Iterator trait does not support lending iterator pattern"
@@ -384,6 +390,7 @@ impl SaxParser {
         Ok(())
     }
 
+    /// Returns an iterator over the elements parsed from the XML text.
     pub fn elements<'a>(&'a mut self, bytes: &'a [u8]) -> SaxElements<'a> {
         SaxElements::new(self, bytes)
     }
@@ -1078,6 +1085,10 @@ impl SaxParser {
         Ok(None)
     }
 
+    /// Returns the current location of the parser.
+    ///
+    /// This always points to the immediate position where a
+    /// complete element is parsed or an error is detected.
     pub fn location(&self) -> Location {
         self.location
     }

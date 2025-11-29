@@ -15,10 +15,17 @@ use std::fmt::Display;
 /// This struct is returned from the
 /// [location()](crate::SaxParser::location) method and gives you
 /// the position of the last parsed byte in the input stream.
+///
+/// It is useful when printing error messages or if you want to
+/// track location of parsed elements in the XML text.
+///
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct Location {
+    /// Byte position in the input stream.
     pub bytes: usize,
+    /// How many lines have been parsed. Lines are separated by the newline character.
     pub lines: usize,
+    /// How many bytes after the last newline character.
     pub column: usize,
 }
 
