@@ -11,6 +11,7 @@
 use std::error::Error;
 use std::fmt::Display;
 
+/// An error indicating that a Jabber ID is invalid.
 #[derive(Debug, Eq, PartialEq, Copy, Clone)]
 pub struct BadJid(pub &'static str);
 

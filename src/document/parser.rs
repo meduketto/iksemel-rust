@@ -79,6 +79,10 @@ impl DocumentParser {
         }
     }
 
+    /// Parses the given XML bytes.
+    ///
+    /// This method can be called multiple times to parse the entire
+    /// XML text in chunks.
     pub fn parse_bytes(&mut self, bytes: &[u8]) -> Result<(), ParseError> {
         let mut elements = SaxElements::new(&mut self.parser, bytes);
         loop {
@@ -95,6 +99,11 @@ impl DocumentParser {
         Ok(())
     }
 
+    /// Finishes parsing and returns the document tree.
+    ///
+    /// This method applies some final checks like if there is any
+    /// unfinished element or the document does indeed contain a
+    /// root element, so it might return an error.
     pub fn into_document(mut self) -> Result<Document, ParseError> {
         self.parser.parse_finish()?;
         let doc = self.builder.take();
@@ -104,9 +113,19 @@ impl DocumentParser {
         }
     }
 
+    /// Finishes parsing and returns the document tree.
+    ///
+    /// This method applies some final checks like if there is any
+    /// unfinished element or the document does indeed contain a
+    /// root element, so it might return an error.
+    ///
+    /// Unlike [into_document], this does not consume the parser,
+    /// and resets the internal state instead. The parser can be reused
+    /// for parsing another document.
     pub fn take_document(&mut self) -> Result<Document, ParseError> {
         self.parser.parse_finish()?;
         let doc = self.builder.take();
+        self.parser.reset();
         match doc {
             None => Err(ParseError::BadXml(description::NO_DOCUMENT)),
             Some(doc) => Ok(doc),
@@ -117,6 +136,11 @@ impl DocumentParser {
         let _old_doc = self.builder.replace(doc);
     }
 
+    /// Returns the current location of the parser.
+    ///
+    /// This points to the immediate position when an error is returned.
+    /// Otherwise it points to the position after the last [parse_bytes]
+    /// call.
     pub fn location(&self) -> Location {
         self.parser.location()
     }
