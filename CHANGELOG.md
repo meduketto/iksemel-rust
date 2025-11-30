@@ -1,4 +1,4 @@
-# 0.5.0 (TBD)
+# 0.5.0 (2025-11-30)
 
 * New Cursor (and SyncCursor) methods: has_children(), to_document(),
   insert_document(), find_tag_with_attribute(),
