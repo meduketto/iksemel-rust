@@ -81,6 +81,14 @@ impl<'a> JidParts<'a> {
 }
 
 /// The address of an entity in the XMPP protocol.
+///
+/// Each JID has three parts:
+/// - Local part: Optionally identifies a local entity on the domain.
+/// - Domain part: Identifies an XMPP server.
+/// - Resource part: Optionally identifies a service or an object.
+///
+/// More details can be found in [RFC7622](https://datatracker.ietf.org/doc/rfc7622/)
+///
 #[derive(Debug, Clone, Eq)]
 pub struct Jid {
     full: String,
@@ -89,6 +97,7 @@ pub struct Jid {
 }
 
 impl Jid {
+    /// Create a JID from a string.
     pub fn new(jid: &str) -> Result<Self, BadJid> {
         let parts = JidParts::new(jid)?;
 
@@ -104,20 +113,24 @@ impl Jid {
         let mut at_pos = None;
         if let Some(local) = parts.local {
             full.push_str(local);
-            at_pos = Some(unsafe {
-                // SAFETY: We just pushed a part verified to be 1-1023 bytes
-                // in length in the JidParts.
-                NonZero::new_unchecked(full.len() as u16)
-            });
+            at_pos = Some(
+                // SAFETY:
+                // Invariant: full length cannot be zero.
+                // Guard: local part is already pushed and verified to be
+                // at least one character long in JidParts.
+                unsafe { NonZero::new_unchecked(full.len() as u16) },
+            );
             full.push('@');
         }
         full.push_str(parts.domain);
         if let Some(resource) = parts.resource {
-            slash_pos = Some(unsafe {
-                // SAFETY: We pushed parts which must be between 1-2047 bytes
-                // in length, verified by JidParts.
-                NonZero::new_unchecked(full.len() as u16)
-            });
+            slash_pos = Some(
+                // SAFETY:
+                // Invariant: full length cannot be zero.
+                // Guard: domain part is already pushed and verified to be
+                // at least one character long in JidParts.
+                unsafe { NonZero::new_unchecked(full.len() as u16) },
+            );
             full.push('/');
             full.push_str(resource);
         }
@@ -129,10 +142,12 @@ impl Jid {
         })
     }
 
+    /// Full form of the JID with all the components.
     pub fn full(&self) -> &str {
         &self.full
     }
 
+    /// Bare form of the JID without the resource part.
     pub fn bare(&self) -> &str {
         match self.slash_pos {
             Some(pos) => &self.full[..pos.get() as usize],
@@ -140,6 +155,7 @@ impl Jid {
         }
     }
 
+    /// Only the local part of the JID.
     pub fn localpart(&self) -> Option<&str> {
         match self.at_pos {
             Some(pos) => self.full.get(..pos.get() as usize),
@@ -147,6 +163,7 @@ impl Jid {
         }
     }
 
+    /// Only the domain part of the JID.
     pub fn domainpart(&self) -> &str {
         let start = match self.at_pos {
             Some(pos) => pos.get() as usize + 1,
@@ -159,6 +176,7 @@ impl Jid {
         &self.full[start..end]
     }
 
+    /// Only the resource part of the JID.
     pub fn resourcepart(&self) -> Option<&str> {
         match self.slash_pos {
             Some(pos) => self.full.get(pos.get() as usize + 1..),
@@ -166,10 +184,12 @@ impl Jid {
         }
     }
 
+    /// True if the JID does not contain a resource part.
     pub fn is_bare(&self) -> bool {
         self.slash_pos.is_none()
     }
 
+    /// Creates another JID by overriding the resource part.
     pub fn with_resource(self, resource: &str) -> Result<Jid, BadJid> {
         if resource.is_empty() {
             return Err(BadJid(description::RESOURCE_EMPTY));
@@ -188,11 +208,13 @@ impl Jid {
         full.push_str(resource);
         Ok(Jid {
             full,
-            slash_pos: Some(unsafe {
-                // SAFETY: slash_pos cannot be shorter that current full
-                // which was checked to contain at least the non-empty domain
-                NonZero::new_unchecked(slash_pos as u16)
-            }),
+            slash_pos: Some(
+                // SAFETY:
+                // Invariant: slash_pos cannot be null
+                // Guard: A valid JID must have a non-empty domain part
+                // which will always comes before the slash_pos.
+                unsafe { NonZero::new_unchecked(slash_pos as u16) },
+            ),
             at_pos: self.at_pos,
         })
     }

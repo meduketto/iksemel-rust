@@ -290,30 +290,27 @@ impl SyncCursor {
     }
 
     pub fn name(&self) -> &str {
+        if self.node.is_null() {
+            return "";
+        }
+        // SAFETY:
+        // Invariants:
+        // 1. Returned reference must not outlive the pointed memory.
+        // 2. Pointed string must be valid UTF-8.
+        // 3. Pointed string must not change while the reference is alive.
+        // 4. Dereferenced members must be immutable as there is no lock taken.
+        // Guards:
+        // a. Elided lifetime ensures the liveness of self while reference is alive.
+        // b. While self is alive, Arc keeps a reference count on the backing Arena (1).
+        // c. Document constructors ensure UTF-8 validity (2):
+        // c.1. SaxParser validates input bytes.
+        // c.2. Edit methods only accept &str.
+        // d. Arena strings are immutable, never moved or changed until Arena is dropped (3).
+        // e. Only the navigational members of a tag node are mutated after the construction,
+        // and they are not accessed here (4).
         unsafe {
-            // SAFETY:
-            // Invariants:
-            // 1. Returned reference must not outlive the pointed memory.
-            // 2. Pointed string must be valid UTF-8.
-            // 3. Pointed string must not change while the reference is alive.
-            // 4. Dereferenced members must be immutable as there is no lock taken.
-            // Guards:
-            // a. Elided lifetime ensures the liveness of self while reference is alive.
-            // b. While self is alive, Arc keeps a reference count on the backing Arena (1).
-            // c. Document constructors ensure UTF-8 validity (2):
-            // c.1. SaxParser validates input bytes.
-            // c.2. Edit methods only accept &str.
-            // d. Arena strings are immutable, never moved or changed until Arena is dropped (3).
-            // e. Only the link members of a tag node are mutated after the construction,
-            // and they are not accessed here.
-            if self.node.is_null() {
-                return "";
-            }
             match (*self.node).payload {
-                NodePayload::CData(_) => {
-                    // Not a tag
-                    ""
-                }
+                NodePayload::CData(_) => "",
                 NodePayload::Tag(tag) => (*tag).as_str(),
             }
         }
