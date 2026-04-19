@@ -1,3 +1,8 @@
+# 0.6.0 (TBD)
+
+* XPath supports simple predicates for indexes and attribute lookups.
+  E.g. /a/b[3], //a[@id], //*[@class=x]
+
 # 0.5.0 (2025-11-30)
 
 * New Cursor (and SyncCursor) methods: has_children(), to_document(),

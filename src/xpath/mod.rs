@@ -33,9 +33,17 @@ enum Axis {
 }
 
 #[derive(Debug)]
+enum Predicate {
+    Index(usize),
+    HasAttribute { name: String },
+    AttributeIs { name: String, value: String },
+}
+
+#[derive(Debug)]
 struct AxisStep {
     axis: Axis,
     name: String,
+    predicates: Vec<Predicate>,
 }
 
 #[derive(Debug)]
@@ -84,6 +92,7 @@ enum State {
     Axis,
     AxisColumn,
     NodeTest,
+    Predicate,
 }
 
 impl XPath {
@@ -124,6 +133,9 @@ impl XPath {
                         back = pos + 1;
                         axis = Axis::Attribute;
                         state = State::Axis;
+                    } else if c == b'[' {
+                        back = pos + 1;
+                        state = State::Predicate;
                     } else {
                         back = pos;
                         axis = Axis::Child;
@@ -135,6 +147,9 @@ impl XPath {
                         back = pos + 1;
                         axis = Axis::Attribute;
                         state = State::Axis;
+                    } else if c == b'[' {
+                        back = pos + 1;
+                        state = State::Predicate;
                     } else {
                         back = pos;
                         state = State::Axis;
@@ -159,12 +174,18 @@ impl XPath {
                             _ => return Err(BadXPath),
                         };
                         state = State::AxisColumn;
-                    } else if c == b'/' {
+                    } else if c == b'/' || c == b'[' {
                         steps.push(AxisStep {
                             axis,
                             name: String::from_utf8_lossy(&bytes[back..pos]).to_string(),
+                            predicates: Vec::new(),
                         });
-                        state = State::Slash;
+                        if c == b'[' {
+                            back = pos + 1;
+                            state = State::Predicate;
+                        } else {
+                            state = State::Slash;
+                        }
                     }
                 }
                 State::AxisColumn => {
@@ -180,7 +201,42 @@ impl XPath {
                         steps.push(AxisStep {
                             axis,
                             name: String::from_utf8_lossy(&bytes[back..pos]).to_string(),
+                            predicates: Vec::new(),
                         });
+                        state = State::Slash;
+                    }
+                }
+                State::Predicate => {
+                    if c == b']' {
+                        let pred = &bytes[back..pos];
+                        let predicate = if let Some(eq_pos) = pred.iter().position(|&b| b == b'=') {
+                            let name_bytes = &pred[..eq_pos];
+                            let value_bytes = &pred[eq_pos + 1..];
+                            let name_bytes = name_bytes.strip_prefix(b"@").unwrap_or(name_bytes);
+                            let name = String::from_utf8_lossy(name_bytes).to_string();
+                            let value_bytes = if value_bytes.len() >= 2
+                                && ((value_bytes[0] == b'\''
+                                    && value_bytes[value_bytes.len() - 1] == b'\'')
+                                    || (value_bytes[0] == b'"'
+                                        && value_bytes[value_bytes.len() - 1] == b'"'))
+                            {
+                                &value_bytes[1..value_bytes.len() - 1]
+                            } else {
+                                value_bytes
+                            };
+                            let value = String::from_utf8_lossy(value_bytes).to_string();
+                            Some(Predicate::AttributeIs { name, value })
+                        } else if let Some(rest) = pred.strip_prefix(b"@") {
+                            let name = String::from_utf8_lossy(rest).to_string();
+                            Some(Predicate::HasAttribute { name })
+                        } else if let Ok(s) = std::str::from_utf8(pred) {
+                            s.trim().parse::<usize>().ok().map(Predicate::Index)
+                        } else {
+                            None
+                        };
+                        if let (Some(p), Some(last)) = (predicate, steps.last_mut()) {
+                            last.predicates.push(p);
+                        }
                         state = State::Slash;
                     }
                 }
@@ -193,6 +249,7 @@ impl XPath {
             State::Start => {}
             State::Slash => {}
             State::AxisStart => {}
+            State::Predicate => {}
             State::AxisColumn => {
                 return Err(BadXPath);
             }
@@ -200,6 +257,7 @@ impl XPath {
                 steps.push(AxisStep {
                     axis,
                     name: String::from_utf8_lossy(&bytes[back..pos]).to_string(),
+                    predicates: Vec::new(),
                 });
             }
         }
@@ -214,48 +272,69 @@ impl XPath {
         new_context: &mut XPathSequence<'a>,
         step: &AxisStep,
     ) -> Result<(), BadXPath> {
+        let mut candidates: Vec<Cursor<'a>> = Vec::new();
         match step.axis {
             Axis::Child => {
                 for child in cursor.clone().children() {
                     if step.name == "*" || step.name == child.name() {
-                        new_context.items.push(XPathValue::Node(child.clone()));
+                        candidates.push(child);
                     }
                 }
             }
             Axis::DescendantOrSelf => {
                 for descendant in cursor.clone().descendant_or_self() {
                     if step.name == "*" || step.name == descendant.name() {
-                        new_context.items.push(XPathValue::Node(descendant.clone()));
+                        candidates.push(descendant);
                     }
                 }
             }
             Axis::FollowingSibling => {
                 for sibling in cursor.clone().following_sibling() {
                     if step.name == "*" || step.name == sibling.name() {
-                        new_context.items.push(XPathValue::Node(sibling.clone()));
+                        candidates.push(sibling);
                     }
                 }
             }
             Axis::Ancestor => {
                 for ancestor in cursor.clone().ancestor() {
                     if step.name == "*" || step.name == ancestor.name() {
-                        new_context.items.push(XPathValue::Node(ancestor.clone()));
+                        candidates.push(ancestor);
                     }
                 }
             }
             Axis::PrecedingSibling => {
                 for sibling in cursor.clone().preceding_sibling() {
                     if step.name == "*" || step.name == sibling.name() {
-                        new_context.items.push(XPathValue::Node(sibling.clone()));
+                        candidates.push(sibling);
                     }
                 }
             }
             Axis::Self_ => {
                 if step.name == "*" || step.name == cursor.name() {
-                    new_context.items.push(XPathValue::Node(cursor.clone()));
+                    candidates.push(cursor);
                 }
             }
             _ => {}
+        }
+        for predicate in &step.predicates {
+            match predicate {
+                Predicate::HasAttribute { name } => {
+                    candidates.retain(|c| c.attribute(name).is_some());
+                }
+                Predicate::AttributeIs { name, value } => {
+                    candidates.retain(|c| c.attribute(name) == Some(value.as_str()));
+                }
+                Predicate::Index(n) => {
+                    candidates = if *n >= 1 && *n <= candidates.len() {
+                        vec![candidates.remove(*n - 1)]
+                    } else {
+                        Vec::new()
+                    };
+                }
+            }
+        }
+        for c in candidates {
+            new_context.items.push(XPathValue::Node(c));
         }
         Ok(())
     }

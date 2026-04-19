@@ -65,3 +65,34 @@ fn simple_steps() {
 
     check_path(&doc, "//b/b", &["<b/>"]);
 }
+
+#[test]
+fn predicates() {
+    let doc = Document::from_str(
+        "<a><b><c id='1'/></b><d><c id='2'>123</c></d><b><x id='1'/><c id='2'/></b></a>",
+    )
+    .unwrap();
+
+    check_path(&doc, "/a/*[1]", &["<b><c id=\"1\"/></b>"]);
+
+    check_path(&doc, "/a/*[2]", &["<d><c id=\"2\">123</c></d>"]);
+
+    check_path(
+        &doc,
+        "//c[@id=2]",
+        &["<c id=\"2\">123</c>", "<c id=\"2\"/>"],
+    );
+
+    check_path(&doc, "//*[@id=1]", &["<c id=\"1\"/>", "<x id=\"1\"/>"]);
+
+    check_path(
+        &doc,
+        "//*[@id]",
+        &[
+            "<c id=\"1\"/>",
+            "<c id=\"2\">123</c>",
+            "<x id=\"1\"/>",
+            "<c id=\"2\"/>",
+        ],
+    );
+}
