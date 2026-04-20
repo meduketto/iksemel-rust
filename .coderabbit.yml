@@ -1,6 +1,10 @@
 reviews:
   profile: "chill"
 
+  in_progress_fortune: false
+
+  poem: false
+
   path_filters:
     - "!Cargo.lock"
 
