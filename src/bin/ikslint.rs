@@ -40,6 +40,8 @@ fn print_usage() {
             "  -b, --buffer <SIZE>  File read buffer size in bytes (default: {})\n",
             "  -h, --help           Display this help message and exit\n",
             "  -v, --version        Display the version and exit\n",
+            "Boolean single-character options can be combined (e.g. -sct)\n",
+            "Input is read from stdin if no files or '-' are specified.\n",
             "Report issues at https://github.com/meduketto/iksemel-rust/issues"
         ),
         DEFAULT_BUFFER_SIZE
@@ -247,6 +249,7 @@ fn main() -> ExitCode {
     let mut do_stats = false;
     let mut do_tag_count = false;
     let mut do_tokenize = false;
+    let mut stdin_only = false;
     let mut buffer_size = DEFAULT_BUFFER_SIZE;
 
     // Skip the first argument (program name)
@@ -283,6 +286,9 @@ fn main() -> ExitCode {
                 print_version();
                 return ExitCode::SUCCESS;
             }
+            "-" => {
+                stdin_only = true;
+            }
             "--" => {
                 while let Some(arg) = args.next() {
                     files.push(arg);
@@ -291,13 +297,17 @@ fn main() -> ExitCode {
             }
             _ => {
                 if arg.starts_with('-') {
+                    if arg.starts_with("--") {
+                        eprintln!("Unknown long option {}", arg);
+                        return ExitCode::FAILURE;
+                    }
                     for char in arg.chars().skip(1) {
                         match char {
                             's' => do_stats = true,
                             'c' => do_tag_count = true,
                             't' => do_tokenize = true,
                             _ => {
-                                eprintln!("Unknown option {} in {}", char, arg);
+                                eprintln!("Unknown combined option {} in {}", char, arg);
                                 return ExitCode::FAILURE;
                             }
                         }
@@ -307,6 +317,11 @@ fn main() -> ExitCode {
                 }
             }
         }
+    }
+
+    if stdin_only && !files.is_empty() {
+        eprintln!("Cannot specify both stdin (-) and file arguments");
+        return ExitCode::FAILURE;
     }
 
     let mut linter = Linter::new(do_stats, do_tag_count, do_tokenize, buffer_size);
