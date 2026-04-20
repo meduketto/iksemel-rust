@@ -6,6 +6,7 @@
   clients, but those who just need an XML parser can declare their
   dependency with default-features = false and use Iksemel with
   zero extra dependencies.
+* ikslint --tokenize option to print SAX elements.
 * XPath supports simple predicates for indexes and attribute lookups.
   E.g. /a/b[3], //a[@id], //*[@class=x]
 
