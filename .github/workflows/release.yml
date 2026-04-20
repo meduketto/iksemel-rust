@@ -28,8 +28,7 @@ jobs:
     name: Publish Release
     permissions:
       contents: write
-    env:
-      CARGO_REGISTRY_TOKEN: "${{ secrets.CARGO_REGISTRY_TOKEN }}"
+      id-token: write
     runs-on: ubuntu-latest
     if: ${{ always() }}
     needs:
@@ -53,10 +52,15 @@ jobs:
         run: exit 1
         name: Check heavy result
       - name: Checkout code
-        uses: actions/checkout@v5
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           persist-credentials: true
+      - name: Cargo oauth
+        uses: rust-lang/crates-io-auth-action@bbd81622f20ce9e2dd9622e3218b975523e45bbe # v1.0.4
+        id: auth
       - name: Publish Crate
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ steps.auth.outputs.token }}
         run: |
           set -euxo pipefail
           export DRYRUN=--dry-run
@@ -100,7 +104,7 @@ jobs:
       version: "${{ steps.version.outputs.version }}"
     steps:
       - name: Checkout code
-        uses: actions/checkout@v5
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       - name: Check version
         id: version
         run: |
