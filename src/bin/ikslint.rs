@@ -36,6 +36,7 @@ fn print_usage() {
             "Options:\n",
             "  -s, --stat           Overall statistics\n",
             "  -c, --count          Tag counts\n",
+            "  -t, --tokenize       Print SAX tokens\n",
             "  -b, --buffer <SIZE>  File read buffer size in bytes (default: {})\n",
             "  -h, --help           Display this help message and exit\n",
             "  -v, --version        Display the version and exit\n",
@@ -48,6 +49,7 @@ fn print_usage() {
 struct Handler {
     do_stats: bool,
     do_tag_count: bool,
+    do_tokenize: bool,
     level: usize,
     max_depth: usize,
     nr_tags: usize,
@@ -60,10 +62,11 @@ struct Handler {
 }
 
 impl Handler {
-    fn new(do_stats: bool, do_tag_count: bool) -> Self {
+    fn new(do_stats: bool, do_tag_count: bool, do_tokenize: bool) -> Self {
         Handler {
             do_stats,
             do_tag_count,
+            do_tokenize,
             level: 0,
             max_depth: 0,
             nr_tags: 0,
@@ -77,6 +80,9 @@ impl Handler {
     }
 
     fn process_element(&mut self, element: &SaxElement) -> Result<(), ParseError> {
+        if self.do_tokenize {
+            println!("{:?}", element);
+        }
         match element {
             SaxElement::StartTag(name) => {
                 self.nr_tags += 1;
@@ -170,9 +176,9 @@ struct Linter {
 }
 
 impl Linter {
-    fn new(do_stats: bool, do_tag_count: bool, buffer_size: usize) -> Self {
+    fn new(do_stats: bool, do_tag_count: bool, do_tokenize: bool, buffer_size: usize) -> Self {
         Linter {
-            handler: Handler::new(do_stats, do_tag_count),
+            handler: Handler::new(do_stats, do_tag_count, do_tokenize),
             parser: SaxParser::new(),
             buffer_size,
         }
@@ -240,6 +246,7 @@ fn main() -> ExitCode {
     let mut files = Vec::new();
     let mut do_stats = false;
     let mut do_tag_count = false;
+    let mut do_tokenize = false;
     let mut buffer_size = DEFAULT_BUFFER_SIZE;
 
     // Skip the first argument (program name)
@@ -252,9 +259,8 @@ fn main() -> ExitCode {
             "-c" | "--count" => {
                 do_tag_count = true;
             }
-            "-cs" | "-sc" => {
-                do_stats = true;
-                do_tag_count = true;
+            "-t" | "--tokenize" => {
+                do_tokenize = true;
             }
             "-b" | "--buffer" => {
                 if let Some(size) = args.next() {
@@ -277,13 +283,33 @@ fn main() -> ExitCode {
                 print_version();
                 return ExitCode::SUCCESS;
             }
+            "--" => {
+                while let Some(arg) = args.next() {
+                    files.push(arg);
+                }
+                break;
+            }
             _ => {
-                files.push(arg);
+                if arg.starts_with('-') {
+                    for char in arg.chars().skip(1) {
+                        match char {
+                            's' => do_stats = true,
+                            'c' => do_tag_count = true,
+                            't' => do_tokenize = true,
+                            _ => {
+                                eprintln!("Unknown option {} in {}", char, arg);
+                                return ExitCode::FAILURE;
+                            }
+                        }
+                    }
+                } else {
+                    files.push(arg);
+                }
             }
         }
     }
 
-    let mut linter = Linter::new(do_stats, do_tag_count, buffer_size);
+    let mut linter = Linter::new(do_stats, do_tag_count, do_tokenize, buffer_size);
     if files.is_empty() {
         if !linter.lint_file("stdin", true) {
             return ExitCode::FAILURE;
