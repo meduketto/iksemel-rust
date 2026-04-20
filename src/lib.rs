@@ -74,6 +74,7 @@ mod arena;
 mod document;
 mod entities;
 mod parser;
+#[cfg(feature = "xmpp")]
 mod xmpp;
 mod xpath;
 
@@ -101,15 +102,25 @@ pub use document::FollowingSibling;
 pub use document::PrecedingSibling;
 pub use document::SyncCursor;
 
+#[cfg(feature = "xmpp")]
 pub use xmpp::BadJid;
+#[cfg(feature = "xmpp")]
 pub use xmpp::Jid;
+#[cfg(feature = "xmpp")]
 pub use xmpp::StreamElement;
+#[cfg(feature = "xmpp")]
 pub use xmpp::StreamError;
+#[cfg(feature = "xmpp")]
 pub use xmpp::StreamParser;
+#[cfg(feature = "xmpp")]
 pub use xmpp::XmppClient;
+#[cfg(feature = "xmpp")]
 pub use xmpp::XmppClientError;
+#[cfg(feature = "xmpp")]
 pub use xmpp::XmppClientProtocol;
+#[cfg(feature = "xmpp")]
 pub use xmpp::constants::CLIENT_PORT as XMPP_CLIENT_PORT;
+#[cfg(feature = "xmpp")]
 pub use xmpp::constants::SERVER_PORT as XMPP_SERVER_PORT;
 
 pub use xpath::XPath;
