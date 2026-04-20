@@ -47,7 +47,7 @@ You can use it in your rust projects by adding the following to your `Cargo.toml
 
 ```toml
 [dependencies]
-iks = "0.5.0"
+iks = "0.6.0"
 ```
 
 This adds Rustls and a bunch of its dependencies to be able to securely
@@ -57,7 +57,7 @@ dependencies like this:
 
 ```toml
 [dependencies]
-iks = { version = "0.5.0", default-features = false }
+iks = { version = "0.6.0", default-features = false }
 ```
 
 You can install the command line tools with:

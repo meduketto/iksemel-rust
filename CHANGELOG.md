@@ -1,4 +1,4 @@
-# 0.6.0 (TBD)
+# 0.6.0 (2026-04-20)
 
 * All the XMPP code and its heavy dependencies such as Rustls are
   moved under the 'xmpp' feature. This feature is defined in the
@@ -6,6 +6,7 @@
   clients, but those who just need an XML parser can declare their
   dependency with default-features = false and use Iksemel with
   zero extra dependencies.
+* ikslint --tokenize option to print SAX elements.
 * XPath supports simple predicates for indexes and attribute lookups.
   E.g. /a/b[3], //a[@id], //*[@class=x]
 
