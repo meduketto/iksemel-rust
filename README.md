@@ -1,6 +1,6 @@
 # iksemel
 
-Copyright (c) 2000-2025 Gurer Ozen <meduketto at gmail.com>
+Copyright (c) 2000-2026 Gurer Ozen <meduketto at gmail.com>
 
 [iks][iks] is an XML parser library for [Jabber/XMPP][XMPP] and
 general XML processing applications. It aims to be easy to use,
