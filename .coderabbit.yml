@@ -1,0 +1,8 @@
+reviews:
+  profile: "chill"
+
+  path_filters:
+    - "!Cargo.lock"
+
+chat:
+  allow_non_org_members: false
