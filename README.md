@@ -50,6 +50,16 @@ You can use it in your rust projects by adding the following to your `Cargo.toml
 iks = "0.5.0"
 ```
 
+This adds Rustls and a bunch of its dependencies to be able to securely
+communicate with the XMPP servers. If you only need XML parsing and not
+the XMPP functionality, you can use Iksemel with zero external
+dependencies like this:
+
+```toml
+[dependencies]
+iks = { version = "0.5.0", default-features = false }
+```
+
 You can install the command line tools with:
 
 ```sh
