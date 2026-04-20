@@ -1,3 +1,5 @@
+# 0.6.1 (TBD)
+
 # 0.6.0 (2026-04-20)
 
 * All the XMPP code and its heavy dependencies such as Rustls are
