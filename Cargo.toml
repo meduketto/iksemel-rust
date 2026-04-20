@@ -9,11 +9,24 @@ name = "iks"
 repository = "https://github.com/meduketto/iksemel-rust"
 version = "0.5.0"
 
+[features]
+default = ["xmpp"]
+xmpp = ["dep:rustls", "dep:webpki-roots", "dep:base64", "dep:rpassword"]
+
 [dependencies]
-rustls = "0.23.38"
-webpki-roots = "1.0.7"
-base64 = "0.22.1"
-rpassword = "7.4.0"
+rustls = { version = "0.23.38", optional = true }
+webpki-roots = { version = "1.0.7", optional = true }
+base64 = { version = "0.22.1", optional = true }
+rpassword = { version = "7.4.0", optional = true }
+
+[[bin]]
+name = "iksjab"
+path = "src/bin/iksjab.rs"
+required-features = ["xmpp"]
 
 [profile.release]
 lto = true
+
+[package.metadata.docs.rs]
+# This tells docs.rs to enable all features when generating documentation
+all-features = true
