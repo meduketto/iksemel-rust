@@ -108,8 +108,8 @@ Iksemel provides a few command line tools for quick XML processing:
 
 # Python
 
-Source code of Python bindings can be found at [iksemel-python](IKSEMELPYTHON)
-project, and the wheels are uploaded on PyPI as [pyiks](PYIKS) package.
+Source code of Python bindings can be found at [iksemel-python][IKSEMELPYTHON]
+project, and the wheels are uploaded on PyPI as [pyiks][PYIKS] package.
 
 # Contributing
 
