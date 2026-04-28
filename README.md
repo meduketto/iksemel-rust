@@ -19,6 +19,7 @@ fast, and usable in resource-constrained environments.
 * [Sans-IO][SANSIO] XMPP client protocol.
 * A simple blocking IO XMPP client API.
 * Experimental basic XPath support.
+* Python bindings.
 
 # XMPP Compliance
 
@@ -105,6 +106,11 @@ Iksemel provides a few command line tools for quick XML processing:
 * ikspath: loads XML files into a DOM tree and runs XPath queries on them
 * iksjab: send messages and manage your roster over XMPP
 
+# Python
+
+Source code of Python bindings can be found at [iksemel-python](IKSEMELPYTHON)
+project, and the wheels are uploaded on PyPI as [pyiks](PYIKS) package.
+
 # Contributing
 
 There are many [ways to contribute](CONTRIBUTING.md) to the project. See also
@@ -141,3 +147,5 @@ along with Iksemel. If not, see <https://www.gnu.org/licenses/>.
 [MUTANTS]: https://github.com/sourcefrog/cargo-mutants
 [MIRI]: https://github.com/rust-lang/miri
 [SEMVER]: https://github.com/obi1kenobi/cargo-semver-checks
+[IKSEMELPYTHON]: https://github.com/meduketto/iksemel-python
+[PYIKS]: https://pypi.org/project/pyiks/
