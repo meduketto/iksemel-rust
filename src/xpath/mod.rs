@@ -309,10 +309,8 @@ impl XPath {
                     }
                 }
             }
-            Axis::Self_ => {
-                if step.name == "*" || step.name == cursor.name() {
-                    candidates.push(cursor);
-                }
+            Axis::Self_ if (step.name == "*" || step.name == cursor.name()) => {
+                candidates.push(cursor);
             }
             _ => {}
         }

@@ -290,7 +290,7 @@ fn main() -> ExitCode {
                 stdin_only = true;
             }
             "--" => {
-                while let Some(arg) = args.next() {
+                for arg in args.by_ref() {
                     files.push(arg);
                 }
                 break;
