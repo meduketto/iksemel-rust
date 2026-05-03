@@ -10,6 +10,7 @@
 * XmppClient::wait_for_stanza_timeout added for controlling
   the read timeout while waiting. This is needed by Python
   bindings to check Ctrl-C signal.
+* XmppClientBuilder is exported from crate API.
 
 # 0.6.0 (2026-04-20)
 

@@ -115,6 +115,8 @@ pub use xmpp::StreamParser;
 #[cfg(feature = "xmpp")]
 pub use xmpp::XmppClient;
 #[cfg(feature = "xmpp")]
+pub use xmpp::XmppClientBuilder;
+#[cfg(feature = "xmpp")]
 pub use xmpp::XmppClientError;
 #[cfg(feature = "xmpp")]
 pub use xmpp::XmppClientProtocol;
