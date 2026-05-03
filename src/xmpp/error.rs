@@ -21,7 +21,7 @@ pub enum XmppClientError {
     BadXml(&'static str),
     BadStream(&'static str),
     IOError(std::io::Error),
-    TlsError(rustls::Error),
+    TlsError(Box<dyn std::error::Error + Send + Sync>),
 }
 
 impl Display for XmppClientError {
@@ -36,7 +36,15 @@ impl Display for XmppClientError {
     }
 }
 
-impl Error for XmppClientError {}
+impl Error for XmppClientError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            Self::TlsError(e) => Some(e.as_ref()),
+            Self::IOError(e) => Some(e),
+            _ => None,
+        }
+    }
+}
 
 impl From<StreamError> for XmppClientError {
     fn from(err: StreamError) -> Self {
@@ -65,7 +73,7 @@ impl From<std::io::Error> for XmppClientError {
 
 impl From<rustls::Error> for XmppClientError {
     fn from(err: rustls::Error) -> Self {
-        XmppClientError::TlsError(err)
+        XmppClientError::TlsError(Box::new(err))
     }
 }
 
