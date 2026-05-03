@@ -128,11 +128,45 @@ impl XmppStream {
         }
     }
 
-    fn read(&mut self, buf: &mut [u8]) -> Result<usize, std::io::Error> {
+    fn read(
+        &mut self,
+        buf: &mut [u8],
+        timeout: Option<Duration>,
+    ) -> Result<Option<usize>, std::io::Error> {
         if let Some(tcp) = &mut self.tcp_stream {
-            Ok(tcp.read(buf)?)
+            tcp.set_read_timeout(timeout)?;
+            let result = tcp.read(buf);
+            match result {
+                Ok(0) => Err(std::io::Error::new(
+                    std::io::ErrorKind::UnexpectedEof,
+                    "peer closed connection",
+                )),
+                Ok(n) => Ok(Some(n)),
+                Err(e)
+                    if e.kind() == std::io::ErrorKind::TimedOut
+                        || e.kind() == std::io::ErrorKind::WouldBlock =>
+                {
+                    Ok(None)
+                }
+                Err(e) => Err(e),
+            }
         } else if let Some(tls) = &mut self.tls_stream {
-            Ok(tls.read(buf)?)
+            tls.get_ref().set_read_timeout(timeout)?;
+            let result = tls.read(buf);
+            match result {
+                Ok(0) => Err(std::io::Error::new(
+                    std::io::ErrorKind::UnexpectedEof,
+                    "peer closed connection",
+                )),
+                Ok(n) => Ok(Some(n)),
+                Err(e)
+                    if e.kind() == std::io::ErrorKind::TimedOut
+                        || e.kind() == std::io::ErrorKind::WouldBlock =>
+                {
+                    Ok(None)
+                }
+                Err(e) => Err(e),
+            }
         } else {
             Err(std::io::Error::other("No stream"))
         }
@@ -222,22 +256,38 @@ impl XmppClient {
 
     pub fn wait_for_stanza(&mut self) -> Result<Document, XmppClientError> {
         loop {
+            match self.wait_for_stanza_timeout(None)? {
+                Some(doc) => return Ok(doc),
+                None => continue,
+            }
+        }
+    }
+
+    pub fn wait_for_stanza_timeout(
+        &mut self,
+        timeout: Option<Duration>,
+    ) -> Result<Option<Document>, XmppClientError> {
+        loop {
             if let Some(bytes) = self.protocol.send_bytes() {
                 self.send_bytes(bytes)?;
             }
             let bytes = if self.read > self.consumed {
                 &self.read_buffer[self.consumed..self.read]
             } else {
-                let nr_read = self.stream.read(&mut self.read_buffer)?;
-                if self.debug {
-                    println!(
-                        "Received bytes: {}",
-                        String::from_utf8_lossy(&self.read_buffer[..nr_read])
-                    );
+                match self.stream.read(&mut self.read_buffer, timeout)? {
+                    Some(nr_read) => {
+                        if self.debug {
+                            println!(
+                                "Received bytes: {}",
+                                String::from_utf8_lossy(&self.read_buffer[..nr_read])
+                            );
+                        }
+                        self.read = nr_read;
+                        self.consumed = 0;
+                        &self.read_buffer[..self.read]
+                    }
+                    None => return Ok(None),
                 }
-                self.read = nr_read;
-                self.consumed = 0;
-                &self.read_buffer[..self.read]
             };
             match self.protocol.receive_bytes(bytes) {
                 Ok(Some((event, processed))) => {
@@ -249,7 +299,7 @@ impl XmppClient {
                         }
                         XmppClientProtocolEvent::Continue => {}
                         XmppClientProtocolEvent::Stanza(doc) => {
-                            return Ok(doc);
+                            return Ok(Some(doc));
                         }
                         XmppClientProtocolEvent::End => {}
                     }
