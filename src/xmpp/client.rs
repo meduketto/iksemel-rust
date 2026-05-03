@@ -137,6 +137,10 @@ impl XmppStream {
             tcp.set_read_timeout(timeout)?;
             let result = tcp.read(buf);
             match result {
+                Ok(0) => Err(std::io::Error::new(
+                    std::io::ErrorKind::UnexpectedEof,
+                    "peer closed connection",
+                )),
                 Ok(n) => Ok(Some(n)),
                 Err(e)
                     if e.kind() == std::io::ErrorKind::TimedOut
@@ -150,6 +154,10 @@ impl XmppStream {
             tls.get_ref().set_read_timeout(timeout)?;
             let result = tls.read(buf);
             match result {
+                Ok(0) => Err(std::io::Error::new(
+                    std::io::ErrorKind::UnexpectedEof,
+                    "peer closed connection",
+                )),
                 Ok(n) => Ok(Some(n)),
                 Err(e)
                     if e.kind() == std::io::ErrorKind::TimedOut
