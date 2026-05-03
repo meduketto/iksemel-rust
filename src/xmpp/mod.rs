@@ -16,6 +16,7 @@ mod protocol;
 mod stream;
 
 pub use client::XmppClient;
+pub use client::XmppClientBuilder;
 pub use error::XmppClientError;
 pub use jid::BadJid;
 pub use jid::Jid;
