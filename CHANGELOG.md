@@ -1,6 +1,6 @@
 # 0.7.0 (TBD)
 
-* XmppClientError no longer expose the rustls::Error in the type
+* XmppClientError no longer exposes rustls::Error in its type
   to avoid forcing callers to add Rustls as a direct dependency.
 
 # 0.6.0 (2026-04-20)
