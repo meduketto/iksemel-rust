@@ -17,7 +17,7 @@ xmpp = ["dep:rustls", "dep:webpki-roots", "dep:base64", "dep:rpassword"]
 rustls = { version = "0.23.40", optional = true }
 webpki-roots = { version = "1.0.7", optional = true }
 base64 = { version = "0.22.1", optional = true }
-rpassword = { version = "7.5.1", optional = true }
+rpassword = { version = "7.5.2", optional = true }
 
 [[bin]]
 name = "iksjab"
