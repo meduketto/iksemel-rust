@@ -149,3 +149,4 @@ along with Iksemel. If not, see <https://www.gnu.org/licenses/>.
 [SEMVER]: https://github.com/obi1kenobi/cargo-semver-checks
 [IKSEMELPYTHON]: https://github.com/meduketto/iksemel-python
 [PYIKS]: https://pypi.org/project/pyiks/
+
