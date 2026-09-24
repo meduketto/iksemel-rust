@@ -435,7 +435,6 @@ impl SaxParser {
                         let s = unsafe {
                             std::str::from_utf8_unchecked(&self.char_ref_buffer[0..size])
                         };
-                        self.state = State::CData;
                         yield_element!(self, c, pos, SaxElement::CData(s));
                     }
                 }

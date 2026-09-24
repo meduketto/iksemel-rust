@@ -286,6 +286,22 @@ fn cdatas() {
         SaxElement::EndTag("a"),
     ])
     .check("<a>[[bg:Чингис хан]][[bn:চেঙ্গিজ খান]]</a>");
+
+    Tester::new(&[
+        SaxElement::StartTag("a"),
+        SaxElement::StartTagContent,
+        SaxElement::CData("é"),
+        SaxElement::EndTag("a"),
+    ])
+    .check("<a><![CDATA[é]]></a>");
+
+    Tester::new(&[
+        SaxElement::StartTag("Name"),
+        SaxElement::StartTagContent,
+        SaxElement::CData("Régis Patroix"),
+        SaxElement::EndTag("Name"),
+    ])
+    .check("<Name><![CDATA[Régis Patroix]]></Name>");
 }
 
 fn check_parts(parts: &[&[u8]]) {
