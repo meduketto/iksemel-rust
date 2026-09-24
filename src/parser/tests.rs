@@ -446,6 +446,54 @@ fn long_tag() {
     .check(&xml);
 }
 
+// Ensures the character classification LUT stops based on the built stop mask of bytes.
+#[test]
+fn char_class() {
+    let stop = |b: u8, mask: u16| CHAR_CLASS[b as usize] & mask != 0;
+
+    // Invalid XML chars
+    for b in (0u8..0x20).filter(|b| !matches!(b, 0x09 | 0x0a | 0x0d)) {
+        assert!(stop(b, CDATA_STOP), "control {b:#04x} must stop cdata");
+        assert!(stop(b, TAG_STOP), "control {b:#04x} must stop tag");
+        assert!(stop(b, ATTR_NAME_STOP), "control {b:#04x} must stop attr");
+        assert!(stop(b, ATTR_VALUE_STOP), "control {b:#04x} must stop value");
+    }
+
+    // Newline counting still done in the main parse loop for now
+    for mask in [CDATA_STOP, TAG_STOP, ATTR_NAME_STOP, ATTR_VALUE_STOP] {
+        assert!(stop(b'\n', mask));
+    }
+
+    // CData stops on references and markup only.
+    assert!(stop(b'&', CDATA_STOP));
+    assert!(stop(b'<', CDATA_STOP));
+    assert!(!stop(b' ', CDATA_STOP));
+    assert!(!stop(b'\t', CDATA_STOP));
+    assert!(!stop(b'"', CDATA_STOP));
+
+    // A CDATA section stops only on its ']' terminator (plus validation bytes);
+    // however, '<', '&' and '>' are ordinary data there.
+    assert!(stop(b']', CDATA_SECTION_STOP));
+    assert!(!stop(b'<', CDATA_SECTION_STOP));
+    assert!(!stop(b'&', CDATA_SECTION_STOP));
+    assert!(!stop(b'>', CDATA_SECTION_STOP));
+    assert!(!stop(b' ', CDATA_SECTION_STOP));
+
+    // Names stop on their delimiters and whitespace.
+    for b in *b" \t\r\n/>=" {
+        assert!(stop(b, TAG_STOP), "byte {b:#04x} must stop tag name");
+    }
+    assert!(stop(b'<', ATTR_NAME_STOP));
+    assert!(!stop(b'&', TAG_STOP));
+
+    // Values stop on the closing quote, references and '<'.
+    assert!(stop(b'&', ATTR_VALUE_STOP));
+    assert!(stop(b'<', ATTR_VALUE_STOP));
+    assert!(stop(b'"', ATTR_VALUE_STOP));
+    assert!(stop(b'\'', ATTR_VALUE_STOP));
+    assert!(!stop(b' ', ATTR_VALUE_STOP));
+}
+
 #[test]
 fn location() {
     Tester::new(&[
@@ -455,6 +503,16 @@ fn location() {
         SaxElement::EndTag("a"),
     ])
     .check("<a>\n\n </a>");
+
+    // Newlines inside a CDATA section must still be counted while the body is
+    // being run-skipped.
+    Tester::new(&[
+        SaxElement::StartTag("a"),
+        SaxElement::StartTagContent,
+        SaxElement::CData("x\n\ny"),
+        SaxElement::EndTag("a"),
+    ])
+    .check("<a><![CDATA[x\n\ny]]></a>");
 }
 
 #[test]

@@ -254,6 +254,67 @@ const INITIAL_BUFFER_CAPACITY: usize = 128;
 
 const REF_BUFFER_SIZE: usize = 8;
 
+// Character classification lookup table used to advance position over a set of bytes.
+// Bytes are mapped to a mask of potential delimiters.
+const B_CTRL: u16 = 0x01; // control character (invalid XML character)
+const B_LF: u16 = 0x02; // line feed
+const B_UTF8: u16 = 0x04; // UTF-8 lead or continuation byte
+const B_WS: u16 = 0x08; // space, tab or carriage return
+const B_LT: u16 = 0x10; // '<'
+const B_AMP: u16 = 0x20; // '&'
+const B_TAG: u16 = 0x40; // '=', '>' or '/'
+const B_QUOTE: u16 = 0x80; // '"' or '\''
+const B_RBRACKET: u16 = 0x100; // ']'
+
+// Stop bytes that end a run of character data (newlines currently excluded for newline counting)
+const CDATA_STOP: u16 = B_CTRL | B_LF | B_UTF8 | B_LT | B_AMP;
+// Stop bytes for embedded `<![CDATA[ ... ]]>` section
+const CDATA_SECTION_STOP: u16 = B_CTRL | B_LF | B_UTF8 | B_RBRACKET;
+// Stop bytes that end a tag or attribute name.
+const TAG_STOP: u16 = B_CTRL | B_LF | B_UTF8 | B_WS | B_TAG;
+// Stop bytes to end attribute names.
+const ATTR_NAME_STOP: u16 = TAG_STOP | B_LT;
+// Stop bytes that end attribute values.
+const ATTR_VALUE_STOP: u16 = B_CTRL | B_LF | B_UTF8 | B_LT | B_AMP | B_QUOTE;
+
+const CHAR_CLASS: [u16; 256] = build_char_class();
+
+/// Builds the character classification LUT at comptime.
+const fn build_char_class() -> [u16; 256] {
+    let mut table = [0u16; 256];
+    let mut i = 0;
+    while i < 0x80 {
+        table[i] = match i as u8 {
+            b'\n' => B_LF,
+            b' ' | b'\t' | b'\r' => B_WS,
+            b'<' => B_LT,
+            b'&' => B_AMP,
+            b']' => B_RBRACKET,
+            b'=' | b'>' | b'/' => B_TAG,
+            b'"' | b'\'' => B_QUOTE,
+            0x00..=0x08 | 0x0b..=0x0c | 0x0e..=0x1f => B_CTRL,
+            _ => 0,
+        };
+        i += 1;
+    }
+    while i < 256 {
+        table[i] = B_UTF8;
+        i += 1;
+    }
+    table
+}
+
+/// Returns how many bytes starting at `start` can be consumed as an ordinary
+/// run, stopping at the first byte whose classification intersects the `stop` byte mask.
+#[inline(always)]
+fn skip_run(bytes: &[u8], start: usize, stop: u16) -> usize {
+    let mut end = start;
+    while end < bytes.len() && CHAR_CLASS[bytes[end] as usize] & stop == 0 {
+        end += 1;
+    }
+    end - start
+}
+
 macro_rules! whitespace {
     () => {
         b' ' | b'\t' | b'\r' | b'\n'
@@ -623,6 +684,13 @@ impl SaxParser {
                             let s = unsafe { std::str::from_utf8_unchecked(&bytes[back..pos]) };
                             yield_element!(self, c, pos, SaxElement::CData(s));
                         }
+                    } else {
+                        let n = skip_run(bytes, pos, CDATA_SECTION_STOP);
+                        if n > 0 {
+                            pos += n;
+                            self.location.advance_pos(n);
+                            redo = true;
+                        }
                     }
                 }
 
@@ -725,7 +793,14 @@ impl SaxParser {
                             }
                         }
                     }
-                    _ => (),
+                    _ => {
+                        let n = skip_run(bytes, pos, TAG_STOP);
+                        if n > 0 {
+                            pos += n;
+                            self.location.advance_pos(n);
+                            redo = true;
+                        }
+                    }
                 },
 
                 State::TagNameContinue => {
@@ -836,7 +911,14 @@ impl SaxParser {
                     b'/' | b'>' | b'<' => {
                         xml_error!(TAG_ATTRIBUTE_BAD_NAME);
                     }
-                    _ => (),
+                    _ => {
+                        let n = skip_run(bytes, pos, ATTR_NAME_STOP);
+                        if n > 0 {
+                            pos += n;
+                            self.location.advance_pos(n);
+                            redo = true;
+                        }
+                    }
                 },
 
                 State::AttributeEq => match c {
@@ -888,6 +970,13 @@ impl SaxParser {
                         self.state = State::Reference;
                     } else if c == b'<' {
                         xml_error!(TAG_ATTRIBUTE_BAD_VALUE);
+                    } else {
+                        let n = skip_run(bytes, pos, ATTR_VALUE_STOP);
+                        if n > 0 {
+                            pos += n;
+                            self.location.advance_pos(n);
+                            redo = true;
+                        }
                     }
                 }
 
@@ -916,7 +1005,14 @@ impl SaxParser {
                         self.is_value_ref = false;
                         self.state = State::Reference;
                     }
-                    _ => (),
+                    _ => {
+                        let n = skip_run(bytes, pos, CDATA_STOP);
+                        if n > 0 {
+                            pos += n;
+                            self.location.advance_pos(n);
+                            redo = true;
+                        }
+                    }
                 },
 
                 State::CDataContinue => {

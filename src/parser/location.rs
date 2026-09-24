@@ -51,6 +51,12 @@ impl Location {
             self.column += 1;
         }
     }
+
+    /// Advances the location over `n` bytes
+    pub(super) fn advance_pos(&mut self, n: usize) {
+        self.bytes += n;
+        self.column += n;
+    }
 }
 
 impl Default for Location {
