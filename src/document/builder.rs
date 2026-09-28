@@ -89,6 +89,8 @@ impl DocumentBuilder {
     }
 
     pub fn replace(&mut self, doc: Document) -> Option<Document> {
+        // Cannot keep a pointer into the returned Document
+        self.node = null_mut();
         self.doc.replace(doc)
     }
 }
