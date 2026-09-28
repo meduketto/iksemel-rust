@@ -93,6 +93,8 @@ impl DocumentBuilder {
     }
 }
 
+unsafe impl Send for DocumentBuilder {}
+
 impl Default for DocumentBuilder {
     fn default() -> Self {
         Self::new()
