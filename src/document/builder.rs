@@ -18,6 +18,11 @@ use super::Document;
 use super::Node;
 use super::error::description;
 
+/// A builder for creating [`Document`] instances by appending [`SaxElement`]s.
+///
+/// This struct keeps track of the last added [`SaxElement`] and allows
+/// efficient appending of elements as they are produced by the
+/// [`SaxParser`](crate::SaxParser).
 pub struct DocumentBuilder {
     doc: Option<Document>,
     node: *mut Node,
@@ -25,6 +30,16 @@ pub struct DocumentBuilder {
 }
 
 impl DocumentBuilder {
+    /// Creates a new [`DocumentBuilder`].
+    ///
+    /// # Examples
+    /// ```
+    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+    /// # use iks::DocumentBuilder;
+    /// let builder = DocumentBuilder::new();
+    /// # Ok(())
+    /// # }
+    /// ```
     pub fn new() -> Self {
         DocumentBuilder {
             doc: None,
@@ -33,6 +48,20 @@ impl DocumentBuilder {
         }
     }
 
+    /// Creates a new [`DocumentBuilder`] with a size hint.
+    ///
+    /// The size hint is the estimated length of the XML string in
+    /// bytes. It is passed to the [`Document::with_size_hint`] to
+    /// optimize the memory arena.
+    ///
+    /// # Examples
+    /// ```
+    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+    /// # use iks::DocumentBuilder;
+    /// let builder = DocumentBuilder::with_size_hint(4096);
+    /// # Ok(())
+    /// # }
+    /// ```
     pub fn with_size_hint(size_hint: usize) -> Self {
         DocumentBuilder {
             doc: None,
