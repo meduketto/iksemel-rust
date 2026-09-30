@@ -1,3 +1,5 @@
+# 0.7.2 (TBD)
+
 # 0.7.1 (2026-09-29)
 
 * Incorrect parsing of CDATA section with UTF-8 character
