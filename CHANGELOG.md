@@ -1,4 +1,9 @@
-# 0.7.1 (TBD)
+# 0.7.1 (2026-09-29)
+
+* Incorrect parsing of CDATA section with UTF-8 character
+  at the parsing boundaries is fixed (thanks to Joey Riches).
+* DocumentBuilder is declared Send to remove the unsafe
+  declarations in the iksemel-python bindings.
 
 # 0.7.0 (2026-05-03)
 
