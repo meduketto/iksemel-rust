@@ -119,9 +119,9 @@ impl DocumentParser {
     /// unfinished element or the document does indeed contain a
     /// root element, so it might return an error.
     ///
-    /// Unlike [into_document], this does not consume the parser,
-    /// and resets the internal state instead. The parser can be reused
-    /// for parsing another document.
+    /// Unlike [`into_document`](DocumentParser::into_document), this does
+    /// not consume the parser, and resets the internal state instead.
+    /// The parser can be reused for parsing another document.
     pub fn take_document(&mut self) -> Result<Document, ParseError> {
         self.parser.parse_finish()?;
         let doc = self.builder.take();
@@ -139,8 +139,8 @@ impl DocumentParser {
     /// Returns the current location of the parser.
     ///
     /// This points to the immediate position when an error is returned.
-    /// Otherwise it points to the position after the last [parse_bytes]
-    /// call.
+    /// Otherwise it points to the position after the last
+    /// [`parse_bytes`](DocumentParser::parse_bytes) call.
     pub fn location(&self) -> Location {
         self.parser.location()
     }
