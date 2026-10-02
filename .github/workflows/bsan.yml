@@ -19,4 +19,5 @@ jobs:
 
       - name: Run tests with BorrowSanitizer
         run: |
+          rustup default bsan
           cargo bsan test
