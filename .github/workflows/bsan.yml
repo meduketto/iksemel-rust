@@ -1,0 +1,22 @@
+name: BorrowSanitizer
+permissions:
+  contents: read
+
+on:
+  workflow_dispatch:
+
+jobs:
+  bsan:
+    name: Run BorrowSanitizer
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/borrowsanitizer/bsan:latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Run tests with BorrowSanitizer
+        run: |
+          cargo bsan test
