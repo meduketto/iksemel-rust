@@ -18,6 +18,9 @@ jobs:
           persist-credentials: false
 
       - name: Run tests with BorrowSanitizer
+        env:
+          RUSTUP_HOME: /root/.rustup
+          CARGO_HOME: /root/.cargo
         run: |
           rustup default bsan
           cargo bsan test
